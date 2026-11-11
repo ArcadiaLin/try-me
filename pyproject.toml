@@ -1,0 +1,12 @@
+[project]
+name = "try-me-analysis"
+version = "0.1.0"
+description = "Local audio analysis tools for the Try Me MV project"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "librosa>=0.11.0",
+  "soundfile>=0.13.0",
+]
+
+[tool.uv]
+package = false

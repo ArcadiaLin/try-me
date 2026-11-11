@@ -27,7 +27,8 @@
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
     "lint": "eslint src && tsc",
-    "check:repo": "node scripts/check-repo.mjs"
+    "check:repo": "node scripts/check-repo.mjs",
+    "analyze:audio": "uv run python scripts/analyze-audio.py"
   },
   "allowScripts": {
     "esbuild": false

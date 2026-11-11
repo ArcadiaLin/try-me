@@ -24,9 +24,11 @@ Remotion 推荐将运行时资源放在根目录 `public/`，通过 `staticFile(
 ## 本地开始
 
 1. 安装 `package.json` 要求的 Node.js 版本，运行 `npm ci`。
-2. 自行准备合法取得的音源，放在 `public/private/audio/try-me.flac`。Git 不保存空目录，新克隆后需自行创建路径。
-3. 运行 `npm run dev` 打开 Remotion Studio。目前仍是初始空白 `MyComp`，不会播放音频；音轨接入属于后续阶段。
-4. 运行 `npm run lint` 检查代码；运行 `npm run check:repo` 检查 Git 索引是否混入受保护路径或音频。
+2. 安装 `uv`，运行 `uv sync` 创建项目独立的 `.venv/`（Python 3.12）并安装锁定的音频分析依赖。
+3. 自行准备合法取得的音源，放在 `public/private/audio/try-me.flac`。Git 不保存空目录，新克隆后需自行创建路径。
+4. 运行 `npm run analyze:audio`（即 `uv run python scripts/analyze-audio.py`）校验本地 FLAC 并生成候选分析数据到 `local/analysis/`。
+5. 运行 `npm run dev` 打开 Remotion Studio。目前仍是初始空白 `MyComp`，不会播放音频；音轨接入属于后续阶段。
+6. 运行 `npm run lint` 检查代码；运行 `npm run check:repo` 检查 Git 索引是否混入受保护路径或音频。
 
 未来通过 `staticFile("private/audio/try-me.flac")` 定位音轨，不写本机绝对路径。若实际预览或渲染遇到 FLAC 兼容问题，再生成 WAV 工作副本，放在同一私有目录并登记。
 
@@ -43,7 +45,7 @@ Remotion 推荐将运行时资源放在根目录 `public/`，通过 `staticFile(
 - [制作准备与协作流程](docs/preparation.md)：环境现状、待装依赖、标注闭环与数据规则。
 - [决策记录](docs/decisions.md)：已确认约定与变更理由。
 
-下一步先建立独立分析环境与最小波形标注闭环，自动生成候选数据，再通过播放与人工校正建立音乐结构；随后讨论视觉方向，选约 10–20 秒代表性片段制作动态分镜，确认后扩展全曲。目前尚未安装分析依赖或分析歌曲。
+下一步推进最小波形标注闭环（0.2），基于 `local/analysis/` 的自动候选数据通过播放与人工校正建立音乐结构；随后讨论视觉方向，选约 10–20 秒代表性片段制作动态分镜，确认后扩展全曲。当前已完成基础分析环境与候选数据生成，尚未进行人工听辨或开发标注界面。
 
 ## 提交与发布
 
