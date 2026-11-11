@@ -1,54 +1,54 @@
-# Remotion video
+﻿# Try Me — MV project
 
-<p align="center">
-  <a href="https://github.com/remotion-dev/logo">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://github.com/remotion-dev/logo/raw/main/animated-logo-banner-dark.apng">
-      <img alt="Animated Remotion Logo" src="https://github.com/remotion-dev/logo/raw/main/animated-logo-banner-light.gif">
-    </picture>
-  </a>
-</p>
+使用 Remotion 为 Kero Kero Bonito《Try Me》制作个人 MV。当前阶段是仓库约定与前期设计，视觉方案及歌曲分析尚未完成。
 
-Welcome to your Remotion project!
+仓库计划公开代码、原创文档与确认可再分发的素材。用户已购买正版音源，歌曲只在本地使用，不随仓库提供下载。公开代码与最终含音乐视频的发布安排分别管理。
 
-## Commands
+## 目录
 
-**Install Dependencies**
-
-```console
-npm i --loglevel=error
+```text
+docs/                    创作与制作文档（提交）
+  storyboard/            分镜表及原创分镜草图
+public/
+  assets/                可公开的运行时素材（提交，子目录按需创建）
+  private/audio/         try-me.flac 等本地音频（忽略）
+local/                   非运行时参考资料、源工程、私人笔记（忽略）
+src/                     Remotion 代码（提交）
+scripts/                 项目辅助工具（提交）
+out/                     渲染视频、静帧等产物（忽略）
+build/、dist/            构建产物（忽略）
 ```
 
-**Start Preview**
+Remotion 推荐将运行时资源放在根目录 `public/`，通过 `staticFile()` 引用。`assets` 和 `private` 是本项目约定，`private` 不提供访问控制。含私有素材的构建包和 Studio 服务均按本地材料管理，不直接公开。参见 [官方资源说明](https://www.remotion.dev/docs/assets)。
 
-```console
-npm run dev
-```
+## 本地开始
 
-**Render video**
+1. 安装 `package.json` 要求的 Node.js 版本，运行 `npm ci`。
+2. 自行准备合法取得的音源，放在 `public/private/audio/try-me.flac`。Git 不保存空目录，新克隆后需自行创建路径。
+3. 运行 `npm run dev` 打开 Remotion Studio。目前仍是初始空白 `MyComp`，不会播放音频；音轨接入属于后续阶段。
+4. 运行 `npm run lint` 检查代码；运行 `npm run check:repo` 检查 Git 索引是否混入受保护路径或音频。
 
-```console
-npx remotion render
-```
+未来通过 `staticFile("private/audio/try-me.flac")` 定位音轨，不写本机绝对路径。若实际预览或渲染遇到 FLAC 兼容问题，再生成 WAV 工作副本，放在同一私有目录并登记。
 
-**Upgrade Remotion**
+`npm run build` 是本地构建，会收集运行时素材，不直接作为公开网站发布。需要导出时再确定 composition 与参数，输出统一放 `out/`。后续接入音轨时将提供静音预览方式，供没有私有音源的人复现视觉效果。
 
-```console
-npx remotion upgrade
-```
+## 文档与推进顺序
 
-## Docs
+- [创作简报](docs/brief.md)：主题、视觉方向、交付规格和待定问题。
+- [音乐结构](docs/music-map.md)：版本、实测时长、节拍、段落、时间点。
+- [视频脚本](docs/script.md)：每个段落表达什么，情绪如何变化。
+- [分镜表](docs/storyboard/README.md)：每个镜头的画面、运动、转场与实现位置。
+- [素材清单](docs/assets.md)：来源、使用位置与是否可以公开。
+- [推进计划](docs/roadmap.md)：阶段产物及完成条件。
+- [制作准备与协作流程](docs/preparation.md)：环境现状、待装依赖、标注闭环与数据规则。
+- [决策记录](docs/decisions.md)：已确认约定与变更理由。
 
-Get started with Remotion by reading the [fundamentals page](https://www.remotion.dev/docs/the-fundamentals).
+下一步先建立独立分析环境与最小波形标注闭环，自动生成候选数据，再通过播放与人工校正建立音乐结构；随后讨论视觉方向，选约 10–20 秒代表性片段制作动态分镜，确认后扩展全曲。目前尚未安装分析依赖或分析歌曲。
 
-## Help
+## 提交与发布
 
-We provide help on our [Discord server](https://discord.gg/6VzzNDwUwV).
+先暂存本次代码和文档，再运行 `npm run check:repo`，检查 `git diff --cached --stat` 和 `git diff --cached`。检查脚本只检查当前 Git 索引中的路径，不能识别改名后的受保护内容，也不扫描历史或远端；不要用 `git add -f` 绕过忽略规则。
 
-## Issues
+歌曲、转码音频、含歌曲的成片、含私有素材的 bundle 不上传到仓库、Release、Actions artifacts 或 Pages。Git LFS 仍会上传文件，不用来存放这首歌。
 
-Found an issue with Remotion? [File an issue here](https://github.com/remotion-dev/remotion/issues/new).
-
-## License
-
-Note that for some entities a company license is needed. [Read the terms here](https://github.com/remotion-dev/remotion/blob/main/LICENSE.md).
+暂未选择开源许可证，`package.json` 保持 `UNLICENSED`。公开源码与授予再使用许可是不同决定，第三方素材来源与许可单独登记。

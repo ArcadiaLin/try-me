@@ -26,7 +26,8 @@
     "dev": "remotion studio",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
-    "lint": "eslint src && tsc"
+    "lint": "eslint src && tsc",
+    "check:repo": "node scripts/check-repo.mjs"
   },
   "allowScripts": {
     "esbuild": false

@@ -5,3 +5,29 @@ dist
 
 # Ignore the output video from Git but not videos you import into src/.
 out
+
+# Local-only resources and generated artifacts. Never force-add.
+/local/
+/public/private/
+/build/
+/.cache/
+/coverage/
+*.tsbuildinfo
+/.venv/
+__pycache__/
+*.py[cod]
+
+# Audio is private by default, including accidental copies outside private/.
+*.[fF][lL][aA][cC]
+*.[mM][pP]3
+*.[wW][aA][vV]
+*.[mM]4[aA]
+*.[aA][aA][cC]
+*.[oO][gG][gG]
+*.[oO][pP][uU][sS]
+*.[aA][iI][fF]
+*.[aA][iI][fF][fF]
+*.[wW][mM][aA]
+
+.env.*
+!.env.example
