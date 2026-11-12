@@ -7,7 +7,7 @@
 | 0. 项目约定       | 目录与忽略规则生效，文档可导航，仓库检查通过                     | 已完成               |
 | 0.1 分析环境准备  | 项目独立 Python 环境、锁文件、可复现分析入口，成功读取本地 FLAC  | 已完成               |
 | 0.2 标注闭环      | 候选拍点与波形可浏览，标记可保存和重载，人工修订不被重新分析覆盖 | 已实现，待人工试听确认 |
-| 1. 听歌与定位     | 确认版本、时长、段落、同步点，确定全曲或节选                     | 未开始               |
+| 1. 听歌与定位     | 确认版本、时长、段落、同步点，确定全曲或节选                     | 进行中（已生成 12 段落与 63 句歌词对轴候选，待人工试听确认） |
 | 2. 创意方向       | 提出候选方向，选定核心概念，确定比例、FPS、分辨率                | 未开始               |
 | 3. 代表性片段     | 按实际听歌结果选约 10–20 秒，做动态分镜验证风格、节奏和技术      | 未开始               |
 | 4. 全曲动态分镜   | 脚本、镜头表、粗略时间线覆盖目标时长，检查衔接                   | 未开始               |
@@ -15,11 +15,12 @@
 | 6. 检查与本地导出 | 检查同步、黑帧、转场、音量、字体和最终参数                       | 未开始               |
 | 7. 公开仓库整理   | 干净克隆可运行静音视觉预览，公开文件均已确认，复现与署名说明完整 | 未开始               |
 
-当前已完成阶段 0、0.1、0.2 的全部工程实现及 Monorepo 结构重组：
+当前已完成阶段 0、0.1、0.2 的全部工程实现、Monorepo 结构重组，以及阶段 1 的全曲段落与官方双语歌词对轴候选准备：
 - 独立 Python 3.12 分析环境（根 `pyproject.toml`、`uv.lock`）与可复现分析入口 `tools/audio-analyzer/analyze-audio.py` 已就绪，生成 `local/analysis/` 候选数据。
-- 独立波形标注、脚本设计与 Agent 协作台子包 `apps/annotator/`（`npm run annotate`）已实现，支持播放、倍速、A-B 循环、节拍提示音（Click Track）、候选图层叠加与一键采纳、磁吸对齐、局部 BPM 测算与均匀补拍、乐观锁防覆盖保存/重载，并自动导出结构化 Agent 简报 `local/annotations/agent-brief.md` 与剥离私人歌词后的预览文件 `public/private/annotations-preview.json`。
+- 已完成《Try Me》官方英日双语歌词校对（修正社区 LRC 中 4 处空耳/漏词）及全曲 63 句歌词（`L001`–`L063`）与 12 个音乐段落（`P001`–`P012`）的对轴候选，保存在本地私有目录 `local/annotations/lyrics/`（`try-me-aligned.json`、`try-me.lrc`、`try-me.txt`、`try-me-aligned.md`），并将 12 段落候选与各段起始第一拍候选（`M0002`–`M0013`）及代表性片段 `CLIP_01`（`54.750s–71.960s`）预载入 `local/annotations/annotations.json`。
+- 独立波形标注、脚本设计与 Agent 协作台子包 `apps/annotator/`（`npm run annotate`）已重构为 **React 19 + 轻量 PWA 三栏模块化应用**（上方音频波形与 Aegisub 500ms 切点预听栏、左下三级树形 Timeline Explorer、右下表格+详情检视器），支持波形「焦点轨道」防误触拖拽、句首/句尾前后 500ms 预听对比（`A`/`S`/`R`/`D`/`F`）、相邻句边界自动联动、`.ass` (Aegisub) 与 `.lrc` 双向导入导出、底部可折叠 Agent 协作抽屉、IndexedDB 断连草稿保护与乐观锁保存，并自动导出结构化 Agent 简报 `local/annotations/agent-brief.md` 与剥离私人歌词后的预览文件 `public/private/annotations-preview.json`。
 - 跨端共享包 `packages/shared/`（`@try-me/shared`）提供唯一权威的秒/帧换算与时间线计算，供 `apps/annotator` 与 `apps/mv`（`apps/mv/src/Composition.tsx`）直接共用，并在无私有音源时自动降级为静音视觉预览。
 
-下一次由用户在浏览器打开 `npm run annotate` 与 `npm run dev`，实际试听并人工确认 `CLIP_01`（`0.000s–15.650s`）及全曲段落，推进阶段 1（音乐结构确认）与阶段 2（创意方向讨论）。
+下一次由用户在浏览器打开 `npm run annotate` 与 `npm run dev`，结合实时歌词字幕条与「歌词对轴」面板实际试听并人工确认 `L001`–`L063`、`P001`–`P012` 及 `CLIP_01`，完成阶段 1（音乐结构与歌词轴确认）并推进阶段 2（创意方向讨论）。
 
 每次收尾更新镜头状态、阶段产物和必要的决策记录，运行适当检查，区分已实际验证与待验证事项。生成文件统一放 `out/`。

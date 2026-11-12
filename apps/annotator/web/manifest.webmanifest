@@ -1,0 +1,17 @@
+{
+  "name": "Try Me · 多轨音乐与歌词对轴工作台",
+  "short_name": "Try Me 对轴台",
+  "description": "Kero Kero Bonito《Try Me》MV 音乐结构、歌词对轴与 Agent 协同 PWA 工作台",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b1120",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

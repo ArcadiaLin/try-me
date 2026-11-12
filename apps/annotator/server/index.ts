@@ -4,8 +4,10 @@ import fsp from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import esbuild from "esbuild";
 import ts from "typescript";
 import { audioSecToGlobalFrame } from "@try-me/shared";
+import { exportLyricsToAss } from "../web/src/utils/ass-lrc.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = path.resolve(__dirname, "../../..");
@@ -17,6 +19,7 @@ const MIME_TYPES = {
   ".mjs": "application/javascript; charset=utf-8",
   ".ts": "application/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".flac": "audio/flac",
 };
@@ -27,6 +30,7 @@ export function resolveServerPaths(custom = {}) {
   const repoRoot = custom.repoRoot || DEFAULT_REPO_ROOT;
   const annotationsDir =
     custom.annotationsDir || path.join(repoRoot, "local/annotations");
+  const lyricsDir = custom.lyricsDir || path.join(annotationsDir, "lyrics");
   return {
     repoRoot,
     audioFile:
@@ -41,6 +45,11 @@ export function resolveServerPaths(custom = {}) {
       path.join(annotationsDir, "annotations.prev.json"),
     agentBriefFile:
       custom.agentBriefFile || path.join(annotationsDir, "agent-brief.md"),
+    lyricsDir,
+    lyricsJsonFile:
+      custom.lyricsJsonFile || path.join(lyricsDir, "try-me-aligned.json"),
+    lyricsLrcFile: custom.lyricsLrcFile || path.join(lyricsDir, "try-me.lrc"),
+    lyricsAssFile: custom.lyricsAssFile || path.join(lyricsDir, "try-me.ass"),
     previewJsonFile:
       custom.previewJsonFile ||
       path.join(repoRoot, "public/private/annotations-preview.json"),
@@ -680,13 +689,141 @@ function runWithWriteLock(fn) {
   return next;
 }
 
+function formatLrcTimestamp(sec) {
+  const safe = Math.max(0, Number(sec) || 0);
+  const mins = Math.floor(safe / 60);
+  const rem = safe - mins * 60;
+  return `[${String(mins).padStart(2, "0")}:${rem.toFixed(2).padStart(5, "0")}]`;
+}
+
+export async function loadLyricsBundle(lyricsJsonFile) {
+  const parsed = await readJsonStrictIfExists(lyricsJsonFile);
+  if (!parsed || !Array.isArray(parsed.lines)) {
+    return { available: false, lines: [] };
+  }
+  return {
+    available: true,
+    updated_at_utc: parsed.updated_at_utc ?? null,
+    status: parsed.status ?? "candidate",
+    lines: parsed.lines,
+  };
+}
+
+export async function saveLyricsToDisk(rawLines, customPaths = {}) {
+  const paths = resolveServerPaths(customPaths);
+  return runWithWriteLock(async () => {
+    if (!Array.isArray(rawLines)) {
+      throw createValidationError("lines must be an array");
+    }
+    const existing = (await readJsonStrictIfExists(paths.lyricsJsonFile)) || {
+      schema_version: "0.1.0",
+      status: "candidate",
+      confirmed: false,
+      provenance: {},
+      sections: [],
+      lines: [],
+    };
+
+    const seenIds = new Set();
+    const normalizedLines = rawLines
+      .map((item, idx) => {
+        const id = String(item?.id || `L${String(idx + 1).padStart(3, "0")}`).trim();
+        if (seenIds.has(id)) {
+          throw createValidationError(`Duplicate lyric line id: ${id}`);
+        }
+        seenIds.add(id);
+        const startSec = Number(item?.start_sec);
+        const endSec = Number(item?.end_sec);
+        if (
+          !Number.isFinite(startSec) ||
+          !Number.isFinite(endSec) ||
+          startSec < 0 ||
+          endSec <= startSec
+        ) {
+          throw createValidationError(
+            `Invalid time range for lyric line ${id}: [${String(item?.start_sec)}, ${String(item?.end_sec)}]`,
+          );
+        }
+        return {
+          id,
+          index: idx + 1,
+          section_id: String(item?.section_id || "P001"),
+          bar: Number(item?.bar || 1),
+          start_sec: Number(startSec.toFixed(3)),
+          end_sec: Number(endSec.toFixed(3)),
+          lrc_start_sec:
+            item?.lrc_start_sec !== undefined
+              ? Number(Number(item.lrc_start_sec).toFixed(3))
+              : Number(startSec.toFixed(3)),
+          vocal_onset_sec:
+            item?.vocal_onset_sec !== undefined && item?.vocal_onset_sec !== null
+              ? Number(Number(item.vocal_onset_sec).toFixed(3))
+              : null,
+          origin_candidate_id: item?.origin_candidate_id
+            ? String(item.origin_candidate_id)
+            : null,
+          text: String(item?.text ?? ""),
+          lang: String(item?.lang || "en"),
+          status: item?.status === "confirmed" ? "confirmed" : "candidate",
+          note: String(item?.note ?? ""),
+        };
+      })
+      .sort((a, b) => a.start_sec - b.start_sec);
+
+    const allConfirmed =
+      normalizedLines.length > 0 &&
+      normalizedLines.every((l) => l.status === "confirmed");
+    const updatedPayload = {
+      ...existing,
+      updated_at_utc: new Date().toISOString(),
+      status: allConfirmed ? "confirmed" : "candidate",
+      confirmed: allConfirmed,
+      lines: normalizedLines,
+    };
+
+    const lrcLines = [
+      "[ti:Try Me]",
+      "[ar:Kero Kero Bonito]",
+      "[al:Bonito Generation]",
+      "[length:03:29.72]",
+      "[by:Try Me Workbench Local Alignment]",
+      "",
+      ...normalizedLines.map(
+        (l) => `${formatLrcTimestamp(l.start_sec)} ${l.text}`,
+      ),
+    ];
+    if (normalizedLines.length > 0) {
+      lrcLines.push(
+        `${formatLrcTimestamp(normalizedLines[normalizedLines.length - 1].end_sec)} `,
+      );
+    }
+
+    await Promise.all([
+      atomicWriteFile(
+        paths.lyricsJsonFile,
+        JSON.stringify(updatedPayload, null, 2) + "\n",
+      ),
+      atomicWriteFile(paths.lyricsLrcFile, lrcLines.join("\n") + "\n"),
+      atomicWriteFile(paths.lyricsAssFile, exportLyricsToAss(normalizedLines)),
+    ]);
+
+    return {
+      available: true,
+      updated_at_utc: updatedPayload.updated_at_utc,
+      status: updatedPayload.status,
+      lines: normalizedLines,
+    };
+  });
+}
+
 export async function loadCurrentState(customPaths = {}) {
   const paths = resolveServerPaths(customPaths);
   return runWithWriteLock(async () => {
-    const analysis = await loadAnalysisBundle(paths.analysisDir);
-    const { existing, revision } = await readAnnotationsWithRevision(
-      paths.annotationsFile,
-    );
+    const [analysis, lyrics, { existing, revision }] = await Promise.all([
+      loadAnalysisBundle(paths.analysisDir),
+      loadLyricsBundle(paths.lyricsJsonFile),
+      readAnnotationsWithRevision(paths.annotationsFile),
+    ]);
 
     const existingSha = existing?.audio_asset?.sha256 ?? null;
     const currentAnalysisSha = analysis.summary?.input_audio?.sha256 ?? null;
@@ -717,6 +854,7 @@ export async function loadCurrentState(customPaths = {}) {
       audioAvailable: fs.existsSync(paths.audioFile),
       analysis,
       annotations,
+      lyrics,
       agentBriefMarkdown,
     };
   });
@@ -1019,8 +1157,56 @@ export function createAnnotationServer(customPaths = {}) {
         return;
       }
 
+      if (req.method === "POST" && pathname === "/api/lyrics") {
+        const contentType = String(req.headers["content-type"] || "");
+        if (!contentType.toLowerCase().includes("application/json")) {
+          res.writeHead(415, {
+            "Content-Type": "application/json; charset=utf-8",
+          });
+          res.end(
+            JSON.stringify({
+              ok: false,
+              error: "Content-Type must be application/json",
+            }),
+          );
+          return;
+        }
+        const chunks = [];
+        for await (const chunk of req) chunks.push(chunk);
+        const body = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+        const lines = body.lines ?? body;
+        const savedLyrics = await saveLyricsToDisk(lines, paths);
+        res.writeHead(200, {
+          "Content-Type": "application/json; charset=utf-8",
+          "Cache-Control": "no-store",
+        });
+        res.end(JSON.stringify({ ok: true, lyrics: savedLyrics }));
+        return;
+      }
+
       if (req.method === "GET" && pathname === "/api/audio") {
         serveAudioStream(paths.audioFile, req, res);
+        return;
+      }
+
+      if (req.method === "GET" && pathname === "/bundle.js") {
+        const entryPoint = path.join(paths.annotatorStaticDir, "src/main.tsx");
+        const result = await esbuild.build({
+          entryPoints: [entryPoint],
+          bundle: true,
+          write: false,
+          format: "esm",
+          target: "es2022",
+          jsx: "automatic",
+          sourcemap: "inline",
+          absWorkingDir: paths.repoRoot,
+        });
+        const jsOut = result.outputFiles?.[0]?.text || "";
+        res.writeHead(200, {
+          "Content-Type": "application/javascript; charset=utf-8",
+          "Cache-Control": "no-cache",
+        });
+        res.end(jsOut, "utf8");
         return;
       }
 

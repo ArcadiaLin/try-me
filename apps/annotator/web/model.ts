@@ -55,6 +55,7 @@ export function applyServerStateToModel(clientState, serverState) {
   clientState.revision = serverState.revision;
   clientState.analysis = serverState.analysis;
   clientState.annotations = serverState.annotations;
+  clientState.lyrics = serverState.lyrics || { available: false, lines: [] };
   clientState.agentBriefMarkdown = serverState.agentBriefMarkdown || "";
   clientState.audioHashMismatch = Boolean(serverState.audioHashMismatch);
   clientState.undoStack = [];

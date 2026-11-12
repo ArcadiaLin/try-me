@@ -23,6 +23,12 @@ import {
   executeSaveFlow,
   reconcileSaveResponse,
 } from "../web/model.ts";
+import {
+  exportLyricsToAss,
+  exportLyricsToLrc,
+  parseAssToLyrics,
+  parseLrcToLyrics,
+} from "../web/src/utils/ass-lrc.ts";
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -766,6 +772,95 @@ async function runTests() {
     assert.equal(tl.audioSecToVideoFrame(12), 60);
     assert.equal(tl.localFrameToGlobalFrame(60), 360);
     assert.equal(audioSecToGlobalFrame(12, 0, 30), 360);
+
+    // 17. Verify POST /api/lyrics persists local/annotations/lyrics/ files without leaking into preview JSON
+    const lyricsSaveRes = await fetch(`${baseUrl}/api/lyrics`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        lines: [
+          {
+            id: "L001",
+            section_id: "P002",
+            bar: 9,
+            start_sec: 18.53,
+            end_sec: 22.82,
+            text: "TEST_PRIVATE_LYRIC_LINE_1",
+            status: "confirmed",
+          },
+        ],
+      }),
+    });
+    assert.equal(lyricsSaveRes.status, 200);
+    const lyricsSavedBody = await lyricsSaveRes.json();
+    assert.equal(lyricsSavedBody.lyrics.available, true);
+    assert.equal(lyricsSavedBody.lyrics.lines.length, 1);
+    assert.equal(lyricsSavedBody.lyrics.status, "confirmed");
+
+    const stateAfterLyrics = await (await fetch(`${baseUrl}/api/state`)).json();
+    assert.equal(stateAfterLyrics.lyrics.available, true);
+    assert.equal(
+      stateAfterLyrics.lyrics.lines[0].text,
+      "TEST_PRIVATE_LYRIC_LINE_1",
+    );
+    const previewAfterLyrics = await fsp.readFile(
+      fixture.previewJsonFile,
+      "utf8",
+    );
+    assert.ok(!previewAfterLyrics.includes("TEST_PRIVATE_LYRIC_LINE_1"));
+
+    // 18. Verify React 19 + PWA bundle endpoint (/bundle.js, /manifest.webmanifest, /sw.js) and ASS/LRC round-trip
+    const bundleRes = await fetch(`${baseUrl}/bundle.js`);
+    assert.equal(bundleRes.status, 200);
+    const bundleCode = await bundleRes.text();
+    assert.ok(bundleCode.includes("TimelineExplorer"));
+    assert.ok(bundleCode.includes("LyricsWorkbench"));
+
+    const manifestRes = await fetch(`${baseUrl}/manifest.webmanifest`);
+    assert.equal(manifestRes.status, 200);
+    assert.ok(
+      manifestRes.headers
+        .get("content-type")
+        ?.includes("application/manifest+json"),
+    );
+
+    const assText = exportLyricsToAss([
+      {
+        id: "L011",
+        section_id: "P002",
+        bar: 23,
+        start_sec: 49.92,
+        end_sec: 51.03,
+        text: "TEST_ASS_LINE_1",
+        status: "confirmed",
+        note: "note-1",
+      },
+      {
+        id: "L012",
+        section_id: "P002",
+        bar: 24,
+        start_sec: 51.03,
+        end_sec: 54.4,
+        text: "TEST_ASS_LINE_2",
+        status: "candidate",
+        note: "",
+      },
+    ]);
+    assert.ok(assText.includes("Dialogue: 0,0:00:49.92,0:00:51.03,Confirmed,L011"));
+    const parsedFromAss = parseAssToLyrics(assText, []);
+    assert.equal(parsedFromAss.length, 2);
+    assert.equal(parsedFromAss[0].id, "L011");
+    assert.equal(parsedFromAss[0].start_sec, 49.92);
+    assert.equal(parsedFromAss[0].end_sec, 51.03);
+    assert.equal(parsedFromAss[0].status, "confirmed");
+    assert.equal(parsedFromAss[1].id, "L012");
+    assert.equal(parsedFromAss[1].start_sec, 51.03);
+
+    const lrcText = exportLyricsToLrc(parsedFromAss);
+    const parsedFromLrc = parseLrcToLyrics(lrcText, parsedFromAss);
+    assert.equal(parsedFromLrc.length, 2);
+    assert.equal(parsedFromLrc[0].start_sec, 49.92);
+    assert.equal(parsedFromLrc[0].end_sec, 51.03);
 
     console.log(
       "PASS: All isolated annotation server, concurrency, validation & boundary tests passed!",
