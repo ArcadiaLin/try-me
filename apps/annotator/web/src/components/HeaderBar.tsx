@@ -103,7 +103,7 @@ export function HeaderBar({
           onClick={onPlayPause}
           title="播放/暂停 (Space)"
         >
-          {snap.isPlaying ? "⏸ 暂停" : "▶ 播放"}
+          {snap.isPlaying ? "暂停" : "播放"}
         </button>
         <button
           type="button"
@@ -111,7 +111,7 @@ export function HeaderBar({
           onClick={onStop}
           title="停止并回到起点"
         >
-          ⏹ 停止
+          停止
         </button>
         <label className="wb-inline-field">
           <span>倍速</span>
@@ -204,7 +204,7 @@ export function HeaderBar({
           onClick={() => fileInputRef.current?.click()}
           title="从 Aegisub (.ass) 或 .lrc 导入歌词时间轴"
         >
-          📥 导入 ASS/LRC
+          导入 ASS/LRC
         </button>
         <button
           type="button"
@@ -212,7 +212,7 @@ export function HeaderBar({
           onClick={() => exportSubtitleFile("ass")}
           title="导出为 Aegisub (.ass) 字幕文件，支持随时在 Aegisub 中编辑后再导回"
         >
-          📤 导出 .ass
+          导出 .ass
         </button>
         <button
           type="button"
@@ -220,7 +220,7 @@ export function HeaderBar({
           onClick={() => exportSubtitleFile("lrc")}
           title="导出标准 .lrc 歌词文件"
         >
-          📤 导出 .lrc
+          导出 .lrc
         </button>
 
         <button
@@ -230,7 +230,7 @@ export function HeaderBar({
           onClick={performUndo}
           title="撤销 (Ctrl+Z)"
         >
-          ↶
+          撤销
         </button>
         <button
           type="button"
@@ -239,7 +239,7 @@ export function HeaderBar({
           onClick={performRedo}
           title="重做 (Ctrl+Y)"
         >
-          ↷
+          重做
         </button>
 
         <span
@@ -275,19 +275,19 @@ export function HeaderBar({
           }}
           title="展开/收起底部 Agent 协作抽屉"
         >
-          🤖 Agent 协同
+          Agent 协同
           {openAgentItemsCount > 0 ? ` (${openAgentItemsCount})` : ""}
         </button>
         {deferredPrompt ? (
           <button
             type="button"
-            className="btn btn-accent"
+            className="btn btn-primary"
             onClick={() => {
               void handleInstallPwa();
             }}
             title="将此工作台安装为独立桌面窗口应用"
           >
-            📲 安装桌面端
+            安装桌面端
           </button>
         ) : null}
       </div>

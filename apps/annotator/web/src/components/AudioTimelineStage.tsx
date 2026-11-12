@@ -403,7 +403,7 @@ export function AudioTimelineStage(): React.JSX.Element {
               start: l.start_sec,
               end: l.end_sec,
               color: hexToRgba(baseColor, alpha),
-              content: `♪ ${l.id}: ${l.text.slice(0, 18)}`,
+              content: `${l.id}: ${l.text.slice(0, 18)}`,
               drag: editable && isMainSel,
               resize: editable,
             });
@@ -683,14 +683,14 @@ export function AudioTimelineStage(): React.JSX.Element {
       : null;
 
   const focusTrackLabels: Record<string, string> = {
-    lyrics_main: "🎤 歌词对轴轨道 (可拖拽句首/句尾)",
-    structure_sections: "📏 曲式段落轨道 P001–P012",
-    structure_clips: "🎯 代表性验证片段 CLIP_01",
-    rhythm_downbeats: "🥁 小节强拍轨道 (Downbeats)",
-    rhythm_markers: "⚡ 拍点与重音轨道",
-    cand_beats: "🤖 自动拍点参考层 (只读)",
-    cand_onsets: "🤖 自动起音参考层 (只读)",
-    cand_energy: "🤖 能量包络参考层 (只读)",
+    lyrics_main: "歌词对轴轨道 (可拖拽句首/句尾)",
+    structure_sections: "曲式段落轨道 P001–P012",
+    structure_clips: "代表性验证片段 CLIP_01",
+    rhythm_downbeats: "小节强拍轨道 (Downbeats)",
+    rhythm_markers: "拍点与重音轨道",
+    cand_beats: "自动拍点参考层 (只读)",
+    cand_onsets: "自动起音参考层 (只读)",
+    cand_energy: "能量包络参考层 (只读)",
   };
 
   return (
@@ -773,13 +773,13 @@ export function AudioTimelineStage(): React.JSX.Element {
             ) : null}
             {snap.activeAuditionLabel ? (
               <span className="wb-audition-badge">
-                🎧 {snap.activeAuditionLabel}
+                预听: {snap.activeAuditionLabel}
               </span>
             ) : null}
           </div>
           <div className="wb-aegisub-lines">
             <span className="wb-aegisub-cur">
-              {selectedLyric ? selectedLyric.text : "♪ [器乐段落 / 点击下方歌词行开始对轴]"}
+              {selectedLyric ? selectedLyric.text : "[器乐段落 / 点击下方歌词行开始对轴]"}
             </span>
             <span className="wb-aegisub-next">
               {nextLyric
@@ -794,21 +794,21 @@ export function AudioTimelineStage(): React.JSX.Element {
           <div className="wb-btn-cluster" title="Aegisub 切点预听模式（自动在切点处停住，检验句首/句尾是否吃字）">
             <button
               type="button"
-              className="btn btn-audition"
+              className="btn"
               disabled={!selectedLyric}
               onClick={() => triggerLyricAudition("before_start")}
               title="播放句首前 500ms 至句首 [快捷键 A]：检查句首前是否漏掉起音"
             >
-              ⏮ 句首前0.5s <kbd>A</kbd>
+              句首前0.5s <kbd>A</kbd>
             </button>
             <button
               type="button"
-              className="btn btn-audition"
+              className="btn"
               disabled={!selectedLyric}
               onClick={() => triggerLyricAudition("after_start")}
               title="播放句首后 500ms [快捷键 S]：检查句首第一个字是否准确"
             >
-              ⏭ 句首后0.5s <kbd>S</kbd>
+              句首后0.5s <kbd>S</kbd>
             </button>
             <button
               type="button"
@@ -817,25 +817,25 @@ export function AudioTimelineStage(): React.JSX.Element {
               onClick={() => triggerLyricAudition("line")}
               title="完整播放当前选中句并在句尾自动停住 [快捷键 R]"
             >
-              ▶ 播本句 <kbd>R</kbd>
+              播本句 <kbd>R</kbd>
             </button>
             <button
               type="button"
-              className="btn btn-audition"
+              className="btn"
               disabled={!selectedLyric}
               onClick={() => triggerLyricAudition("before_end")}
               title="播放句尾前 550ms 至句尾 [快捷键 D]：检查句尾是否把下一句的字吃进来（如 L011 与 L012 的『楽器』）"
             >
-              ⏪ 句尾前0.5s <kbd>D</kbd>
+              句尾前0.5s <kbd>D</kbd>
             </button>
             <button
               type="button"
-              className="btn btn-audition"
+              className="btn"
               disabled={!selectedLyric}
               onClick={() => triggerLyricAudition("after_end")}
               title="播放句尾后 550ms [快捷键 F]：确认下一句的第一个字刚好在句尾之后响起"
             >
-              ⏩ 句尾后0.5s <kbd>F</kbd>
+              句尾后0.5s <kbd>F</kbd>
             </button>
           </div>
 
@@ -947,16 +947,16 @@ export function AudioTimelineStage(): React.JSX.Element {
               }}
               title="A-B 循环当前句"
             >
-              🔁 循环本句
+              循环本句
             </button>
             <button
               type="button"
-              className="btn btn-success"
+              className="btn btn-primary"
               disabled={!selectedLyric}
               onClick={() => confirmLyricAndAdvance(selectedLyric?.id)}
               title="确认当前句已对齐并跳到下一句播放 [快捷键 G]"
             >
-              ✓ 确认并下一句 <kbd>G</kbd>
+              确认并下一句 <kbd>G</kbd>
             </button>
           </div>
 

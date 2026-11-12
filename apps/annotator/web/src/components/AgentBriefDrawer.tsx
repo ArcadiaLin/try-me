@@ -31,7 +31,7 @@ export function AgentBriefDrawer(): React.JSX.Element | null {
       <div className="wb-agent-drawer-header">
         <div className="wb-toolbar-left">
           <span className="wb-pane-title">
-            🤖 Agent 协作与全片创作简报抽屉 (local/annotations/agent-brief.md)
+            Agent 协作与全片创作简报抽屉 (local/annotations/agent-brief.md)
           </span>
           <span className="wb-tree-badge">
             待处理批注: {openRegions.length + openMarkers.length}
@@ -45,7 +45,7 @@ export function AgentBriefDrawer(): React.JSX.Element | null {
               void handleCopyBrief();
             }}
           >
-            📋 保存并复制简报给 Agent
+            保存并复制简报给 Agent
           </button>
           <button
             type="button"
@@ -55,7 +55,7 @@ export function AgentBriefDrawer(): React.JSX.Element | null {
               notifyStore();
             }}
           >
-            收起抽屉 ✕
+            收起抽屉 ×
           </button>
         </div>
       </div>

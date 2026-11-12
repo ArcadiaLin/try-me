@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { AgentBriefDrawer } from "./components/AgentBriefDrawer.tsx";
 import { AudioTimelineStage } from "./components/AudioTimelineStage.tsx";
 import { HeaderBar } from "./components/HeaderBar.tsx";
@@ -32,8 +32,69 @@ import {
 import type { ServerStatePayload } from "./types.ts";
 import { loadIdbDraft } from "./utils/idb-draft.ts";
 
+const EXPLORER_WIDTH_KEY = "try_me_wb_explorer_width";
+const DEFAULT_EXPLORER_WIDTH = 290;
+const MIN_EXPLORER_WIDTH = 180;
+const MAX_EXPLORER_WIDTH = 560;
+
+function readInitialExplorerWidth(): number {
+  try {
+    const raw = Number(window.localStorage.getItem(EXPLORER_WIDTH_KEY));
+    if (Number.isFinite(raw) && raw >= MIN_EXPLORER_WIDTH && raw <= MAX_EXPLORER_WIDTH) {
+      return Math.round(raw);
+    }
+  } catch {
+    // Ignore storage read errors
+  }
+  return DEFAULT_EXPLORER_WIDTH;
+}
+
 export function App(): React.JSX.Element {
   const snap = useWorkbenchStore();
+  const [explorerCollapsed, setExplorerCollapsed] = useState(false);
+  const [explorerWidth, setExplorerWidth] = useState<number>(readInitialExplorerWidth);
+  const [isDraggingExplorer, setIsDraggingExplorer] = useState(false);
+
+  const updateExplorerWidth = useCallback((nextWidth: number) => {
+    const clamped = Math.max(
+      MIN_EXPLORER_WIDTH,
+      Math.min(MAX_EXPLORER_WIDTH, Math.round(nextWidth)),
+    );
+    setExplorerWidth(clamped);
+    try {
+      window.localStorage.setItem(EXPLORER_WIDTH_KEY, String(clamped));
+    } catch {
+      // Ignore storage write errors
+    }
+  }, []);
+
+  const handleExplorerResizeStart = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      e.preventDefault();
+      const startX = e.clientX;
+      const startWidth = explorerWidth;
+      setIsDraggingExplorer(true);
+      document.body.style.cursor = "col-resize";
+      document.body.style.userSelect = "none";
+
+      const onMouseMove = (moveEv: MouseEvent) => {
+        const deltaX = moveEv.clientX - startX;
+        updateExplorerWidth(startWidth + deltaX);
+      };
+
+      const onMouseUp = () => {
+        setIsDraggingExplorer(false);
+        document.body.style.cursor = "";
+        document.body.style.userSelect = "";
+        window.removeEventListener("mousemove", onMouseMove);
+        window.removeEventListener("mouseup", onMouseUp);
+      };
+
+      window.addEventListener("mousemove", onMouseMove);
+      window.addEventListener("mouseup", onMouseUp);
+    },
+    [explorerWidth, updateExplorerWidth],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -239,7 +300,21 @@ export function App(): React.JSX.Element {
       <AudioTimelineStage />
 
       <main className="wb-bottom-workspace">
-        <TimelineExplorer />
+        <TimelineExplorer
+          width={explorerWidth}
+          collapsed={explorerCollapsed}
+          onToggleCollapse={() => setExplorerCollapsed((c) => !c)}
+        />
+        {!explorerCollapsed ? (
+          <div
+            className={`wb-resizer-v ${isDraggingExplorer ? "is-dragging" : ""}`}
+            onMouseDown={handleExplorerResizeStart}
+            onDoubleClick={() => updateExplorerWidth(DEFAULT_EXPLORER_WIDTH)}
+            role="separator"
+            aria-orientation="vertical"
+            title="左右拖动调整资源管理器宽度（双击恢复默认宽度）"
+          />
+        ) : null}
         <section className="wb-main-editor">{renderActiveWorkbench()}</section>
       </main>
 

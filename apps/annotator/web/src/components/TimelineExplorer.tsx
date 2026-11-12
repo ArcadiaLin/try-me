@@ -24,9 +24,18 @@ interface TrackExpandState {
   rhythm_markers: boolean;
 }
 
-export function TimelineExplorer(): React.JSX.Element {
+interface TimelineExplorerProps {
+  width: number;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
+}
+
+export function TimelineExplorer({
+  width,
+  collapsed,
+  onToggleCollapse,
+}: TimelineExplorerProps): React.JSX.Element {
   const snap = useWorkbenchStore();
-  const [collapsed, setCollapsed] = useState(false);
   const [colOpen, setColOpen] = useState<CollectionState>({
     col_lyrics: true,
     col_structure: true,
@@ -112,10 +121,10 @@ export function TimelineExplorer(): React.JSX.Element {
         <button
           type="button"
           className="btn btn-icon"
-          onClick={() => setCollapsed(false)}
+          onClick={onToggleCollapse}
           title="展开时间轴资源管理器"
         >
-          ▶
+          &gt;
         </button>
         <div className="wb-explorer-vertical-title">TIMELINE EXPLORER</div>
       </aside>
@@ -139,7 +148,7 @@ export function TimelineExplorer(): React.JSX.Element {
           onClick={() => toggleTrackVisibility(trackId)}
           title={visible ? "在波形图上隐藏此轨道" : "在波形图上显示此轨道"}
         >
-          {visible ? "👁️" : "🚫"}
+          {visible ? "显" : "隐"}
         </button>
         {lockKey ? (
           <button
@@ -152,7 +161,7 @@ export function TimelineExplorer(): React.JSX.Element {
                 : "允许在波形上拖拽（点击锁定防误触）"
             }
           >
-            {locked ? "🔒" : "🔓"}
+            {locked ? "锁" : "改"}
           </button>
         ) : null}
       </span>
@@ -160,21 +169,21 @@ export function TimelineExplorer(): React.JSX.Element {
   };
 
   return (
-    <aside className="wb-explorer">
+    <aside className="wb-explorer" style={{ width: `${width}px` }}>
       <div className="wb-explorer-header">
-        <span className="wb-explorer-title">🗂️ 时间轴资源管理器 (Explorer)</span>
+        <span className="wb-explorer-title">时间轴资源管理器</span>
         <button
           type="button"
           className="btn btn-icon"
-          onClick={() => setCollapsed(true)}
+          onClick={onToggleCollapse}
           title="折叠侧边栏"
         >
-          ◀
+          &lt;
         </button>
       </div>
 
       <div className="wb-explorer-hint">
-        点击轨道切换<strong>波形焦点层</strong>与右侧编辑器；非焦点轨道自动半透明防误触。
+        点击轨道切换<strong>波形焦点层</strong>与右侧编辑器；右侧分割线可左右拖拽调节栏宽。
       </div>
 
       <div className="wb-tree-scroll">
@@ -189,7 +198,7 @@ export function TimelineExplorer(): React.JSX.Element {
             <span className="wb-tree-arrow">
               {colOpen.col_lyrics ? "▾" : "▸"}
             </span>
-            <span className="wb-tree-col-name">01. 歌词对轴集合 (Lyrics)</span>
+            <span className="wb-tree-col-name">歌词对轴集合 (Lyrics)</span>
             <span className="wb-tree-badge">
               {lyricsConfirmed}/{lyricsLines.length}
             </span>
@@ -228,7 +237,7 @@ export function TimelineExplorer(): React.JSX.Element {
                     className={`wb-tree-subgroup ${snap.activeTrackId === "lyrics_main" && snap.selectedGroupId === null ? "is-selected" : ""}`}
                     onClick={() => selectTrackAndGroup("lyrics_main", null)}
                   >
-                    <span>📋 全部歌词行 ({lyricsLines.length} 句)</span>
+                    <span>全部歌词行 ({lyricsLines.length} 句)</span>
                     <span className="wb-tree-mini-count">
                       {lyricsConfirmed} 已确认
                     </span>
@@ -247,7 +256,7 @@ export function TimelineExplorer(): React.JSX.Element {
                       title="单击过滤此段落歌词；双击将播放头跳至该段落起点"
                     >
                       <span>
-                        ♪ {grp.label} ({grp.firstId}–{grp.lastId})
+                        {grp.label} ({grp.firstId}–{grp.lastId})
                       </span>
                       <span
                         className={`wb-tree-mini-count ${grp.confirmed === grp.count ? "all-done" : ""}`}
@@ -274,7 +283,7 @@ export function TimelineExplorer(): React.JSX.Element {
               {colOpen.col_structure ? "▾" : "▸"}
             </span>
             <span className="wb-tree-col-name">
-              02. 音乐结构集合 (Structure)
+              音乐结构集合 (Structure)
             </span>
             <span className="wb-tree-badge">
               {sectionsConfirmed}/{sectionRegions.length}
@@ -332,7 +341,7 @@ export function TimelineExplorer(): React.JSX.Element {
                 className={`wb-tree-track ${snap.activeTrackId === "structure_clips" ? "is-active" : ""}`}
                 onClick={() => selectTrackAndGroup("structure_clips", null)}
               >
-                <span className="wb-tree-arrow">•</span>
+                <span className="wb-tree-arrow">·</span>
                 <span className="wb-swatch swatch-clip" />
                 <span className="wb-tree-label">
                   代表性验证片段 ({clipRegions.length})
@@ -355,7 +364,7 @@ export function TimelineExplorer(): React.JSX.Element {
               {colOpen.col_rhythm ? "▾" : "▸"}
             </span>
             <span className="wb-tree-col-name">
-              03. 节拍与重音集合 (Rhythm)
+              节拍与重音集合 (Rhythm)
             </span>
             <span className="wb-tree-badge">{allMarkers.length}</span>
           </div>
@@ -366,7 +375,7 @@ export function TimelineExplorer(): React.JSX.Element {
                 className={`wb-tree-track ${snap.activeTrackId === "rhythm_downbeats" ? "is-active" : ""}`}
                 onClick={() => selectTrackAndGroup("rhythm_downbeats", null)}
               >
-                <span className="wb-tree-arrow">•</span>
+                <span className="wb-tree-arrow">·</span>
                 <span className="wb-swatch swatch-downbeat" />
                 <span className="wb-tree-label">
                   小节第一拍 Downbeats ({downbeatMarkers.length})
@@ -437,7 +446,7 @@ export function TimelineExplorer(): React.JSX.Element {
               {colOpen.col_candidates ? "▾" : "▸"}
             </span>
             <span className="wb-tree-col-name">
-              04. 自动分析参考层 (Auto Ref)
+              自动分析参考层 (Auto Ref)
             </span>
             <span className="wb-tree-badge">只读</span>
           </div>
@@ -448,7 +457,7 @@ export function TimelineExplorer(): React.JSX.Element {
                 className="wb-tree-track"
                 onClick={() => toggleTrackVisibility("cand_beats")}
               >
-                <span className="wb-tree-arrow">•</span>
+                <span className="wb-tree-arrow">·</span>
                 <span className="wb-swatch swatch-cand-beat" />
                 <span className="wb-tree-label">
                   候选拍点 Beats ({snap.analysis?.beats?.length || 0})
@@ -460,7 +469,7 @@ export function TimelineExplorer(): React.JSX.Element {
                 className="wb-tree-track"
                 onClick={() => toggleTrackVisibility("cand_onsets")}
               >
-                <span className="wb-tree-arrow">•</span>
+                <span className="wb-tree-arrow">·</span>
                 <span className="wb-swatch swatch-cand-onset" />
                 <span className="wb-tree-label">
                   候选起音 Onsets ({snap.analysis?.onsets?.length || 0})
@@ -489,7 +498,7 @@ export function TimelineExplorer(): React.JSX.Element {
                 className="wb-tree-track"
                 onClick={() => toggleTrackVisibility("cand_energy")}
               >
-                <span className="wb-tree-arrow">•</span>
+                <span className="wb-tree-arrow">·</span>
                 <span className="wb-swatch swatch-cand-energy" />
                 <span className="wb-tree-label">
                   RMS 能量包络 ({snap.analysis?.energyShifts?.length || 0})

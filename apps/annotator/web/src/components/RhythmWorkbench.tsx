@@ -7,9 +7,11 @@ import {
   getAudioDuration,
   notifyStore,
   POINT_CATEGORIES,
+  resetInspectorWidth,
   scheduleAutoSave,
   seekAudio,
   selectTimelineItem,
+  startInspectorResize,
   storeState,
   toVideoFrame,
   updatePointMarker,
@@ -100,8 +102,8 @@ export function RhythmWorkbench(): React.JSX.Element {
           <div className="wb-toolbar-left">
             <span className="wb-pane-title">
               {isDownbeatsTrack
-                ? "🥁 小节第一拍 (Downbeats)"
-                : "⚡ 拍点 / 重音 / 切镜点标记"}
+                ? "小节第一拍 (Downbeats)"
+                : "拍点 / 重音 / 切镜点标记"}
             </span>
             <button
               type="button"
@@ -131,7 +133,7 @@ export function RhythmWorkbench(): React.JSX.Element {
 
         {/* Local BPM Calculator & Grid Generator Bar */}
         <div className="wb-bpm-bar">
-          <span className="wb-bpm-title">📐 局部 BPM 测算与均匀补拍:</span>
+          <span className="wb-bpm-title">局部 BPM 测算与均匀补拍:</span>
           <label className="wb-inline-field">
             <span>起点(s)</span>
             <input
@@ -255,8 +257,20 @@ export function RhythmWorkbench(): React.JSX.Element {
         </div>
       </div>
 
+      <div
+        className="wb-resizer-v"
+        onMouseDown={startInspectorResize}
+        onDoubleClick={resetInspectorWidth}
+        role="separator"
+        aria-orientation="vertical"
+        title="左右拖动调整检查器宽度（双击恢复默认宽度）"
+      />
+
       {/* Right: Point Marker Inspector */}
-      <div className="wb-inspector-pane">
+      <div
+        className="wb-inspector-pane"
+        style={{ width: `${snap.inspectorWidth}px` }}
+      >
         {!selectedMarker ? (
           <div className="wb-empty-inspector">请在左侧表格选择时间点标记</div>
         ) : (
@@ -329,7 +343,7 @@ export function RhythmWorkbench(): React.JSX.Element {
             <div className="wb-time-card">
               <div className="wb-time-card-header">
                 <span className="wb-time-card-title">
-                  ⏱️ 时间点位置 (Time Sec)
+                  时间点位置 (Time Sec)
                 </span>
               </div>
               <div className="wb-time-card-body">
@@ -415,7 +429,7 @@ export function RhythmWorkbench(): React.JSX.Element {
                       seekAudio(nearest.time_sec);
                     }}
                   >
-                    🧲 吸附候选
+                    吸附候选
                   </button>
                 </div>
               </div>
@@ -447,7 +461,7 @@ export function RhythmWorkbench(): React.JSX.Element {
 
             <div className="wb-agent-box">
               <div className="wb-agent-box-header">
-                <span>🤖 给 Agent 的专项指令</span>
+                <span>给 Agent 的专项指令</span>
                 <select
                   value={selectedMarker.agent_status}
                   onChange={(e) =>

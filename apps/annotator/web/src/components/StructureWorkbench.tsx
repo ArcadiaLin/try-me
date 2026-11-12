@@ -5,8 +5,10 @@ import {
   getAudioDuration,
   notifyStore,
   REGION_CATEGORIES,
+  resetInspectorWidth,
   seekAudio,
   selectTimelineItem,
+  startInspectorResize,
   storeState,
   toVideoFrame,
   updateRegion,
@@ -50,8 +52,8 @@ export function StructureWorkbench(): React.JSX.Element {
           <div className="wb-toolbar-left">
             <span className="wb-pane-title">
               {isClipTrack
-                ? "🎯 代表性验证片段 (Clips)"
-                : "📏 音乐曲式段落划分 (P001–P012)"}
+                ? "代表性验证片段 (Clips)"
+                : "音乐曲式段落划分 (P001–P012)"}
             </span>
             <button
               type="button"
@@ -139,7 +141,7 @@ export function StructureWorkbench(): React.JSX.Element {
                     <td>
                       {reg.lyric_hint ? (
                         <div className="wb-table-lyric-note">
-                          ♪ {reg.lyric_hint}
+                          词: {reg.lyric_hint}
                         </div>
                       ) : null}
                       <div className="wb-table-lyric-text">
@@ -159,7 +161,7 @@ export function StructureWorkbench(): React.JSX.Element {
                           notifyStore();
                         }}
                       >
-                        🔁 循环
+                        循环
                       </button>
                     </td>
                   </tr>
@@ -170,8 +172,20 @@ export function StructureWorkbench(): React.JSX.Element {
         </div>
       </div>
 
+      <div
+        className="wb-resizer-v"
+        onMouseDown={startInspectorResize}
+        onDoubleClick={resetInspectorWidth}
+        role="separator"
+        aria-orientation="vertical"
+        title="左右拖动调整检查器宽度（双击恢复默认宽度）"
+      />
+
       {/* Right: Region Inspector */}
-      <div className="wb-inspector-pane">
+      <div
+        className="wb-inspector-pane"
+        style={{ width: `${snap.inspectorWidth}px` }}
+      >
         {!selectedRegion ? (
           <div className="wb-empty-inspector">请在左侧选择段落或区间</div>
         ) : (
@@ -368,7 +382,7 @@ export function StructureWorkbench(): React.JSX.Element {
 
             <div className="wb-agent-box">
               <div className="wb-agent-box-header">
-                <span>🤖 给 Agent 的专项指令 (Agent Comment)</span>
+                <span>给 Agent 的专项指令 (Agent Comment)</span>
                 <select
                   value={selectedRegion.agent_status}
                   onChange={(e) =>

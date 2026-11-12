@@ -4,8 +4,10 @@ import {
   findNearestCandidate,
   findPlayingOrNearestLyric,
   notifyStore,
+  resetInspectorWidth,
   selectTimelineItem,
   selectTrackAndGroup,
+  startInspectorResize,
   storeState,
   toggleLoopForLyric,
   toVideoFrame,
@@ -61,7 +63,7 @@ export function LyricsWorkbench(): React.JSX.Element {
         <div className="wb-pane-toolbar">
           <div className="wb-toolbar-left">
             <span className="wb-pane-title">
-              🎤 歌词时间轴对齐表{" "}
+              歌词时间轴对齐表{" "}
               {snap.selectedGroupId ? `(${snap.selectedGroupId})` : "(全曲)"}
             </span>
             {snap.selectedGroupId ? (
@@ -144,7 +146,7 @@ export function LyricsWorkbench(): React.JSX.Element {
                     <td>
                       <div className="wb-table-lyric-text">{line.text}</div>
                       {line.note ? (
-                        <div className="wb-table-lyric-note">📌 {line.note}</div>
+                        <div className="wb-table-lyric-note">注: {line.note}</div>
                       ) : null}
                     </td>
                     <td
@@ -157,7 +159,7 @@ export function LyricsWorkbench(): React.JSX.Element {
                         onClick={() => triggerLyricAudition("line", line)}
                         title="只播本句并在句尾自动停住"
                       >
-                        ▶ 本句
+                        本句
                       </button>
                       <button
                         type="button"
@@ -165,7 +167,7 @@ export function LyricsWorkbench(): React.JSX.Element {
                         onClick={() => triggerLyricAudition("before_end", line)}
                         title="预听句尾前 550ms，检查是否吃进下一句的字"
                       >
-                        ⏪ 句尾
+                        句尾
                       </button>
                     </td>
                   </tr>
@@ -176,8 +178,20 @@ export function LyricsWorkbench(): React.JSX.Element {
         </div>
       </div>
 
+      <div
+        className="wb-resizer-v"
+        onMouseDown={startInspectorResize}
+        onDoubleClick={resetInspectorWidth}
+        role="separator"
+        aria-orientation="vertical"
+        title="左右拖动调整检查器宽度（双击恢复默认宽度）"
+      />
+
       {/* Right: Selected Lyric Precision Inspector */}
-      <div className="wb-inspector-pane">
+      <div
+        className="wb-inspector-pane"
+        style={{ width: `${snap.inspectorWidth}px` }}
+      >
         {!selectedLine ? (
           <div className="wb-empty-inspector">请在左侧表格点击选择一句歌词</div>
         ) : (
@@ -195,11 +209,11 @@ export function LyricsWorkbench(): React.JSX.Element {
               </div>
               <button
                 type="button"
-                className="btn btn-success btn-mini"
+                className="btn btn-primary btn-mini"
                 onClick={() => confirmLyricAndAdvance(selectedLine.id)}
                 title="标记为 confirmed 并跳到下一句 (G)"
               >
-                ✓ 确认并下一句
+                确认并下一句
               </button>
             </div>
 
@@ -243,7 +257,7 @@ export function LyricsWorkbench(): React.JSX.Element {
                 }}
               />
               <span>
-                🔗 <strong>联动相邻歌词句边界</strong>
+                <strong>联动相邻歌词句边界</strong>
                 （微调本句句尾时，自动同步紧邻下一句的句首，避免两句重叠或脱节）
               </span>
             </label>
@@ -252,28 +266,28 @@ export function LyricsWorkbench(): React.JSX.Element {
             <div className="wb-time-card">
               <div className="wb-time-card-header">
                 <span className="wb-time-card-title">
-                  🟢 句首起点 (Start Sec)
+                  句首起点 (Start Sec)
                 </span>
                 <div className="wb-btn-cluster">
                   <button
                     type="button"
-                    className="btn btn-mini btn-audition"
+                    className="btn btn-mini"
                     onClick={() =>
                       triggerLyricAudition("before_start", selectedLine)
                     }
                     title="听句首前 500ms [A]"
                   >
-                    ⏮ 听句首前0.5s
+                    听句首前0.5s
                   </button>
                   <button
                     type="button"
-                    className="btn btn-mini btn-audition"
+                    className="btn btn-mini"
                     onClick={() =>
                       triggerLyricAudition("after_start", selectedLine)
                     }
                     title="听句首后 500ms [S]"
                   >
-                    ⏭ 听句首后0.5s
+                    听句首后0.5s
                   </button>
                 </div>
               </div>
@@ -340,7 +354,7 @@ export function LyricsWorkbench(): React.JSX.Element {
                       }
                     }}
                   >
-                    🧲 吸附候选
+                    吸附候选
                   </button>
                 </div>
               </div>
@@ -350,28 +364,28 @@ export function LyricsWorkbench(): React.JSX.Element {
             <div className="wb-time-card wb-time-card-end">
               <div className="wb-time-card-header">
                 <span className="wb-time-card-title">
-                  🟣 句尾终点 (End Sec)
+                  句尾终点 (End Sec)
                 </span>
                 <div className="wb-btn-cluster">
                   <button
                     type="button"
-                    className="btn btn-mini btn-audition"
+                    className="btn btn-mini"
                     onClick={() =>
                       triggerLyricAudition("before_end", selectedLine)
                     }
                     title="听句尾前 550ms [D]：确认句尾是否把下一句的字吃进来"
                   >
-                    ⏪ 听句尾前0.5s
+                    听句尾前0.5s
                   </button>
                   <button
                     type="button"
-                    className="btn btn-mini btn-audition"
+                    className="btn btn-mini"
                     onClick={() =>
                       triggerLyricAudition("after_end", selectedLine)
                     }
-                    title="听句尾后 550ms [F]：确认下一句起音剛好从句尾后开始"
+                    title="听句尾后 550ms [F]：确认下一句起音刚好从句尾后开始"
                   >
-                    ⏩ 听句尾后0.5s
+                    听句尾后0.5s
                   </button>
                 </div>
               </div>
@@ -431,7 +445,7 @@ export function LyricsWorkbench(): React.JSX.Element {
                       }
                     }}
                   >
-                    🧲 吸附候选
+                    吸附候选
                   </button>
                 </div>
               </div>
@@ -509,14 +523,14 @@ export function LyricsWorkbench(): React.JSX.Element {
                 className="btn btn-primary"
                 onClick={() => triggerLyricAudition("line", selectedLine)}
               >
-                ▶ 单句精听 (R)
+                单句精听 (R)
               </button>
               <button
                 type="button"
                 className={`btn ${snap.loopEnabled && snap.loopingLyricId === selectedLine.id ? "active" : ""}`}
                 onClick={() => toggleLoopForLyric(selectedLine)}
               >
-                🔁 循环本句
+                循环本句
               </button>
             </div>
           </div>

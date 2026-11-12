@@ -89,6 +89,7 @@ export interface WorkbenchState {
 
   // UI Panels & Status
   agentDrawerOpen: boolean;
+  inspectorWidth: number;
   saveStatusText: string;
   saveStatusError: boolean;
   offlineDraftRestored: boolean;
@@ -157,6 +158,7 @@ export const storeState: WorkbenchState = {
   linkAdjacentLyrics: true,
 
   agentDrawerOpen: false,
+  inspectorWidth: 420,
   saveStatusText: "初始化中...",
   saveStatusError: false,
   offlineDraftRestored: false,
@@ -1122,4 +1124,43 @@ export function importSubtitleContent(
   scheduleLyricsSave();
   notifyStore();
   return { count: parsed.length };
+}
+
+export function startInspectorResize(e: {
+  preventDefault: () => void;
+  clientX: number;
+  currentTarget: HTMLElement;
+}): void {
+  e.preventDefault();
+  const startX = e.clientX;
+  const startWidth = storeState.inspectorWidth;
+  const handleEl = e.currentTarget;
+  handleEl.classList.add("is-dragging");
+  document.body.style.cursor = "col-resize";
+  document.body.style.userSelect = "none";
+
+  const onMouseMove = (moveEv: MouseEvent) => {
+    const deltaX = startX - moveEv.clientX;
+    storeState.inspectorWidth = Math.max(
+      280,
+      Math.min(680, Math.round(startWidth + deltaX)),
+    );
+    notifyStore();
+  };
+
+  const onMouseUp = () => {
+    handleEl.classList.remove("is-dragging");
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+    window.removeEventListener("mousemove", onMouseMove);
+    window.removeEventListener("mouseup", onMouseUp);
+  };
+
+  window.addEventListener("mousemove", onMouseMove);
+  window.addEventListener("mouseup", onMouseUp);
+}
+
+export function resetInspectorWidth(): void {
+  storeState.inspectorWidth = 420;
+  notifyStore();
 }
