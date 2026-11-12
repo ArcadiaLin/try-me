@@ -14,7 +14,7 @@ packages/
   shared/                跨端共享的秒/帧换算公式与类型定义 (@try-me/shared)
 tools/
   audio-analyzer/        Python 音频特征分析入口 (analyze-audio.py)
-  repo-guard/            Git 索引隐私边界检查工具 (check-repo.mjs)
+  repo-guard/            Git 索引隐私边界检查工具 (check-repo.ts)
 docs/                    创作与制作文档（提交）
   storyboard/            分镜表及原创分镜草图
 public/

@@ -4,9 +4,9 @@ export type {
   PreviewRegion,
   PreviewTimeline,
   SyncPreviewProps,
-} from "./time-mapping.js";
+} from "./time-mapping.ts";
 export {
   audioSecToGlobalFrame,
   computePreviewTimeline,
   globalFrameToAudioSec,
-} from "./time-mapping.js";
+} from "./time-mapping.ts";

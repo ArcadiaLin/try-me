@@ -8,6 +8,7 @@
     "node": "^20.19.0 || ^22.13.0 || >=24"
   },
   "private": true,
+  "type": "module",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -32,7 +33,7 @@
     "build": "npm --workspace @try-me/mv run build",
     "upgrade": "remotion upgrade",
     "lint": "eslint apps packages tools && npm --workspace @try-me/mv run typecheck",
-    "check:repo": "node tools/repo-guard/check-repo.mjs",
+    "check:repo": "node tools/repo-guard/check-repo.ts",
     "analyze:audio": "uv run python tools/audio-analyzer/analyze-audio.py",
     "annotate": "npm --workspace @try-me/annotator run start",
     "test:annotations": "npm --workspace @try-me/annotator run test"

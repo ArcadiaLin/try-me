@@ -8,7 +8,7 @@
     "wavesurfer.js": "^8.0.5"
   },
   "scripts": {
-    "start": "node server/index.mjs",
-    "test": "node test/annotations.test.mjs"
+    "start": "node server/index.ts",
+    "test": "node test/annotations.test.ts"
   }
 }

@@ -4,6 +4,7 @@ import fsp from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 import { audioSecToGlobalFrame } from "@try-me/shared";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -14,6 +15,7 @@ const MIME_TYPES = {
   ".css": "text/css; charset=utf-8",
   ".js": "application/javascript; charset=utf-8",
   ".mjs": "application/javascript; charset=utf-8",
+  ".ts": "application/javascript; charset=utf-8",
   ".json": "application/json; charset=utf-8",
   ".svg": "image/svg+xml",
   ".flac": "audio/flac",
@@ -505,7 +507,7 @@ export function buildAgentBriefMarkdown(annotations) {
   const lines = [
     "# Try Me — 标注、脚本设计与 Agent 协作简报",
     "",
-    `> 本文件由 \`apps/annotator/server/index.mjs\` 根据 \`local/annotations/annotations.json\` 自动生成，仅保存在本地忽略目录 \`local/annotations/\`。\`lyric_hint\` 私人歌词字段已排除；其余自由文本在转入公开文档前仍需人工复核。`,
+    `> 本文件由 \`apps/annotator/server/index.ts\` 根据 \`local/annotations/annotations.json\` 自动生成，仅保存在本地忽略目录 \`local/annotations/\`。\`lyric_hint\` 私人歌词字段已排除；其余自由文本在转入公开文档前仍需人工复核。`,
     "",
     `- 更新时间 (UTC)：\`${annotations.updated_at_utc}\``,
     `- 音源：\`${annotations.audio_asset.path}\` (SHA-256: \`${annotations.audio_asset.sha256 ?? "unknown"}\`, 采样率: \`${annotations.audio_asset.samplerate}Hz\`, 总采样帧: \`${annotations.audio_asset.total_samples}\`, 时长: \`${annotations.audio_asset.duration_sec}s\`)`,
@@ -894,6 +896,22 @@ async function serveStaticFile(baseDir, relPath, res) {
     }
     const ext = path.extname(targetPath).toLowerCase();
     const contentType = MIME_TYPES[ext] || "application/octet-stream";
+    if (ext === ".ts") {
+      const rawTs = await fsp.readFile(targetPath, "utf8");
+      const { outputText } = ts.transpileModule(rawTs, {
+        compilerOptions: {
+          module: ts.ModuleKind.ESNext,
+          target: ts.ScriptTarget.ES2022,
+        },
+        fileName: path.basename(targetPath),
+      });
+      res.writeHead(200, {
+        "Content-Type": contentType,
+        "Cache-Control": "no-cache",
+      });
+      res.end(outputText, "utf8");
+      return;
+    }
     const content = await fsp.readFile(targetPath);
     res.writeHead(200, {
       "Content-Type": contentType,

@@ -12,7 +12,7 @@ import {
   buildSanitizedPreviewPayload,
   createAnnotationServer,
   normalizeAnnotations,
-} from "../server/index.mjs";
+} from "../server/index.ts";
 import {
   allocateMarkerId,
   allocateRegionId,
@@ -22,7 +22,7 @@ import {
   executeReloadFlow,
   executeSaveFlow,
   reconcileSaveResponse,
-} from "../web/model.js";
+} from "../web/model.ts";
 
 const REPO_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -142,11 +142,19 @@ async function runTests() {
     );
 
     const sharedModuleRes = await fetch(
-      `${baseUrl}/vendor/shared/time-mapping.mjs`,
+      `${baseUrl}/vendor/shared/time-mapping.ts`,
     );
     assert.equal(sharedModuleRes.status, 200);
     const sharedModuleText = await sharedModuleRes.text();
     assert.ok(sharedModuleText.includes("export function audioSecToGlobalFrame"));
+
+    const appModuleRes = await fetch(`${baseUrl}/app.ts`);
+    assert.equal(appModuleRes.status, 200);
+    assert.ok(
+      appModuleRes.headers.get("content-type")?.includes("application/javascript"),
+    );
+    const appModuleText = await appModuleRes.text();
+    assert.ok(appModuleText.includes("export async function saveAnnotations"));
 
     // 2. First valid save
     const payloadA = structuredClone(initData.annotations);

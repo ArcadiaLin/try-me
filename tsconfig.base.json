@@ -1,19 +1,20 @@
 {
   "compilerOptions": {
-    "target": "ES2018",
+    "target": "ES2022",
     "module": "Preserve",
     "moduleResolution": "Bundler",
+    "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
     "strict": true,
     "noEmit": true,
-    "lib": ["es2015"],
+    "lib": ["es2022", "dom"],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "noUnusedLocals": true,
     "baseUrl": ".",
     "paths": {
-      "@try-me/shared": ["./packages/shared/src/index.d.ts"],
+      "@try-me/shared": ["./packages/shared/src/index.ts"],
       "@try-me/shared/*": ["./packages/shared/src/*"]
     }
   },

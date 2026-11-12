@@ -1,7 +1,7 @@
 import WaveSurfer from "/vendor/wavesurfer/wavesurfer.esm.js";
 import RegionsPlugin from "/vendor/wavesurfer/plugins/regions.esm.js";
 import TimelinePlugin from "/vendor/wavesurfer/plugins/timeline.esm.js";
-import { audioSecToGlobalFrame } from "/vendor/shared/time-mapping.mjs";
+import { audioSecToGlobalFrame } from "/vendor/shared/time-mapping.ts";
 import {
   allocateMarkerId,
   allocateRegionId,
@@ -10,7 +10,7 @@ import {
   clearCandidateProvenance,
   executeReloadFlow,
   executeSaveFlow,
-} from "./model.js";
+} from "./model.ts";
 
 const POINT_CATEGORIES = [
   { value: "downbeat", label: "downbeat (小节第一拍)", color: "#f59e0b" },

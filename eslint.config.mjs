@@ -4,10 +4,10 @@ export default [
   ...config,
   {
     files: [
-      "apps/annotator/server/**/*.mjs",
-      "apps/annotator/test/**/*.mjs",
-      "packages/shared/**/*.mjs",
-      "tools/**/*.mjs",
+      "apps/annotator/server/**/*.ts",
+      "apps/annotator/test/**/*.ts",
+      "packages/shared/**/*.ts",
+      "tools/**/*.ts",
     ],
     languageOptions: {
       globals: {
@@ -21,7 +21,7 @@ export default [
     },
   },
   {
-    files: ["apps/annotator/web/**/*.js"],
+    files: ["apps/annotator/web/**/*.ts"],
     languageOptions: {
       globals: {
         clearTimeout: "readonly",
