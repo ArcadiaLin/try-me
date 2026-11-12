@@ -19,6 +19,19 @@ export function AgentBriefDrawer(): React.JSX.Element | null {
   const openMarkers = snap.annotations.markers.filter(
     (m) => m.agent_comment || m.agent_status === "open",
   );
+  const openLyrics = (snap.lyrics?.lines || []).filter(
+    (l) => l.agent_comment || l.agent_status === "open",
+  );
+  const openCustomItems = (snap.annotations.custom_tracks || []).flatMap((trk) =>
+    (trk.items || [])
+      .filter((i) => i.agent_comment || i.agent_status === "open")
+      .map((item) => ({ trackId: trk.id, trackName: trk.name, item })),
+  );
+  const totalOpenCount =
+    openRegions.length +
+    openMarkers.length +
+    openLyrics.length +
+    openCustomItems.length;
 
   const handleCopyBrief = async () => {
     await saveAnnotations(false);
@@ -31,10 +44,10 @@ export function AgentBriefDrawer(): React.JSX.Element | null {
       <div className="wb-agent-drawer-header">
         <div className="wb-toolbar-left">
           <span className="wb-pane-title">
-            Agent 协作与全片创作简报抽屉 (local/annotations/agent-brief.md)
+            Agent 协作与全片创作简报抽屉 (annotations/agent-brief.md)
           </span>
           <span className="wb-tree-badge">
-            待处理批注: {openRegions.length + openMarkers.length}
+            待处理批注: {totalOpenCount}
           </span>
         </div>
         <div className="wb-toolbar-right">
@@ -115,9 +128,9 @@ export function AgentBriefDrawer(): React.JSX.Element | null {
         <div className="wb-agent-col">
           <h4>2. 待 Agent 处理的专项批注队列</h4>
           <div className="wb-agent-queue-list">
-            {openRegions.length === 0 && openMarkers.length === 0 ? (
+            {totalOpenCount === 0 ? (
               <div className="wb-muted">
-                当前没有标记为待处理 (open) 的批注。在任意段落或拍点右侧填写「给
+                当前没有标记为待处理 (open) 的批注。在任意歌词、段落、拍点或扩展时间轴右侧填写「给
                 Agent 的专项指令」后会自动汇总到这里。
               </div>
             ) : null}
@@ -152,6 +165,42 @@ export function AgentBriefDrawer(): React.JSX.Element | null {
                 </div>
                 <div className="wb-agent-queue-body">
                   {m.agent_comment || m.script_idea}
+                </div>
+              </div>
+            ))}
+            {openLyrics.map((l) => (
+              <div
+                key={l.id}
+                className="wb-agent-queue-card"
+                onClick={() => selectTimelineItem("lyric", l.id, true)}
+              >
+                <div className="wb-agent-queue-top">
+                  <strong>
+                    {l.id} · {l.text.slice(0, 22)}
+                  </strong>
+                  <span className="wb-status-pill open">{l.agent_status || "open"}</span>
+                </div>
+                <div className="wb-agent-queue-body">
+                  {l.agent_comment || l.script_idea}
+                </div>
+              </div>
+            ))}
+            {openCustomItems.map(({ trackId, trackName, item }) => (
+              <div
+                key={`${trackId}_${item.id}`}
+                className="wb-agent-queue-card"
+                onClick={() =>
+                  selectTimelineItem("custom_item", item.id, true, trackId)
+                }
+              >
+                <div className="wb-agent-queue-top">
+                  <strong>
+                    [{trackName}] {item.id} · {item.label}
+                  </strong>
+                  <span className="wb-status-pill open">{item.agent_status}</span>
+                </div>
+                <div className="wb-agent-queue-body">
+                  {item.agent_comment || item.script_idea}
                 </div>
               </div>
             ))}

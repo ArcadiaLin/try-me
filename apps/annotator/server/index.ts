@@ -26,11 +26,70 @@ const MIME_TYPES = {
 
 const VALID_AGENT_STATUSES = ["none", "open", "in_progress", "resolved"];
 
+export const DEFAULT_COLLECTIONS = [
+  {
+    id: "col_lyrics",
+    title: "歌词与人声对轴集合 (Lyrics & Vocal)",
+    description:
+      "严格对照主唱发声起止的声学事实轴，不含句尾伴奏空隙；句间空隙代表纯器乐伴奏或换气",
+  },
+  {
+    id: "col_structure",
+    title: "音乐结构集合 (Structure)",
+    description: "全曲宏观曲式段落 P001–P012 与代表性验证片段",
+  },
+  {
+    id: "col_rhythm",
+    title: "节拍与重音集合 (Rhythm)",
+    description: "小节第一拍 Downbeats、普通拍点、重音与切镜点",
+  },
+  {
+    id: "col_custom",
+    title: "自由扩展时间轴集合 (SFX & Storyboard)",
+    description:
+      "自由定义的特殊效果音轴、器乐特色轴、MV 分镜镜头轴等，支持多轨并行重叠与同轨内叠加",
+  },
+];
+
+export const DEFAULT_CUSTOM_TRACKS = [
+  {
+    id: "sfx_accents",
+    collection_id: "col_custom",
+    name: "效果音与器乐特色音轴 (SFX & Instruments)",
+    type: "sfx",
+    purpose_for_agent:
+      "标记铜管乐器（如 L012 句尾ほら！）、合成器滑音、鼓组过门 Fill 等需要特殊视觉响应的声音事件，允许与人声轴或同轨内其他事件任意重叠。",
+    allow_overlap: true,
+    color: "#ec4899",
+    visible: true,
+    locked: false,
+    items: [],
+  },
+  {
+    id: "visual_shots",
+    collection_id: "col_custom",
+    name: "MV 分镜与画面动作轴 (Storyboard Shots)",
+    type: "shot",
+    purpose_for_agent:
+      "标记 S001 等镜头区间、句间伴奏空隙的插入镜头及角色表演卡点，挂载完整的画面脚本与 Agent 批注。",
+    allow_overlap: true,
+    color: "#14b8a6",
+    visible: true,
+    locked: false,
+    items: [],
+  },
+];
+
 export function resolveServerPaths(custom = {}) {
   const repoRoot = custom.repoRoot || DEFAULT_REPO_ROOT;
   const annotationsDir =
     custom.annotationsDir || path.join(repoRoot, "local/annotations");
   const lyricsDir = custom.lyricsDir || path.join(annotationsDir, "lyrics");
+  const trackedTimelineDir =
+    custom.trackedTimelineDir ||
+    (custom.annotationsDir
+      ? custom.annotationsDir
+      : path.join(repoRoot, "annotations"));
   return {
     repoRoot,
     audioFile:
@@ -45,6 +104,13 @@ export function resolveServerPaths(custom = {}) {
       path.join(annotationsDir, "annotations.prev.json"),
     agentBriefFile:
       custom.agentBriefFile || path.join(annotationsDir, "agent-brief.md"),
+    trackedTimelineDir,
+    timelineFile:
+      custom.timelineFile ||
+      path.join(trackedTimelineDir, "try-me.timeline.json"),
+    trackedAgentBriefFile:
+      custom.trackedAgentBriefFile ||
+      path.join(trackedTimelineDir, "agent-brief.md"),
     lyricsDir,
     lyricsJsonFile:
       custom.lyricsJsonFile || path.join(lyricsDir, "try-me-aligned.json"),
@@ -196,6 +262,8 @@ export function createDefaultAnnotations(summary) {
     id_counters: {
       marker_seq: 0,
       region_seq: 0,
+      track_seq: 2,
+      custom_item_seq: 0,
     },
     audio_asset: {
       asset_id: inputAudio.asset_id ?? "A001",
@@ -218,6 +286,8 @@ export function createDefaultAnnotations(summary) {
     },
     markers: [],
     regions: [],
+    collections: structuredClone(DEFAULT_COLLECTIONS),
+    custom_tracks: structuredClone(DEFAULT_CUSTOM_TRACKS),
   };
 }
 
@@ -237,7 +307,8 @@ export function normalizeAnnotations(
 
   if (
     payload.schema_version !== undefined &&
-    payload.schema_version !== "0.1.0"
+    payload.schema_version !== "0.1.0" &&
+    payload.schema_version !== "0.2.0"
   ) {
     throw createValidationError(
       `Unsupported schema_version: ${String(payload.schema_version)}`,
@@ -482,12 +553,134 @@ export function normalizeAnnotations(
     })
     .sort((a, b) => a.start_sec - b.start_sec);
 
+  let maxTrackSeq = Number(payload.id_counters?.track_seq ?? 2);
+  if (!Number.isFinite(maxTrackSeq) || maxTrackSeq < 0) maxTrackSeq = 2;
+  let maxCustomItemSeq = Number(payload.id_counters?.custom_item_seq ?? 0);
+  if (!Number.isFinite(maxCustomItemSeq) || maxCustomItemSeq < 0) {
+    maxCustomItemSeq = 0;
+  }
+
+  const collections =
+    Array.isArray(payload.collections) && payload.collections.length > 0
+      ? payload.collections.map((c, idx) => ({
+          id: String(c?.id || `col_${idx + 1}`).trim(),
+          title: String(c?.title || `集合 ${idx + 1}`),
+          description: String(c?.description ?? ""),
+        }))
+      : structuredClone(DEFAULT_COLLECTIONS);
+
+  const rawCustomTracks = Array.isArray(payload.custom_tracks)
+    ? payload.custom_tracks
+    : structuredClone(DEFAULT_CUSTOM_TRACKS);
+
+  const custom_tracks = rawCustomTracks.map((trk, tIdx) => {
+    const trackId = String(trk?.id || `track_custom_${tIdx + 1}`).trim();
+    maxTrackSeq = Math.max(
+      maxTrackSeq,
+      extractNumericSuffix(trackId, "track_custom_"),
+    );
+    const items = Array.isArray(trk?.items)
+      ? trk.items
+          .map((it, iIdx) => {
+            const itemId = String(
+              it?.id || `T${String(iIdx + 1).padStart(4, "0")}`,
+            ).trim();
+            maxCustomItemSeq = Math.max(
+              maxCustomItemSeq,
+              extractNumericSuffix(itemId, "T"),
+            );
+            const kind = it?.kind === "point" ? "point" : "region";
+            const startSec = Number(
+              kind === "point" ? (it?.time_sec ?? it?.start_sec ?? 0) : (it?.start_sec ?? 0),
+            );
+            const endSec =
+              kind === "region"
+                ? Number(it?.end_sec ?? Math.min(maxDuration, startSec + 1.5))
+                : null;
+            const timeSec = kind === "point" ? Number(startSec.toFixed(6)) : null;
+            const agentStatus =
+              it?.agent_status !== undefined
+                ? String(it.agent_status)
+                : it?.agent_comment
+                  ? "open"
+                  : "none";
+            return {
+              id: itemId,
+              kind,
+              group_id: it?.group_id ? String(it.group_id) : null,
+              parent_id: it?.parent_id ? String(it.parent_id) : null,
+              category: String(it?.category || trk?.type || "custom"),
+              label: String(it?.label || itemId),
+              color: String(it?.color || trk?.color || "#ec4899"),
+              start_sec: Number(Math.max(0, startSec).toFixed(6)),
+              end_sec:
+                endSec !== null
+                  ? Number(
+                      Math.min(
+                        maxDuration,
+                        Math.max(startSec + 0.02, endSec),
+                      ).toFixed(6),
+                    )
+                  : null,
+              time_sec: timeSec,
+              source: it?.source === "auto" ? "auto" : "human",
+              status: it?.status === "confirmed" ? "confirmed" : "candidate",
+              origin_candidate_id: it?.origin_candidate_id
+                ? String(it.origin_candidate_id)
+                : null,
+              origin_analysis_run_id: it?.origin_analysis_run_id
+                ? String(it.origin_analysis_run_id)
+                : null,
+              origin_analysis_sha256: it?.origin_analysis_sha256 ?? null,
+              origin_candidate_time_sec:
+                it?.origin_candidate_time_sec !== undefined &&
+                it?.origin_candidate_time_sec !== null
+                  ? Number(Number(it.origin_candidate_time_sec).toFixed(6))
+                  : null,
+              origin_candidate_sample_index:
+                it?.origin_candidate_sample_index !== undefined &&
+                it?.origin_candidate_sample_index !== null
+                  ? Math.round(Number(it.origin_candidate_sample_index))
+                  : null,
+              data:
+                it?.data && typeof it.data === "object" ? { ...it.data } : {},
+              linked_shots: Array.isArray(it?.linked_shots)
+                ? it.linked_shots.map(String).filter(Boolean)
+                : [],
+              note: String(it?.note ?? ""),
+              script_idea: String(it?.script_idea ?? ""),
+              agent_comment: String(it?.agent_comment ?? ""),
+              agent_status: VALID_AGENT_STATUSES.includes(agentStatus)
+                ? agentStatus
+                : "none",
+              agent_reply: String(it?.agent_reply ?? ""),
+            };
+          })
+          .sort((a, b) => a.start_sec - b.start_sec)
+      : [];
+
+    return {
+      id: trackId,
+      collection_id: String(trk?.collection_id || "col_custom"),
+      name: String(trk?.name || trackId),
+      type: String(trk?.type || "custom"),
+      purpose_for_agent: String(trk?.purpose_for_agent ?? ""),
+      allow_overlap: trk?.allow_overlap !== false,
+      color: String(trk?.color || "#ec4899"),
+      visible: trk?.visible !== false,
+      locked: Boolean(trk?.locked),
+      items,
+    };
+  });
+
   return {
     schema_version: "0.1.0",
     updated_at_utc: payload.updated_at_utc || new Date().toISOString(),
     id_counters: {
       marker_seq: maxMarkerSeq,
       region_seq: maxRegionSeq,
+      track_seq: maxTrackSeq,
+      custom_item_seq: maxCustomItemSeq,
     },
     audio_asset: resolvedAudioAsset,
     preview_mapping: {
@@ -505,23 +698,276 @@ export function normalizeAnnotations(
     },
     markers,
     regions,
+    collections,
+    custom_tracks,
   };
 }
 
-export function buildAgentBriefMarkdown(annotations) {
+export function buildUnifiedTimelineDocument(annotations, lyricsBundle = null) {
+  const lyricLines = Array.isArray(lyricsBundle?.lines) ? lyricsBundle.lines : [];
+  const sectionRegions = (annotations.regions || []).filter(
+    (r) => r.category !== "representative_clip",
+  );
+  const clipRegions = (annotations.regions || []).filter(
+    (r) => r.category === "representative_clip",
+  );
+  const downbeatMarkers = (annotations.markers || []).filter(
+    (m) => m.category === "downbeat",
+  );
+  const otherMarkers = (annotations.markers || []).filter(
+    (m) => m.category !== "downbeat",
+  );
+
+  const lyricGroups = sectionRegions.map((reg) => ({
+    id: reg.id,
+    parent_id: null,
+    title: reg.label,
+    start_sec: reg.start_sec,
+    end_sec: reg.end_sec,
+    note: reg.note || "",
+  }));
+
+  const builtinTracks = [
+    {
+      id: "lyrics_main",
+      collection_id: "col_lyrics",
+      name: "官方双语歌词与人声严格对轴 (L001–L063)",
+      type: "lyrics",
+      purpose_for_agent:
+        "严格对照主唱真实发声起止（Vocal Truth），不包含句尾纯伴奏空隙；相邻两句之间的时间空隙代表纯器乐伴奏或换气，可用于设计插镜与转场。",
+      allow_overlap: false,
+      color: "#a855f7",
+      visible: true,
+      locked: false,
+      groups: lyricGroups,
+      items: lyricLines.map((l, idx) => ({
+        id: l.id,
+        kind: "region",
+        group_id: l.section_id || "P001",
+        parent_id: null,
+        category: "vocal_phrase",
+        label: l.text,
+        color: "#a855f7",
+        start_sec: Number(Number(l.start_sec).toFixed(3)),
+        end_sec: Number(Number(l.end_sec).toFixed(3)),
+        time_sec: null,
+        source: "human",
+        status: l.status === "confirmed" ? "confirmed" : "candidate",
+        origin_candidate_id: l.origin_candidate_id ?? null,
+        origin_analysis_run_id: annotations.audio_asset?.analysis_run_id ?? null,
+        origin_analysis_sha256: annotations.audio_asset?.sha256 ?? null,
+        origin_candidate_time_sec: l.vocal_onset_sec ?? null,
+        origin_candidate_sample_index: null,
+        data: {
+          index: l.index ?? idx + 1,
+          section_id: l.section_id || "P001",
+          bar: Number(l.bar || 1),
+          text: l.text,
+          lang: l.lang || "en",
+          lrc_start_sec: l.lrc_start_sec ?? l.start_sec,
+          vocal_onset_sec: l.vocal_onset_sec ?? null,
+        },
+        linked_shots: Array.isArray(l.linked_shots) ? l.linked_shots : [],
+        note: String(l.note ?? ""),
+        script_idea: String(l.script_idea ?? ""),
+        agent_comment: String(l.agent_comment ?? ""),
+        agent_status: l.agent_status || (l.agent_comment ? "open" : "none"),
+        agent_reply: String(l.agent_reply ?? ""),
+      })),
+    },
+    {
+      id: "structure_sections",
+      collection_id: "col_structure",
+      name: "曲式段落划分 (P001–P012)",
+      type: "structure",
+      purpose_for_agent:
+        "全曲宏观曲式段落划分（P001–P012），作为歌词分组、情绪递进与视觉章节的顶层容器。",
+      allow_overlap: false,
+      color: "#38bdf8",
+      visible: true,
+      locked: true,
+      groups: [],
+      items: sectionRegions.map((r) => ({
+        id: r.id,
+        kind: "region",
+        group_id: null,
+        parent_id: null,
+        category: r.category,
+        label: r.label,
+        color: r.color,
+        start_sec: r.start_sec,
+        end_sec: r.end_sec,
+        time_sec: null,
+        source: r.source,
+        status: r.status,
+        origin_candidate_id: null,
+        origin_analysis_run_id: null,
+        origin_analysis_sha256: null,
+        origin_candidate_time_sec: null,
+        origin_candidate_sample_index: null,
+        data: { lyric_hint: r.lyric_hint || "" },
+        linked_shots: [...r.linked_shots],
+        note: r.note,
+        script_idea: r.script_idea,
+        agent_comment: r.agent_comment,
+        agent_status: r.agent_status,
+        agent_reply: r.agent_reply,
+      })),
+    },
+    {
+      id: "structure_clips",
+      collection_id: "col_structure",
+      name: "代表性验证片段 (Clips)",
+      type: "clip",
+      purpose_for_agent: "10–20s 代表性动态分镜验证片段区间。",
+      allow_overlap: true,
+      color: "#10b981",
+      visible: true,
+      locked: false,
+      groups: [],
+      items: clipRegions.map((r) => ({
+        id: r.id,
+        kind: "region",
+        group_id: null,
+        parent_id: null,
+        category: r.category,
+        label: r.label,
+        color: r.color,
+        start_sec: r.start_sec,
+        end_sec: r.end_sec,
+        time_sec: null,
+        source: r.source,
+        status: r.status,
+        origin_candidate_id: null,
+        origin_analysis_run_id: null,
+        origin_analysis_sha256: null,
+        origin_candidate_time_sec: null,
+        origin_candidate_sample_index: null,
+        data: { lyric_hint: r.lyric_hint || "" },
+        linked_shots: [...r.linked_shots],
+        note: r.note,
+        script_idea: r.script_idea,
+        agent_comment: r.agent_comment,
+        agent_status: r.agent_status,
+        agent_reply: r.agent_reply,
+      })),
+    },
+    {
+      id: "rhythm_downbeats",
+      collection_id: "col_rhythm",
+      name: "小节第一拍 Downbeats",
+      type: "downbeat",
+      purpose_for_agent: "人工确认或候选的小节第一拍（Downbeat），定义小节网格基准。",
+      allow_overlap: false,
+      color: "#f59e0b",
+      visible: true,
+      locked: false,
+      groups: [],
+      items: downbeatMarkers.map((m) => ({
+        id: m.id,
+        kind: "point",
+        group_id: null,
+        parent_id: null,
+        category: m.category,
+        label: m.label,
+        color: m.color,
+        start_sec: m.time_sec,
+        end_sec: null,
+        time_sec: m.time_sec,
+        source: m.source,
+        status: m.status,
+        origin_candidate_id: m.origin_candidate_id,
+        origin_analysis_run_id: m.origin_analysis_run_id,
+        origin_analysis_sha256: m.origin_analysis_sha256,
+        origin_candidate_time_sec: m.origin_candidate_time_sec,
+        origin_candidate_sample_index: m.origin_candidate_sample_index,
+        data: { lyric_hint: m.lyric_hint || "" },
+        linked_shots: [...m.linked_shots],
+        note: m.note,
+        script_idea: m.script_idea,
+        agent_comment: m.agent_comment,
+        agent_status: m.agent_status,
+        agent_reply: m.agent_reply,
+      })),
+    },
+    {
+      id: "rhythm_markers",
+      collection_id: "col_rhythm",
+      name: "拍点 / 重音 / 切镜点",
+      type: "rhythm",
+      purpose_for_agent: "拍点、鼓点重音、人声关键点与候选切镜点标记。",
+      allow_overlap: true,
+      color: "#eab308",
+      visible: true,
+      locked: false,
+      groups: [],
+      items: otherMarkers.map((m) => ({
+        id: m.id,
+        kind: "point",
+        group_id: m.category,
+        parent_id: null,
+        category: m.category,
+        label: m.label,
+        color: m.color,
+        start_sec: m.time_sec,
+        end_sec: null,
+        time_sec: m.time_sec,
+        source: m.source,
+        status: m.status,
+        origin_candidate_id: m.origin_candidate_id,
+        origin_analysis_run_id: m.origin_analysis_run_id,
+        origin_analysis_sha256: m.origin_analysis_sha256,
+        origin_candidate_time_sec: m.origin_candidate_time_sec,
+        origin_candidate_sample_index: m.origin_candidate_sample_index,
+        data: { lyric_hint: m.lyric_hint || "" },
+        linked_shots: [...m.linked_shots],
+        note: m.note,
+        script_idea: m.script_idea,
+        agent_comment: m.agent_comment,
+        agent_status: m.agent_status,
+        agent_reply: m.agent_reply,
+      })),
+    },
+  ];
+
+  const customTracks = Array.isArray(annotations.custom_tracks)
+    ? annotations.custom_tracks.map((t) => ({
+        ...t,
+        groups: [],
+      }))
+    : [];
+
+  return {
+    schema_version: "0.2.0",
+    updated_at_utc: annotations.updated_at_utc,
+    id_counters: annotations.id_counters,
+    audio_asset: annotations.audio_asset,
+    preview_mapping: annotations.preview_mapping,
+    global_notes: annotations.global_notes,
+    collections: annotations.collections || DEFAULT_COLLECTIONS,
+    tracks: [...builtinTracks, ...customTracks],
+  };
+}
+
+export function buildAgentBriefMarkdown(annotations, lyricsBundle = null) {
   const fps = annotations.preview_mapping?.preview_fps ?? 30;
   const offset = annotations.preview_mapping?.audio_offset_seconds ?? 0;
   const toFrame = (sec) => audioSecToGlobalFrame(sec, offset, fps);
+  const lyricLines = Array.isArray(lyricsBundle?.lines) ? lyricsBundle.lines : [];
+  const confirmedLyricsCount = lyricLines.filter(
+    (l) => l.status === "confirmed",
+  ).length;
 
   const lines = [
-    "# Try Me — 标注、脚本设计与 Agent 协作简报",
+    "# Try Me — 多轨时间轴、脚本设计与 Agent 协作简报",
     "",
-    `> 本文件由 \`apps/annotator/server/index.ts\` 根据 \`local/annotations/annotations.json\` 自动生成，仅保存在本地忽略目录 \`local/annotations/\`。\`lyric_hint\` 私人歌词字段已排除；其余自由文本在转入公开文档前仍需人工复核。`,
+    `> 本文件由 \`apps/annotator/server/index.ts\` 根据主时间线 \`annotations/try-me.timeline.json\` 自动生成并受 Git 追踪。`,
     "",
     `- 更新时间 (UTC)：\`${annotations.updated_at_utc}\``,
     `- 音源：\`${annotations.audio_asset.path}\` (SHA-256: \`${annotations.audio_asset.sha256 ?? "unknown"}\`, 采样率: \`${annotations.audio_asset.samplerate}Hz\`, 总采样帧: \`${annotations.audio_asset.total_samples}\`, 时长: \`${annotations.audio_asset.duration_sec}s\`)`,
     `- 关联自动分析轮次：\`${annotations.audio_asset.analysis_run_id ?? "unknown"}\``,
     `- 预览帧映射：\`FPS = ${fps}\` (仅预览，非最终成片规格), \`audioOffsetSeconds = ${offset}s\`, 全片帧公式 \`videoFrame = Math.round((audioSeconds + audioOffsetSeconds) * fps)\``,
+    `- 主唱人声严格对轴进度：\`${confirmedLyricsCount} / ${lyricLines.length}\` 句已人工确认（严格剥离句尾伴奏空隙）`,
     "",
     "## 1. 全局创作设定与给 Agent 的总体指令",
     "",
@@ -530,6 +976,43 @@ export function buildAgentBriefMarkdown(annotations) {
     `- **给 Agent 的总体要求 (Instructions for Agent)**：${annotations.global_notes?.instructions_for_agent || "（暂未填写）"}`,
     "",
   ];
+
+  const customOpenItems = [];
+  for (const trk of annotations.custom_tracks || []) {
+    for (const it of trk.items || []) {
+      if (it.agent_comment || it.agent_status === "open") {
+        customOpenItems.push({
+          id: it.id,
+          type: `${trk.name} (${it.kind})`,
+          time:
+            it.kind === "region" && it.end_sec !== null
+              ? `${formatTimeSec(it.start_sec)} - ${formatTimeSec(it.end_sec)} (${it.start_sec.toFixed(3)}s–${it.end_sec.toFixed(3)}s)`
+              : `${formatTimeSec(it.start_sec)} (${it.start_sec.toFixed(3)}s)`,
+          frames:
+            it.kind === "region" && it.end_sec !== null
+              ? `[F${toFrame(it.start_sec)}, F${toFrame(it.end_sec)})`
+              : `F${toFrame(it.start_sec)}`,
+          status: it.agent_status,
+          comment: it.agent_comment,
+          script: it.script_idea,
+          reply: it.agent_reply,
+        });
+      }
+    }
+  }
+
+  const lyricOpenItems = lyricLines
+    .filter((l) => l.agent_comment || l.agent_status === "open")
+    .map((l) => ({
+      id: l.id,
+      type: `歌词句 (${l.section_id})`,
+      time: `${formatTimeSec(l.start_sec)} - ${formatTimeSec(l.end_sec)} (${l.start_sec.toFixed(3)}s–${l.end_sec.toFixed(3)}s)`,
+      frames: `[F${toFrame(l.start_sec)}, F${toFrame(l.end_sec)})`,
+      status: l.agent_status || "open",
+      comment: l.agent_comment || "",
+      script: l.script_idea || "",
+      reply: l.agent_reply || "",
+    }));
 
   const openItems = [
     ...annotations.regions
@@ -556,6 +1039,8 @@ export function buildAgentBriefMarkdown(annotations) {
         script: m.script_idea,
         reply: m.agent_reply,
       })),
+    ...lyricOpenItems,
+    ...customOpenItems,
   ];
 
   lines.push("## 2. 待 Agent 处理的评论与任务队列 (Agent Action Queue)", "");
@@ -609,7 +1094,41 @@ export function buildAgentBriefMarkdown(annotations) {
     lines.push("");
   }
 
-  return lines.join("\n");
+  if (Array.isArray(annotations.custom_tracks) && annotations.custom_tracks.length > 0) {
+    lines.push("## 5. 自由扩展时间轴轨道 (Custom Timeline Tracks)", "");
+    for (const trk of annotations.custom_tracks) {
+      lines.push(
+        `### 轨道 \`${trk.id}\` — ${trk.name} (type: \`${trk.type}\`, allow_overlap: \`${trk.allow_overlap}\`)`,
+        "",
+        `- **Agent 轨道用途说明**：${trk.purpose_for_agent || "（未填写）"}`,
+        "",
+      );
+      if (!trk.items || trk.items.length === 0) {
+        lines.push("（暂无标注项）", "");
+      } else {
+        lines.push(
+          "| ID | 类型 | 分组/父级 | 标题 | 状态 | 时间范围 (秒) | 预览帧 | 关联镜头 | 备注 | 脚本设计 |",
+          "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        );
+        for (const it of trk.items) {
+          const tStr =
+            it.kind === "region" && it.end_sec !== null
+              ? `${it.start_sec.toFixed(3)}s - ${it.end_sec.toFixed(3)}s`
+              : `${it.start_sec.toFixed(3)}s`;
+          const fStr =
+            it.kind === "region" && it.end_sec !== null
+              ? `[F${toFrame(it.start_sec)}, F${toFrame(it.end_sec)})`
+              : `F${toFrame(it.start_sec)}`;
+          lines.push(
+            `| \`${it.id}\` | \`${it.kind}\` | ${it.group_id || it.parent_id || "-"} | ${it.label} | \`${it.status}\` | \`${tStr}\` | \`${fStr}\` | ${(it.linked_shots || []).join(", ") || "-"} | ${(it.note || "").replace(/\n/g, " ") || "-"} | ${(it.script_idea || "").replace(/\n/g, " ") || "-"} |`,
+          );
+        }
+        lines.push("");
+      }
+    }
+  }
+
+  return lines.join("\n").trimEnd();
 }
 
 export function buildSanitizedPreviewPayload(
@@ -766,6 +1285,17 @@ export async function saveLyricsToDisk(rawLines, customPaths = {}) {
           lang: String(item?.lang || "en"),
           status: item?.status === "confirmed" ? "confirmed" : "candidate",
           note: String(item?.note ?? ""),
+          script_idea: String(item?.script_idea ?? ""),
+          linked_shots: Array.isArray(item?.linked_shots)
+            ? item.linked_shots.map(String).filter(Boolean)
+            : [],
+          agent_comment: String(item?.agent_comment ?? ""),
+          agent_status: VALID_AGENT_STATUSES.includes(String(item?.agent_status || ""))
+            ? String(item.agent_status)
+            : item?.agent_comment
+              ? "open"
+              : "none",
+          agent_reply: String(item?.agent_reply ?? ""),
         };
       })
       .sort((a, b) => a.start_sec - b.start_sec);
@@ -798,6 +1328,36 @@ export async function saveLyricsToDisk(rawLines, customPaths = {}) {
       );
     }
 
+    const lyricsResult = {
+      available: true,
+      updated_at_utc: updatedPayload.updated_at_utc,
+      status: updatedPayload.status,
+      lines: normalizedLines,
+    };
+
+    // Also sync unified Git-tracked timeline & brief
+    const [analysis, { existing: existingAnnotations }] = await Promise.all([
+      loadAnalysisBundle(paths.analysisDir),
+      readAnnotationsWithRevision(paths.annotationsFile),
+    ]);
+    const normalizedAnnotations = normalizeAnnotations(
+      existingAnnotations,
+      analysis.summary,
+      {
+        existingAudioAsset: existingAnnotations?.audio_asset ?? null,
+        preserveExistingOnMismatch: true,
+      },
+    );
+    normalizedAnnotations.updated_at_utc = updatedPayload.updated_at_utc;
+    const unifiedDoc = buildUnifiedTimelineDocument(
+      normalizedAnnotations,
+      lyricsResult,
+    );
+    const briefMd = buildAgentBriefMarkdown(
+      normalizedAnnotations,
+      lyricsResult,
+    );
+
     await Promise.all([
       atomicWriteFile(
         paths.lyricsJsonFile,
@@ -805,25 +1365,167 @@ export async function saveLyricsToDisk(rawLines, customPaths = {}) {
       ),
       atomicWriteFile(paths.lyricsLrcFile, lrcLines.join("\n") + "\n"),
       atomicWriteFile(paths.lyricsAssFile, exportLyricsToAss(normalizedLines)),
+      atomicWriteFile(
+        paths.timelineFile,
+        JSON.stringify(unifiedDoc, null, 2) + "\n",
+      ),
+      atomicWriteFile(paths.trackedAgentBriefFile, briefMd + "\n"),
+      atomicWriteFile(paths.agentBriefFile, briefMd + "\n"),
     ]);
 
-    return {
-      available: true,
-      updated_at_utc: updatedPayload.updated_at_utc,
-      status: updatedPayload.status,
-      lines: normalizedLines,
-    };
+    return lyricsResult;
   });
+}
+
+export function extractStateFromUnifiedTimeline(timelineDoc) {
+  if (!timelineDoc || !Array.isArray(timelineDoc.tracks)) {
+    return null;
+  }
+  const BUILTIN_IDS = new Set([
+    "lyrics_main",
+    "structure_sections",
+    "structure_clips",
+    "rhythm_downbeats",
+    "rhythm_markers",
+  ]);
+
+  const lyricsTrack = timelineDoc.tracks.find((t) => t.id === "lyrics_main");
+  const lyricsLines = Array.isArray(lyricsTrack?.items)
+    ? lyricsTrack.items.map((it, idx) => ({
+        id: it.id,
+        index: it.data?.index ?? idx + 1,
+        section_id: String(it.group_id || it.data?.section_id || "P001"),
+        bar: Number(it.data?.bar || 1),
+        start_sec: Number(it.start_sec),
+        end_sec: Number(it.end_sec ?? it.start_sec + 1),
+        lrc_start_sec: Number(it.data?.lrc_start_sec ?? it.start_sec),
+        vocal_onset_sec:
+          it.data?.vocal_onset_sec ?? it.origin_candidate_time_sec ?? null,
+        origin_candidate_id: it.origin_candidate_id ?? null,
+        text: String(it.data?.text ?? it.label ?? ""),
+        lang: String(it.data?.lang || "en"),
+        status: it.status === "confirmed" ? "confirmed" : "candidate",
+        note: String(it.note ?? ""),
+        script_idea: String(it.script_idea ?? ""),
+        linked_shots: Array.isArray(it.linked_shots) ? it.linked_shots : [],
+        agent_comment: String(it.agent_comment ?? ""),
+        agent_status: it.agent_status || "none",
+        agent_reply: String(it.agent_reply ?? ""),
+      }))
+    : [];
+
+  const regions = [];
+  const markers = [];
+  const customTracks = [];
+
+  for (const trk of timelineDoc.tracks) {
+    if (
+      trk.id === "structure_sections" ||
+      trk.id === "structure_clips"
+    ) {
+      for (const it of trk.items || []) {
+        regions.push({
+          id: it.id,
+          kind: "region",
+          category:
+            it.category ||
+            (trk.id === "structure_clips" ? "representative_clip" : "section"),
+          label: it.label,
+          color: it.color || "#38bdf8",
+          start_sec: it.start_sec,
+          end_sec: it.end_sec,
+          source: it.source || "human",
+          status: it.status || "candidate",
+          linked_shots: it.linked_shots || [],
+          note: it.note || "",
+          script_idea: it.script_idea || "",
+          agent_comment: it.agent_comment || "",
+          agent_status: it.agent_status || "none",
+          agent_reply: it.agent_reply || "",
+          lyric_hint: String(it.data?.lyric_hint ?? ""),
+        });
+      }
+    } else if (
+      trk.id === "rhythm_downbeats" ||
+      trk.id === "rhythm_markers"
+    ) {
+      for (const it of trk.items || []) {
+        markers.push({
+          id: it.id,
+          kind: "point",
+          category:
+            it.category ||
+            (trk.id === "rhythm_downbeats" ? "downbeat" : "beat"),
+          label: it.label,
+          color: it.color || "#f59e0b",
+          time_sec: it.time_sec ?? it.start_sec,
+          source: it.source || "human",
+          origin_candidate_id: it.origin_candidate_id ?? null,
+          origin_analysis_run_id: it.origin_analysis_run_id ?? null,
+          origin_analysis_sha256: it.origin_analysis_sha256 ?? null,
+          origin_candidate_time_sec: it.origin_candidate_time_sec ?? null,
+          origin_candidate_sample_index: it.origin_candidate_sample_index ?? null,
+          status: it.status || "candidate",
+          linked_shots: it.linked_shots || [],
+          note: it.note || "",
+          script_idea: it.script_idea || "",
+          agent_comment: it.agent_comment || "",
+          agent_status: it.agent_status || "none",
+          agent_reply: it.agent_reply || "",
+          lyric_hint: String(it.data?.lyric_hint ?? ""),
+        });
+      }
+    } else if (!BUILTIN_IDS.has(trk.id)) {
+      customTracks.push(trk);
+    }
+  }
+
+  return {
+    annotations: {
+      schema_version: "0.1.0",
+      updated_at_utc: timelineDoc.updated_at_utc,
+      id_counters: timelineDoc.id_counters,
+      audio_asset: timelineDoc.audio_asset,
+      preview_mapping: timelineDoc.preview_mapping,
+      global_notes: timelineDoc.global_notes,
+      collections: timelineDoc.collections || DEFAULT_COLLECTIONS,
+      regions,
+      markers,
+      custom_tracks: customTracks,
+    },
+    lyrics: {
+      available: lyricsLines.length > 0,
+      updated_at_utc: timelineDoc.updated_at_utc,
+      status:
+        lyricsLines.length > 0 &&
+        lyricsLines.every((l) => l.status === "confirmed")
+          ? "confirmed"
+          : "candidate",
+      lines: lyricsLines,
+    },
+  };
 }
 
 export async function loadCurrentState(customPaths = {}) {
   const paths = resolveServerPaths(customPaths);
   return runWithWriteLock(async () => {
-    const [analysis, lyrics, { existing, revision }] = await Promise.all([
-      loadAnalysisBundle(paths.analysisDir),
-      loadLyricsBundle(paths.lyricsJsonFile),
-      readAnnotationsWithRevision(paths.annotationsFile),
-    ]);
+    const [analysis, rawLyrics, { existing: rawExisting, revision }, trackedDoc] =
+      await Promise.all([
+        loadAnalysisBundle(paths.analysisDir),
+        loadLyricsBundle(paths.lyricsJsonFile),
+        readAnnotationsWithRevision(paths.annotationsFile),
+        readJsonStrictIfExists(paths.timelineFile),
+      ]);
+
+    const extracted =
+      (!rawExisting || !rawLyrics.available) && trackedDoc
+        ? extractStateFromUnifiedTimeline(trackedDoc)
+        : null;
+
+    const existing = rawExisting || extracted?.annotations || null;
+    const lyrics = rawLyrics.available
+      ? rawLyrics
+      : extracted?.lyrics || rawLyrics;
 
     const existingSha = existing?.audio_asset?.sha256 ?? null;
     const currentAnalysisSha = analysis.summary?.input_audio?.sha256 ?? null;
@@ -836,17 +1538,25 @@ export async function loadCurrentState(customPaths = {}) {
       allowAudioMigration: false,
       preserveExistingOnMismatch: true,
     });
-    const agentBriefMarkdown = buildAgentBriefMarkdown(annotations);
+    const agentBriefMarkdown = buildAgentBriefMarkdown(annotations, lyrics);
+    const unifiedDoc = buildUnifiedTimelineDocument(annotations, lyrics);
 
     // Only write preview file when audio hashes match; on mismatch mark preview as muted/mismatched
-    await atomicWriteFile(
-      paths.previewJsonFile,
-      JSON.stringify(
-        buildSanitizedPreviewPayload(annotations, { audioHashMismatch }),
-        null,
-        2,
-      ) + "\n",
-    );
+    await Promise.all([
+      atomicWriteFile(
+        paths.previewJsonFile,
+        JSON.stringify(
+          buildSanitizedPreviewPayload(annotations, { audioHashMismatch }),
+          null,
+          2,
+        ) + "\n",
+      ),
+      atomicWriteFile(
+        paths.timelineFile,
+        JSON.stringify(unifiedDoc, null, 2) + "\n",
+      ),
+      atomicWriteFile(paths.trackedAgentBriefFile, agentBriefMarkdown + "\n"),
+    ]);
 
     return {
       revision,
@@ -856,6 +1566,7 @@ export async function loadCurrentState(customPaths = {}) {
       annotations,
       lyrics,
       agentBriefMarkdown,
+      timelineFile: paths.timelineFile,
     };
   });
 }
@@ -927,7 +1638,9 @@ export async function saveAnnotationsToDisk(
       await fsp.copyFile(paths.annotationsFile, paths.annotationsBackupFile);
     }
 
-    const markdown = buildAgentBriefMarkdown(normalized);
+    const lyrics = await loadLyricsBundle(paths.lyricsJsonFile);
+    const markdown = buildAgentBriefMarkdown(normalized, lyrics);
+    const unifiedDoc = buildUnifiedTimelineDocument(normalized, lyrics);
     const previewPayload = buildSanitizedPreviewPayload(normalized, {
       audioHashMismatch: false,
     });
@@ -936,6 +1649,11 @@ export async function saveAnnotationsToDisk(
     await atomicWriteFile(paths.annotationsFile, serializedJson);
     await Promise.all([
       atomicWriteFile(paths.agentBriefFile, markdown + "\n"),
+      atomicWriteFile(paths.trackedAgentBriefFile, markdown + "\n"),
+      atomicWriteFile(
+        paths.timelineFile,
+        JSON.stringify(unifiedDoc, null, 2) + "\n",
+      ),
       atomicWriteFile(
         paths.previewJsonFile,
         JSON.stringify(previewPayload, null, 2) + "\n",
@@ -1085,6 +1803,20 @@ export function createAnnotationServer(customPaths = {}) {
           "Cache-Control": "no-store",
         });
         res.end(JSON.stringify(state));
+        return;
+      }
+
+      if (req.method === "GET" && pathname === "/api/timeline") {
+        const state = await loadCurrentState(paths);
+        const doc = buildUnifiedTimelineDocument(
+          state.annotations,
+          state.lyrics,
+        );
+        res.writeHead(200, {
+          "Content-Type": "application/json; charset=utf-8",
+          "Cache-Control": "no-store",
+        });
+        res.end(JSON.stringify(doc, null, 2));
         return;
       }
 

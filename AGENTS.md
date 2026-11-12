@@ -36,7 +36,7 @@
 - 用户可以用自然语言描述声画关系，Agent 将描述转成有稳定 ID 的事件、时间点或镜头修改，并通过预览验证。节奏设计无需每拍都切镜头。
 - 自动分析与人工修订分开保存，重跑分析绝不覆盖人工修订。记录来源、确认状态、音源哈希、工具版本与参数；需要时再引入分轨、歌词对齐或音符转录。
 - 原始时间保留秒数或采样位置，不混淆音频特征帧与视频帧；统一处理音频偏移与 FPS。标注播放与画面预览共用时间映射，验证跳转、循环与暂停恢复。
-- 自动分析保存在 `local/analysis/`，人工修订保存在 `local/annotations/`，浏览器所需私有派生数据放 `public/private/`。只有确认可公开的镜头执行数据才进入 `apps/mv/src/timeline/`。
+- 自动分析保存在 `local/analysis/`，受 Git 追踪的统一多轨主时间线与 Agent 简报保存在 `annotations/try-me.timeline.json` 与 `annotations/agent-brief.md`（见决策 `D006`），本地备份与 `.ass`/`.lrc` 派生文件同步保存在 `local/annotations/`，浏览器所需私有派生数据放 `public/private/`。确认后的镜头执行数据按需进入 `apps/mv/src/timeline/`。
 
 ### 每次收尾
 

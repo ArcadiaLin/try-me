@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { AgentBriefDrawer } from "./components/AgentBriefDrawer.tsx";
 import { AudioTimelineStage } from "./components/AudioTimelineStage.tsx";
+import { CustomTrackWorkbench } from "./components/CustomTrackWorkbench.tsx";
 import { HeaderBar } from "./components/HeaderBar.tsx";
 import { LyricsWorkbench } from "./components/LyricsWorkbench.tsx";
 import { RhythmWorkbench } from "./components/RhythmWorkbench.tsx";
@@ -12,6 +13,7 @@ import {
   confirmLyricAndAdvance,
   deleteSelectedItem,
   getAudioDuration,
+  isBuiltInTrackId,
   notifyStore,
   performRedo,
   performUndo,
@@ -285,6 +287,9 @@ export function App(): React.JSX.Element {
       snap.activeTrackId === "rhythm_markers"
     ) {
       return <RhythmWorkbench />;
+    }
+    if (!isBuiltInTrackId(snap.activeTrackId)) {
+      return <CustomTrackWorkbench />;
     }
     return <LyricsWorkbench />;
   };

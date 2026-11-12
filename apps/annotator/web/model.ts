@@ -40,6 +40,33 @@ export function allocateRegionId(annotations) {
   }
 }
 
+export function allocateCustomItemId(annotations) {
+  if (!annotations.id_counters) {
+    annotations.id_counters = { marker_seq: 0, region_seq: 0, track_seq: 0, custom_item_seq: 0 };
+  }
+  if (typeof annotations.id_counters.custom_item_seq !== "number") {
+    annotations.id_counters.custom_item_seq = 0;
+  }
+  const used = new Set();
+  for (const trk of annotations.custom_tracks || []) {
+    for (const item of trk.items || []) {
+      used.add(item.id);
+      const match = /^E(\d+)$/.exec(item.id);
+      if (match) {
+        annotations.id_counters.custom_item_seq = Math.max(
+          annotations.id_counters.custom_item_seq,
+          Number.parseInt(match[1], 10),
+        );
+      }
+    }
+  }
+  while (true) {
+    annotations.id_counters.custom_item_seq += 1;
+    const candidate = `E${String(annotations.id_counters.custom_item_seq).padStart(4, "0")}`;
+    if (!used.has(candidate)) return candidate;
+  }
+}
+
 /**
  * Apply loaded or reloaded server state to client state:
  * - Advances loadEpoch so any in-flight save from before reload is ignored
@@ -95,6 +122,14 @@ export function reconcileSaveResponse(
     region_seq: Math.max(
       clientState.annotations.id_counters?.region_seq || 0,
       serverResponse.annotations.id_counters?.region_seq || 0,
+    ),
+    track_seq: Math.max(
+      clientState.annotations.id_counters?.track_seq || 0,
+      serverResponse.annotations.id_counters?.track_seq || 0,
+    ),
+    custom_item_seq: Math.max(
+      clientState.annotations.id_counters?.custom_item_seq || 0,
+      serverResponse.annotations.id_counters?.custom_item_seq || 0,
     ),
   };
   return { status: "dirty_preserved", needsFollowUpSave: true };

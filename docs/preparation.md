@@ -1,6 +1,6 @@
 # 制作准备与协作流程
 
-状态更新：2026-11-12。已完成阶段 0.1、0.2 工具链实现及 Monorepo 重组：根目录保持 Python 3.12 独立 `.venv/`（`pyproject.toml`、`uv.lock`）、可复现分析入口 `tools/audio-analyzer/analyze-audio.py`、候选数据 `local/analysis/`、独立波形标注与脚本工作台子应用 `apps/annotator/`（`npm run annotate`）、跨端共享时间映射包 `packages/shared/`（`@try-me/shared`）、Agent 协作简报自动生成（`local/annotations/agent-brief.md`）以及 Remotion MV 子应用 `apps/mv/`（`apps/mv/src/Composition.tsx`）。所有自动拍点与初始验证片段（`CLIP_01`）均保持 `candidate` 状态，待人工听辨播放确认。
+状态更新：2026-11-13。已完成阶段 0.1、0.2 工具链实现、Monorepo 重组及统一多轨时间轴升级（见 `D006`）：根目录保持 Python 3.12 独立 `.venv/`（`pyproject.toml`、`uv.lock`）、可复现分析入口 `tools/audio-analyzer/analyze-audio.py`、候选数据 `local/analysis/`、独立波形标注与多轨脚本工作台子应用 `apps/annotator/`（`npm run annotate`）、Git 追踪的统一多轨主时间线 `annotations/try-me.timeline.json` 与 `annotations/agent-brief.md`、跨端共享时间映射包 `packages/shared/`（`@try-me/shared`），以及 Remotion MV 子应用 `apps/mv/`（`apps/mv/src/Composition.tsx`）。用户已完成 `P002`（Verse 1）及前 14 句歌词（`L001`–`L014`）的人工严格人声对轴确认（`60 FPS`）。
 
 ## 当前环境与待办
 
@@ -43,14 +43,14 @@
 
 以下为计划结构，实施时按需创建：
 
-| 数据                                           | 计划位置                    | 规则                                                           |
-| ---------------------------------------------- | --------------------------- | -------------------------------------------------------------- |
-| 自动分析、参数、图表                           | `local/analysis/`           | 可重新生成，标注为候选                                         |
-| 人工确认的音乐标记与修订                       | `local/annotations/`        | 与机器结果分开，重跑分析不得覆盖                               |
-| 私人歌词与歌词时间标记                         | `local/annotations/lyrics/` | 不提交完整歌词                                                 |
-| 需要在浏览器加载的分析派生数据、分轨或工作音频 | `public/private/`           | 保持私有，登记与原音源的关系                                   |
-| 可公开的镜头安排与执行时间线                   | `apps/mv/src/timeline/`     | 先确认公开范围，再导入必要的确认数据，不携带完整歌词或私人记录 |
-| 段落解释、创作目的、镜头状态                   | `docs/`                     | 引用稳定 ID，与代码保持一致                                    |
+| 数据                                           | 计划位置                                              | 规则                                                                                     |
+| ---------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| 自动分析、参数、图表                           | `local/analysis/`                                     | 可重新生成，标注为候选，不提交 Git                                                       |
+| 统一多轨时间轴主文件与 Agent 协作简报          | `annotations/try-me.timeline.json`、`annotations/agent-brief.md` | 受 Git 追踪（见 `D006`），承载歌词、结构、节拍、效果音、分镜等多条独立或重叠时间轴与脚本 |
+| 本地工作台备份与 `.ass`/`.lrc` 派生字幕        | `local/annotations/`、`local/annotations/lyrics/`     | 与机器结果分开，重跑分析不得覆盖；每次保存与 `annotations/try-me.timeline.json` 双向同步 |
+| 需要在浏览器加载的分析派生数据、分轨或工作音频 | `public/private/`                                     | 保持私有，登记与原音源的关系                                                             |
+| 可公开的镜头安排与执行时间线                   | `apps/mv/src/timeline/`                               | 按需从已确认的时间线生成 Remotion 场景执行数据                                           |
+| 段落解释、创作目的、镜头状态                   | `docs/`                                               | 引用稳定 ID，与代码保持一致                                                              |
 
 每批分析关联音源哈希、工具与参数，换音源时先检查标记是否仍然适用。分析结果保留秒数或采样位置及采样率，进入 Remotion 时统一加片头偏移并转换成整数帧；分析工具的特征帧与视频帧不是同一单位。FPS 变更时从原始时间重新计算，不反复换算已舍入的帧号。
 

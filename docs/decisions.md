@@ -39,3 +39,16 @@
   - `apps/annotator`（`@try-me/annotator`）：独立波形标注、脚本设计与 Agent 协作台（含 `server/`、`web/`、`test/`）。
   - `packages/shared`（`@try-me/shared`）：跨端唯一权威的 `audioSecToGlobalFrame`、`globalFrameToAudioSec` 与 `computePreviewTimeline` 时间映射包，由标注前端、标注服务端与 Remotion 共同引用。
   - `tools/audio-analyzer/` 与 `tools/repo-guard/`：存放 Python 音频特征提取脚本与 Git 索引隐私边界检查脚本（`check-repo.ts`）；全仓 Node 与前端代码统一使用 TypeScript（`.ts` / `.tsx`）；Python 环境配置（`pyproject.toml`、`uv.lock`、`.venv/`）与 `public/`、`local/`、`docs/`、`out/` 保持在仓库根目录。
+
+## D006 — 2026-11-13：Git 追踪的统一多轨时间轴格式（annotations/try-me.timeline.json）与严格人声对轴约定
+
+- **替代范围**：更新 D001 与 D004 中“人工标注与歌词时间轴仅保存在 `local/annotations/`”的存储约定；原音轨（`public/private/audio/try-me.flac`）、机器自动分析原始产物（`local/analysis/`）与渲染成片（`out/`）仍保持私有忽略，禁止提交。
+- **Git 追踪的统一多轨主时间线**：
+  - 新增受 Git 版本控制的 `annotations/try-me.timeline.json`（`schema_version: "0.2.0"`）与 `annotations/agent-brief.md`，保存完整歌词文本、精确人声时间轴、曲式段落、节拍重音、自由扩展轨道、画面脚本构想（`script_idea`）与 Agent 协作批注（`agent_comment` / `agent_status` / `agent_reply`）。
+  - 同时继续同步写入 `local/annotations/`（含 `.json`、`.ass`、`.lrc` 派生文件）与 `public/private/annotations-preview.json`，当全新克隆仓库不存在 `local/annotations/` 时，服务端自动从 `annotations/try-me.timeline.json` 恢复完整工作台状态。
+- **单一主时间线 + 自由多轨重叠 + 层级分组模型**：
+  - 全曲以单一音源时间线为基准（当前预览帧率已由用户设定为 `60 FPS`），在其上挂载多条独立或相互重叠的时间轴（`tracks`）。
+  - 每条时间轴的顶层类型 `type` 完全自由（如 `"lyrics"`、`"structure"`、`"rhythm"`、`"sfx"`、`"shot"` 或用户自定义类型），并自带 `purpose_for_agent`（向 Agent 解释该轨道语义）与 `allow_overlap`（是否允许同轨内事件重叠）。
+  - 每个标注事件（`items`）支持区间（`region`）或瞬时点（`point`）、层级归属（`group_id` 段落分组与 `parent_id` 父节点嵌套）、脚本设计（`script_idea`）、听感备注（`note`）、关联镜头（`linked_shots`）与 Agent 专项指令。
+- **严格人声对轴（Vocal Truth）原则**：
+  - `lyrics_main` 轨道人工确认时严格对齐主唱真实发声起止（剥离句尾纯器乐伴奏空隙），不强行将上一句句尾拉到下一句句首；句与句之间的时间空隙即代表纯伴奏留白或换气区间，供效果音轴（`sfx_accents`）或分镜轴（`visual_shots`）自由叠加设计。

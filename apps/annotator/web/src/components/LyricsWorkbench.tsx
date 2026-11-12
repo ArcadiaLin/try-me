@@ -17,7 +17,7 @@ import {
   updateLyricStart,
   useWorkbenchStore,
 } from "../store/workbenchStore.ts";
-import type { ItemStatus } from "../types.ts";
+import type { AgentStatus, ItemStatus } from "../types.ts";
 
 export function LyricsWorkbench(): React.JSX.Element {
   const snap = useWorkbenchStore();
@@ -134,6 +134,9 @@ export function LyricsWorkbench(): React.JSX.Element {
                       >
                         {line.status}
                       </span>
+                      {line.agent_status === "open" ? (
+                        <span className="wb-status-pill open">待Agent</span>
+                      ) : null}
                     </td>
                     <td className="wb-mono-cell">
                       {line.start_sec.toFixed(3)}
@@ -145,8 +148,10 @@ export function LyricsWorkbench(): React.JSX.Element {
                     </td>
                     <td>
                       <div className="wb-table-lyric-text">{line.text}</div>
-                      {line.note ? (
-                        <div className="wb-table-lyric-note">注: {line.note}</div>
+                      {line.note || line.script_idea || line.agent_comment ? (
+                        <div className="wb-table-lyric-note">
+                          注: {line.script_idea || line.agent_comment || line.note}
+                        </div>
                       ) : null}
                     </td>
                     <td
@@ -494,28 +499,94 @@ export function LyricsWorkbench(): React.JSX.Element {
               </label>
             </div>
 
-            <label className="wb-block-label">
-              <span>歌词文本 (官方英日混排)</span>
-              <input
-                type="text"
-                value={selectedLine.text}
-                onChange={(e) =>
-                  updateLyricFields(selectedLine.id, { text: e.target.value })
-                }
-              />
-            </label>
+            <div className="wb-form-row-2">
+              <label>
+                <span>歌词文本 (官方英日混排)</span>
+                <input
+                  type="text"
+                  value={selectedLine.text}
+                  onChange={(e) =>
+                    updateLyricFields(selectedLine.id, { text: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                <span>关联镜头 (逗号分隔)</span>
+                <input
+                  type="text"
+                  placeholder="S001, S002"
+                  value={(selectedLine.linked_shots || []).join(", ")}
+                  onChange={(e) =>
+                    updateLyricFields(selectedLine.id, {
+                      linked_shots: e.target.value
+                        .split(",")
+                        .map((s) => s.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                />
+              </label>
+            </div>
 
             <label className="wb-block-label">
-              <span>校对备注 / 声画配合提示</span>
+              <span>人声校对备注 (Note)</span>
               <textarea
                 rows={2}
                 value={selectedLine.note || ""}
-                placeholder="例如：弱起切入、句尾鼓点停顿、对应镜头动作等..."
+                placeholder="例如：弱起切入、句尾不吃进伴奏留白、换气点等..."
                 onChange={(e) =>
                   updateLyricFields(selectedLine.id, { note: e.target.value })
                 }
               />
             </label>
+
+            <label className="wb-block-label">
+              <span>本句画面脚本与字幕排版设计 (Script Idea)</span>
+              <textarea
+                rows={2}
+                value={selectedLine.script_idea || ""}
+                placeholder="描述本句歌词对应的画面表现、字幕动效或镜头切换构想..."
+                onChange={(e) =>
+                  updateLyricFields(selectedLine.id, {
+                    script_idea: e.target.value,
+                  })
+                }
+              />
+            </label>
+
+            <div className="wb-agent-box">
+              <div className="wb-agent-box-header">
+                <span>给 Agent 的本句专项指令 (Agent Comment)</span>
+                <select
+                  value={selectedLine.agent_status || "none"}
+                  onChange={(e) =>
+                    updateLyricFields(selectedLine.id, {
+                      agent_status: e.target.value as AgentStatus,
+                    })
+                  }
+                >
+                  <option value="none">无待办 (none)</option>
+                  <option value="open">待 Agent 处理 (open)</option>
+                  <option value="in_progress">处理中 (in_progress)</option>
+                  <option value="resolved">已解决 (resolved)</option>
+                </select>
+              </div>
+              <textarea
+                rows={2}
+                placeholder="给 Agent 留言，例如：本句严格按人声切出，句尾后 1.5s 留白请交给效果音轴处理..."
+                value={selectedLine.agent_comment || ""}
+                onChange={(e) =>
+                  updateLyricFields(selectedLine.id, {
+                    agent_comment: e.target.value,
+                  })
+                }
+              />
+              {selectedLine.agent_reply ? (
+                <div className="wb-agent-reply">
+                  <strong>Agent 回复：</strong> {selectedLine.agent_reply}
+                </div>
+              ) : null}
+            </div>
 
             <div className="wb-inspector-footer">
               <button

@@ -6,8 +6,8 @@
 | ----------------- | ---------------------------------------------------------------- | ------ |
 | 0. 项目约定       | 目录与忽略规则生效，文档可导航，仓库检查通过                     | 已完成               |
 | 0.1 分析环境准备  | 项目独立 Python 环境、锁文件、可复现分析入口，成功读取本地 FLAC  | 已完成               |
-| 0.2 标注闭环      | 候选拍点与波形可浏览，标记可保存和重载，人工修订不被重新分析覆盖 | 已实现，待人工试听确认 |
-| 1. 听歌与定位     | 确认版本、时长、段落、同步点，确定全曲或节选                     | 进行中（已生成 12 段落与 63 句歌词对轴候选，待人工试听确认） |
+| 0.2 标注闭环      | 候选拍点与波形可浏览，标记可保存和重载，人工修订不被重新分析覆盖 | 已完成（已通过实际试听、微调与保存闭环验证） |
+| 1. 听歌与定位     | 确认版本、时长、段落、同步点，确定全曲或节选                     | 进行中（已确认 P002 及前 14 句 L001–L014 严格人声轴，其余待续） |
 | 2. 创意方向       | 提出候选方向，选定核心概念，确定比例、FPS、分辨率                | 未开始               |
 | 3. 代表性片段     | 按实际听歌结果选约 10–20 秒，做动态分镜验证风格、节奏和技术      | 未开始               |
 | 4. 全曲动态分镜   | 脚本、镜头表、粗略时间线覆盖目标时长，检查衔接                   | 未开始               |
@@ -15,12 +15,13 @@
 | 6. 检查与本地导出 | 检查同步、黑帧、转场、音量、字体和最终参数                       | 未开始               |
 | 7. 公开仓库整理   | 干净克隆可运行静音视觉预览，公开文件均已确认，复现与署名说明完整 | 未开始               |
 
-当前已完成阶段 0、0.1、0.2 的全部工程实现、Monorepo 结构重组，以及阶段 1 的全曲段落与官方双语歌词对轴候选准备：
+当前已完成阶段 0、0.1、0.2 的全部工程实现与实际验证，以及阶段 1 的统一多轨时间轴架构升级与首轮人工精调：
 - 独立 Python 3.12 分析环境（根 `pyproject.toml`、`uv.lock`）与可复现分析入口 `tools/audio-analyzer/analyze-audio.py` 已就绪，生成 `local/analysis/` 候选数据。
-- 已完成《Try Me》官方英日双语歌词校对（修正社区 LRC 中 4 处空耳/漏词）及全曲 63 句歌词（`L001`–`L063`）与 12 个音乐段落（`P001`–`P012`）的对轴候选，保存在本地私有目录 `local/annotations/lyrics/`（`try-me-aligned.json`、`try-me.lrc`、`try-me.txt`、`try-me-aligned.md`），并将 12 段落候选与各段起始第一拍候选（`M0002`–`M0013`）及代表性片段 `CLIP_01`（`54.750s–71.960s`）预载入 `local/annotations/annotations.json`。
-- 独立波形标注、脚本设计与 Agent 协作台子包 `apps/annotator/`（`npm run annotate`）已重构为 **React 19 + 轻量 PWA 三栏模块化应用**（上方音频波形与 Aegisub 500ms 切点预听栏、左下三级树形 Timeline Explorer、右下表格+详情检视器），支持波形「焦点轨道」防误触拖拽、句首/句尾前后 500ms 预听对比（`A`/`S`/`R`/`D`/`F`）、相邻句边界自动联动、`.ass` (Aegisub) 与 `.lrc` 双向导入导出、底部可折叠 Agent 协作抽屉、IndexedDB 断连草稿保护与乐观锁保存，并自动导出结构化 Agent 简报 `local/annotations/agent-brief.md` 与剥离私人歌词后的预览文件 `public/private/annotations-preview.json`。
+- 已建立受 Git 追踪的**统一多轨时间线主格式** `annotations/try-me.timeline.json`（`schema_version: "0.2.0"`）与 `annotations/agent-brief.md`（见决策 `D006`），以单一时间线（当前预览帧率 `60 FPS`）为基准承载多条独立或重叠时间轴（`lyrics_main`、`structure_sections`、`structure_clips`、`rhythm_downbeats`、`rhythm_markers`、自由扩展 `sfx_accents` 效果音轴、`visual_shots` 分镜轴及用户自定义类型轨道），支持事件层级归属（`group_id` / `parent_id`）、完整画面脚本（`script_idea`）与 Agent 专项指令。
+- 用户已完成 `P002`（Verse 1）及前 14 句歌词（`L001`–`L014`）的人工最高精度对轴确认，严格按主唱发声起止切出（剥离句尾伴奏空隙），同步保存在 `annotations/try-me.timeline.json` 与本地 `local/annotations/`（含 `.json`、`.ass`、`.lrc`）。
+- 独立波形标注、脚本设计与 Agent 协作台子包 `apps/annotator/`（`npm run annotate`）支持三栏可拖拽调节分栏宽度、自由新建与编辑自定义时间轴（`CustomTrackWorkbench`）、Aegisub 500ms 切点预听栏（`A`/`S`/`R`/`D`/`F`）、`.timeline.json` / `.ass` / `.lrc` 导出、底部 Agent 协作抽屉与 IndexedDB 断连草稿保护。
 - 跨端共享包 `packages/shared/`（`@try-me/shared`）提供唯一权威的秒/帧换算与时间线计算，供 `apps/annotator` 与 `apps/mv`（`apps/mv/src/Composition.tsx`）直接共用，并在无私有音源时自动降级为静音视觉预览。
 
-下一次由用户在浏览器打开 `npm run annotate` 与 `npm run dev`，结合实时歌词字幕条与「歌词对轴」面板实际试听并人工确认 `L001`–`L063`、`P001`–`P012` 及 `CLIP_01`，完成阶段 1（音乐结构与歌词轴确认）并推进阶段 2（创意方向讨论）。
+下一次可继续在 `npm run annotate` 中逐步推进 `L015`–`L063` 的严格人声对轴，或在效果音轴（`sfx_accents`）/ 分镜轴（`visual_shots`）中叠加伴奏特色音与画面脚本批注。
 
 每次收尾更新镜头状态、阶段产物和必要的决策记录，运行适当检查，区分已实际验证与待验证事项。生成文件统一放 `out/`。

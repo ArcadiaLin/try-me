@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   exportSubtitleFile,
+  exportUnifiedTimelineFile,
   getSampleRate,
   importSubtitleContent,
   notifyStore,
@@ -57,7 +58,18 @@ export function HeaderBar({
     ).length || 0) +
     (snap.annotations?.markers.filter(
       (m) => m.agent_comment || m.agent_status === "open",
-    ).length || 0);
+    ).length || 0) +
+    ((snap.lyrics?.lines || []).filter(
+      (l) => l.agent_comment || l.agent_status === "open",
+    ).length || 0) +
+    ((snap.annotations?.custom_tracks || []).reduce(
+      (acc, trk) =>
+        acc +
+        (trk.items || []).filter(
+          (i) => i.agent_comment || i.agent_status === "open",
+        ).length,
+      0,
+    ) || 0);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -222,6 +234,16 @@ export function HeaderBar({
         >
           导出 .lrc
         </button>
+        <button
+          type="button"
+          className="btn btn-subtle"
+          onClick={() => {
+            void exportUnifiedTimelineFile();
+          }}
+          title="下载统一多轨时间线文件 try-me.timeline.json（日常保存已自动同步至 Git 追踪目录 annotations/try-me.timeline.json）"
+        >
+          导出 .timeline.json
+        </button>
 
         <button
           type="button"
@@ -252,7 +274,7 @@ export function HeaderBar({
           type="button"
           className="btn btn-primary"
           onClick={handleSaveAll}
-          title="立即保存标注与歌词轴 (Ctrl+S)"
+          title="立即保存至 Git 追踪目录 annotations/try-me.timeline.json 与本地备份 (Ctrl+S)"
         >
           保存
         </button>

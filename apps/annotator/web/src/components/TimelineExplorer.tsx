@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import {
+  addCustomTrack,
   notifyStore,
   seekAudio,
   selectTimelineItem,
@@ -15,6 +16,7 @@ interface CollectionState {
   col_lyrics: boolean;
   col_structure: boolean;
   col_rhythm: boolean;
+  col_custom: boolean;
   col_candidates: boolean;
 }
 
@@ -40,6 +42,7 @@ export function TimelineExplorer({
     col_lyrics: true,
     col_structure: true,
     col_rhythm: true,
+    col_custom: true,
     col_candidates: true,
   });
   const [trackOpen, setTrackOpen] = useState<TrackExpandState>({
@@ -47,6 +50,12 @@ export function TimelineExplorer({
     structure_sections: false,
     rhythm_markers: false,
   });
+  const [showNewTrackForm, setShowNewTrackForm] = useState(false);
+  const [newTrackName, setNewTrackName] = useState("");
+  const [newTrackType, setNewTrackType] = useState("sfx");
+  const [newTrackPurpose, setNewTrackPurpose] = useState("");
+
+  const customTracks = snap.annotations?.custom_tracks || [];
 
   const lyricsLines = React.useMemo(
     () => snap.lyrics?.lines || [],
@@ -431,7 +440,112 @@ export function TimelineExplorer({
           ) : null}
         </div>
 
-        {/* Collection 4: Auto Candidates Reference */}
+        {/* Collection 4: Free-form Custom & Multi-Track Timelines */}
+        <div className="wb-tree-collection">
+          <div
+            className="wb-tree-col-header"
+            onClick={() =>
+              setColOpen((s) => ({ ...s, col_custom: !s.col_custom }))
+            }
+          >
+            <span className="wb-tree-arrow">
+              {colOpen.col_custom ? "▾" : "▸"}
+            </span>
+            <span className="wb-tree-col-name">
+              自由扩展时间轴 (Multi-Track)
+            </span>
+            <span
+              className="wb-tree-actions"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="wb-tree-icon-btn is-on"
+                onClick={() => {
+                  setColOpen((s) => ({ ...s, col_custom: true }));
+                  setShowNewTrackForm((v) => !v);
+                }}
+                title="新建独立或重叠时间轴（如效果音轴、和声轴、镜头轴）"
+              >
+                + 新建轴
+              </button>
+            </span>
+          </div>
+
+          {colOpen.col_custom ? (
+            <div className="wb-tree-children">
+              {showNewTrackForm ? (
+                <div className="wb-new-track-inline">
+                  <input
+                    type="text"
+                    placeholder="时间轴名称 (如: 铜管特色音轴)"
+                    value={newTrackName}
+                    onChange={(e) => setNewTrackName(e.target.value)}
+                  />
+                  <div className="wb-new-track-row">
+                    <input
+                      type="text"
+                      placeholder="自由类型 (如 sfx / shot)"
+                      value={newTrackType}
+                      onChange={(e) => setNewTrackType(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-mini btn-primary"
+                      onClick={() => {
+                        if (!newTrackName.trim()) return;
+                        addCustomTrack({
+                          name: newTrackName.trim(),
+                          type: newTrackType.trim() || "custom",
+                          purpose_for_agent: newTrackPurpose.trim(),
+                          allow_overlap: true,
+                        });
+                        setNewTrackName("");
+                        setNewTrackPurpose("");
+                        setShowNewTrackForm(false);
+                      }}
+                    >
+                      创建
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-mini"
+                      onClick={() => setShowNewTrackForm(false)}
+                    >
+                      取消
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="给 Agent 的用途说明 (可选)"
+                    value={newTrackPurpose}
+                    onChange={(e) => setNewTrackPurpose(e.target.value)}
+                  />
+                </div>
+              ) : null}
+
+              {customTracks.map((trk) => (
+                <div
+                  key={trk.id}
+                  className={`wb-tree-track ${snap.activeTrackId === trk.id ? "is-active" : ""}`}
+                  onClick={() => selectTrackAndGroup(trk.id, null)}
+                >
+                  <span className="wb-tree-arrow">·</span>
+                  <span
+                    className="wb-swatch"
+                    style={{ backgroundColor: trk.color || "#38bdf8" }}
+                  />
+                  <span className="wb-tree-label" title={trk.purpose_for_agent}>
+                    {trk.name} ({trk.items.length})
+                  </span>
+                  {renderTrackControls(trk.id, trk.id)}
+                </div>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        {/* Collection 5: Auto Candidates Reference */}
         <div className="wb-tree-collection">
           <div
             className="wb-tree-col-header"

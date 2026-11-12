@@ -1169,3 +1169,56 @@ kbd {
   overflow: auto;
   white-space: pre-wrap;
 }
+
+.wb-custom-track-meta-bar {
+  padding: 8px 10px;
+  background: var(--bg-2);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.wb-custom-track-meta-row2 {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.wb-checkbox-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11.5px;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.wb-new-track-inline {
+  padding: 6px 8px;
+  margin: 2px 6px 6px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.wb-new-track-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.wb-new-track-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.wb-empty-cell {
+  text-align: center;
+  padding: 24px 12px !important;
+  color: var(--muted);
+  font-size: 12px;
+}

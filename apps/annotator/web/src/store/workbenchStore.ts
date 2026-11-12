@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { audioSecToGlobalFrame } from "@try-me/shared";
 import {
+  allocateCustomItemId,
   allocateMarkerId,
   allocateRegionId,
   applyCandidateProvenance,
@@ -14,11 +15,13 @@ import type {
   AnalysisCandidate,
   AnnotationsDocument,
   AuditionMode,
+  CustomTimelineTrack,
   LyricLine,
   LyricsBundle,
   PointMarker,
   RegionItem,
   ServerStatePayload,
+  TimelineTrackItem,
   TrackId,
   TrackLockMap,
   TrackVisibilityMap,
@@ -59,7 +62,7 @@ export interface WorkbenchState {
   // Explorer & Selection
   activeTrackId: TrackId;
   selectedGroupId: string | null;
-  selectedKind: "lyric" | "region" | "point" | null;
+  selectedKind: "lyric" | "region" | "point" | "custom_item" | null;
   selectedId: string | null;
   selectedLyricId: string | null;
 
@@ -268,6 +271,8 @@ function pushUndoSnapshot(): void {
     id_counters: storeState.annotations.id_counters,
     markers: storeState.annotations.markers,
     regions: storeState.annotations.regions,
+    collections: storeState.annotations.collections || [],
+    custom_tracks: storeState.annotations.custom_tracks || [],
     global_notes: storeState.annotations.global_notes,
     preview_mapping: storeState.annotations.preview_mapping,
     lyrics_lines: storeState.lyrics?.lines || [],
@@ -450,12 +455,39 @@ export async function reloadAnnotations(
   return outcome;
 }
 
+const BUILTIN_TRACK_IDS = new Set([
+  "lyrics_main",
+  "structure_sections",
+  "structure_clips",
+  "rhythm_downbeats",
+  "rhythm_markers",
+  "cand_beats",
+  "cand_onsets",
+  "cand_energy",
+]);
+
+export function isBuiltInTrackId(trackId: string): boolean {
+  return BUILTIN_TRACK_IDS.has(trackId);
+}
+
+export function findCustomTrack(trackId: string): CustomTimelineTrack | null {
+  return (storeState.annotations?.custom_tracks || []).find((t) => t.id === trackId) || null;
+}
+
 export function applyServerState(serverState: ServerStatePayload): void {
   if (storeState.saveTimer) {
     clearTimeout(storeState.saveTimer);
     storeState.saveTimer = null;
   }
   applyServerStateToModel(storeState, serverState);
+  for (const trk of storeState.annotations?.custom_tracks || []) {
+    if (storeState.trackVisibility[trk.id] === undefined) {
+      storeState.trackVisibility[trk.id] = trk.visible !== false;
+    }
+    if (storeState.trackLocks[trk.id] === undefined) {
+      storeState.trackLocks[trk.id] = Boolean(trk.locked);
+    }
+  }
   if (
     !storeState.selectedLyricId &&
     storeState.lyrics?.lines &&
@@ -514,14 +546,28 @@ export function selectTrackAndGroup(
     if (markers.length > 0 && !markers.some((m) => m.id === storeState.selectedId)) {
       storeState.selectedId = markers[0].id;
     }
+  } else {
+    const customTrk = findCustomTrack(trackId);
+    if (customTrk) {
+      storeState.selectedKind = "custom_item";
+      const items = groupId
+        ? customTrk.items.filter((i) => i.group_id === groupId || i.parent_id === groupId)
+        : customTrk.items;
+      if (items.length > 0 && !items.some((i) => i.id === storeState.selectedId)) {
+        storeState.selectedId = items[0].id;
+      } else if (items.length === 0) {
+        storeState.selectedId = null;
+      }
+    }
   }
   notifyStore();
 }
 
 export function selectTimelineItem(
-  kind: "lyric" | "region" | "point",
+  kind: "lyric" | "region" | "point" | "custom_item",
   id: string,
   seek = false,
+  customTrackId?: string,
 ): void {
   storeState.selectedKind = kind;
   storeState.selectedId = id;
@@ -548,23 +594,46 @@ export function selectTimelineItem(
         pt.category === "downbeat" ? "rhythm_downbeats" : "rhythm_markers";
       if (seek) seekAudio(pt.time_sec);
     }
+  } else if (kind === "custom_item") {
+    for (const trk of storeState.annotations?.custom_tracks || []) {
+      if (customTrackId && trk.id !== customTrackId) continue;
+      const item = trk.items.find((i) => i.id === id);
+      if (item) {
+        storeState.activeTrackId = trk.id;
+        if (seek) {
+          const t = item.kind === "point" ? item.time_sec : item.start_sec;
+          if (typeof t === "number") seekAudio(t);
+        }
+        break;
+      }
+    }
   }
   notifyStore();
 }
 
 export function toggleTrackVisibility(trackId: TrackId): void {
+  const nextVal = !(storeState.trackVisibility[trackId] !== false);
   storeState.trackVisibility = {
     ...storeState.trackVisibility,
-    [trackId]: !storeState.trackVisibility[trackId],
+    [trackId]: nextVal,
   };
+  const customTrk = findCustomTrack(trackId);
+  if (customTrk) {
+    customTrk.visible = nextVal;
+  }
   notifyStore();
 }
 
 export function toggleTrackLock(trackId: keyof TrackLockMap): void {
+  const nextVal = !storeState.trackLocks[trackId];
   storeState.trackLocks = {
     ...storeState.trackLocks,
-    [trackId]: !storeState.trackLocks[trackId],
+    [trackId]: nextVal,
   };
+  const customTrk = findCustomTrack(String(trackId));
+  if (customTrk) {
+    customTrk.locked = nextVal;
+  }
   notifyStore();
 }
 
@@ -760,16 +829,37 @@ export function updateLyricEnd(
 
 export function updateLyricFields(
   lyricId: string,
-  patch: Partial<Pick<LyricLine, "section_id" | "bar" | "status" | "text" | "note">>,
+  patch: Partial<
+    Pick<
+      LyricLine,
+      | "section_id"
+      | "bar"
+      | "status"
+      | "text"
+      | "note"
+      | "script_idea"
+      | "linked_shots"
+      | "agent_comment"
+      | "agent_status"
+      | "agent_reply"
+    >
+  >,
 ): void {
   const lines = storeState.lyrics?.lines || [];
   const idx = lines.findIndex((l) => l.id === lyricId);
   if (idx === -1) return;
   pushUndoSnapshot();
-  lines[idx] = {
+  const nextLine = {
     ...lines[idx],
     ...patch,
   };
+  if (
+    nextLine.agent_comment &&
+    (!nextLine.agent_status || nextLine.agent_status === "none")
+  ) {
+    nextLine.agent_status = "open";
+  }
+  lines[idx] = nextLine;
   storeState.lyrics = {
     ...storeState.lyrics,
     lines: [...lines],
@@ -983,6 +1073,240 @@ export function updateRegion(id: string, patch: Partial<RegionItem>): void {
   notifyStore();
 }
 
+export function addCustomTrack(params: {
+  id?: string;
+  name: string;
+  type: string;
+  collection_id?: string;
+  allow_overlap?: boolean;
+  purpose_for_agent?: string;
+  color?: string;
+}): string | null {
+  if (!storeState.annotations) return null;
+  pushUndoSnapshot();
+  storeState.editSeq += 1;
+  if (!storeState.annotations.custom_tracks) {
+    storeState.annotations.custom_tracks = [];
+  }
+  const seq = (storeState.annotations.id_counters.track_seq || 0) + 1;
+  storeState.annotations.id_counters.track_seq = seq;
+  const rawSlug = params.name
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  const trackId =
+    params.id ||
+    (rawSlug && !isBuiltInTrackId(rawSlug)
+      ? `${rawSlug}_${seq}`
+      : `track_custom_${seq}`);
+
+  const newTrack: CustomTimelineTrack = {
+    id: trackId,
+    collection_id: params.collection_id || "col_custom",
+    name: params.name.trim() || `自定义时间轴 ${seq}`,
+    type: params.type.trim() || "custom",
+    allow_overlap: params.allow_overlap !== false,
+    visible: true,
+    locked: false,
+    color: params.color || "#38bdf8",
+    purpose_for_agent: params.purpose_for_agent || "",
+    items: [],
+  };
+
+  storeState.annotations.custom_tracks.push(newTrack);
+  storeState.trackVisibility[trackId] = true;
+  storeState.trackLocks[trackId] = false;
+  storeState.activeTrackId = trackId;
+  storeState.selectedKind = "custom_item";
+  storeState.selectedId = null;
+  scheduleAutoSave();
+  notifyStore();
+  return trackId;
+}
+
+export function updateCustomTrackMeta(
+  trackId: string,
+  patch: Partial<
+    Pick<
+      CustomTimelineTrack,
+      | "name"
+      | "type"
+      | "collection_id"
+      | "allow_overlap"
+      | "purpose_for_agent"
+      | "color"
+      | "visible"
+      | "locked"
+    >
+  >,
+): void {
+  if (!storeState.annotations?.custom_tracks) return;
+  const idx = storeState.annotations.custom_tracks.findIndex((t) => t.id === trackId);
+  if (idx === -1) return;
+  pushUndoSnapshot();
+  storeState.editSeq += 1;
+  storeState.annotations.custom_tracks[idx] = {
+    ...storeState.annotations.custom_tracks[idx],
+    ...patch,
+  };
+  if (patch.visible !== undefined) {
+    storeState.trackVisibility[trackId] = patch.visible;
+  }
+  if (patch.locked !== undefined) {
+    storeState.trackLocks[trackId] = patch.locked;
+  }
+  scheduleAutoSave();
+  notifyStore();
+}
+
+export function deleteCustomTrack(trackId: string): void {
+  if (!storeState.annotations?.custom_tracks) return;
+  pushUndoSnapshot();
+  storeState.editSeq += 1;
+  storeState.annotations.custom_tracks =
+    storeState.annotations.custom_tracks.filter((t) => t.id !== trackId);
+  if (storeState.activeTrackId === trackId) {
+    storeState.activeTrackId = "lyrics_main";
+    storeState.selectedKind = "lyric";
+    storeState.selectedId = storeState.selectedLyricId;
+  }
+  scheduleAutoSave();
+  notifyStore();
+}
+
+export function addCustomTrackItem(
+  trackId: string,
+  params: {
+    kind: "region" | "point";
+    startSec?: number;
+    endSec?: number;
+    timeSec?: number;
+    label?: string;
+    group_id?: string | null;
+    parent_id?: string | null;
+    category?: string;
+    note?: string;
+  },
+): string | null {
+  if (!storeState.annotations?.custom_tracks) return null;
+  const trk = storeState.annotations.custom_tracks.find((t) => t.id === trackId);
+  if (!trk) return null;
+
+  pushUndoSnapshot();
+  storeState.editSeq += 1;
+  const id = allocateCustomItemId(storeState.annotations);
+  const kind = params.kind === "point" ? "point" : "region";
+
+  let newItem: TimelineTrackItem;
+  if (kind === "point") {
+    const snapped = maybeSnapTime(params.timeSec ?? storeState.currentTimeSec);
+    newItem = {
+      id,
+      kind: "point",
+      group_id: params.group_id ?? storeState.selectedGroupId ?? null,
+      parent_id: params.parent_id ?? null,
+      category: params.category || trk.type || "custom",
+      label: params.label || `${trk.name} (${id})`,
+      color: trk.color || "#38bdf8",
+      time_sec: snapped.time_sec,
+      source: "human",
+      origin_candidate_id: snapped.candidate?.id ?? null,
+      origin_analysis_run_id: storeState.analysis?.summary?.analysis_run_id ?? null,
+      origin_analysis_sha256:
+        storeState.analysis?.summary?.input_audio?.sha256 ??
+        storeState.annotations?.audio_asset?.sha256 ??
+        null,
+      origin_candidate_time_sec: snapped.candidate?.time_sec ?? null,
+      origin_candidate_sample_index: snapped.candidate?.sample_index ?? null,
+      status: "confirmed",
+      linked_shots: [],
+      note: params.note || "",
+      script_idea: "",
+      agent_comment: "",
+      agent_status: "none",
+      agent_reply: "",
+    };
+  } else {
+    const rawStart = params.startSec ?? storeState.currentTimeSec;
+    const sSnap = maybeSnapTime(rawStart);
+    const eSnap = maybeSnapTime(params.endSec ?? rawStart + 2.5);
+    newItem = {
+      id,
+      kind: "region",
+      group_id: params.group_id ?? storeState.selectedGroupId ?? null,
+      parent_id: params.parent_id ?? null,
+      category: params.category || trk.type || "custom",
+      label: params.label || `${trk.name} (${id})`,
+      color: trk.color || "#38bdf8",
+      start_sec: sSnap.time_sec,
+      end_sec: Math.min(
+        getAudioDuration(),
+        Math.max(sSnap.time_sec + 0.08, eSnap.time_sec),
+      ),
+      source: "human",
+      status: "confirmed",
+      linked_shots: [],
+      note: params.note || "",
+      script_idea: "",
+      agent_comment: "",
+      agent_status: "none",
+      agent_reply: "",
+    };
+  }
+
+  trk.items.push(newItem);
+  trk.items.sort((a, b) => {
+    const ta = a.kind === "point" ? (a.time_sec ?? 0) : (a.start_sec ?? 0);
+    const tb = b.kind === "point" ? (b.time_sec ?? 0) : (b.start_sec ?? 0);
+    return ta - tb;
+  });
+  storeState.activeTrackId = trackId;
+  storeState.selectedKind = "custom_item";
+  storeState.selectedId = id;
+  scheduleAutoSave();
+  notifyStore();
+  return id;
+}
+
+export function updateCustomTrackItem(
+  trackId: string,
+  itemId: string,
+  patch: Partial<TimelineTrackItem>,
+  clearProvenance = false,
+): void {
+  if (!storeState.annotations?.custom_tracks) return;
+  const trk = storeState.annotations.custom_tracks.find((t) => t.id === trackId);
+  if (!trk) return;
+  const idx = trk.items.findIndex((i) => i.id === itemId);
+  if (idx === -1) return;
+
+  pushUndoSnapshot();
+  storeState.editSeq += 1;
+  const target: TimelineTrackItem = {
+    ...trk.items[idx],
+    ...patch,
+  };
+  if (clearProvenance) {
+    target.origin_candidate_id = null;
+    target.origin_analysis_run_id = null;
+    target.origin_analysis_sha256 = null;
+    target.origin_candidate_time_sec = null;
+    target.origin_candidate_sample_index = null;
+  }
+  if (target.agent_comment && target.agent_status === "none") {
+    target.agent_status = "open";
+  }
+  trk.items[idx] = target;
+  trk.items.sort((a, b) => {
+    const ta = a.kind === "point" ? (a.time_sec ?? 0) : (a.start_sec ?? 0);
+    const tb = b.kind === "point" ? (b.time_sec ?? 0) : (b.start_sec ?? 0);
+    return ta - tb;
+  });
+  scheduleAutoSave();
+  notifyStore();
+}
+
 export function deleteSelectedItem(): void {
   if (!storeState.selectedId || !storeState.annotations) return;
   if (storeState.selectedKind === "lyric") return; // Lyrics are fixed 63 lines
@@ -996,6 +1320,10 @@ export function deleteSelectedItem(): void {
     storeState.annotations.regions = storeState.annotations.regions.filter(
       (r) => r.id !== storeState.selectedId,
     );
+  } else if (storeState.selectedKind === "custom_item") {
+    for (const trk of storeState.annotations.custom_tracks || []) {
+      trk.items = trk.items.filter((i) => i.id !== storeState.selectedId);
+    }
   }
   storeState.selectedId = null;
   scheduleAutoSave();
@@ -1008,6 +1336,8 @@ export function performUndo(): void {
     id_counters: storeState.annotations.id_counters,
     markers: storeState.annotations.markers,
     regions: storeState.annotations.regions,
+    collections: storeState.annotations.collections || [],
+    custom_tracks: storeState.annotations.custom_tracks || [],
     global_notes: storeState.annotations.global_notes,
     preview_mapping: storeState.annotations.preview_mapping,
     lyrics_lines: storeState.lyrics?.lines || [],
@@ -1019,6 +1349,8 @@ export function performUndo(): void {
     id_counters: AnnotationsDocument["id_counters"];
     markers: PointMarker[];
     regions: RegionItem[];
+    collections?: AnnotationsDocument["collections"];
+    custom_tracks?: CustomTimelineTrack[];
     global_notes: AnnotationsDocument["global_notes"];
     preview_mapping: AnnotationsDocument["preview_mapping"];
     lyrics_lines?: LyricLine[];
@@ -1026,6 +1358,8 @@ export function performUndo(): void {
   storeState.annotations.id_counters = prev.id_counters;
   storeState.annotations.markers = prev.markers;
   storeState.annotations.regions = prev.regions;
+  if (prev.collections) storeState.annotations.collections = prev.collections;
+  if (prev.custom_tracks) storeState.annotations.custom_tracks = prev.custom_tracks;
   storeState.annotations.global_notes = prev.global_notes;
   storeState.annotations.preview_mapping = prev.preview_mapping;
   if (prev.lyrics_lines) {
@@ -1046,6 +1380,8 @@ export function performRedo(): void {
     id_counters: storeState.annotations.id_counters,
     markers: storeState.annotations.markers,
     regions: storeState.annotations.regions,
+    collections: storeState.annotations.collections || [],
+    custom_tracks: storeState.annotations.custom_tracks || [],
     global_notes: storeState.annotations.global_notes,
     preview_mapping: storeState.annotations.preview_mapping,
     lyrics_lines: storeState.lyrics?.lines || [],
@@ -1057,6 +1393,8 @@ export function performRedo(): void {
     id_counters: AnnotationsDocument["id_counters"];
     markers: PointMarker[];
     regions: RegionItem[];
+    collections?: AnnotationsDocument["collections"];
+    custom_tracks?: CustomTimelineTrack[];
     global_notes: AnnotationsDocument["global_notes"];
     preview_mapping: AnnotationsDocument["preview_mapping"];
     lyrics_lines?: LyricLine[];
@@ -1064,6 +1402,8 @@ export function performRedo(): void {
   storeState.annotations.id_counters = next.id_counters;
   storeState.annotations.markers = next.markers;
   storeState.annotations.regions = next.regions;
+  if (next.collections) storeState.annotations.collections = next.collections;
+  if (next.custom_tracks) storeState.annotations.custom_tracks = next.custom_tracks;
   storeState.annotations.global_notes = next.global_notes;
   storeState.annotations.preview_mapping = next.preview_mapping;
   if (next.lyrics_lines) {
@@ -1076,6 +1416,27 @@ export function performRedo(): void {
   storeState.editSeq += 1;
   scheduleAutoSave();
   notifyStore();
+}
+
+export async function exportUnifiedTimelineFile(): Promise<void> {
+  try {
+    const res = await fetch("/api/timeline");
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const content = await res.text();
+    const blob = new Blob([content], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "try-me.timeline.json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setSaveStatus("✓ 已导出 try-me.timeline.json");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    setSaveStatus(`导出 timeline.json 失败 (${msg})`, true);
+  }
 }
 
 export function exportSubtitleFile(format: "ass" | "lrc"): void {

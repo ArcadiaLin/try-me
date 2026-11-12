@@ -11,6 +11,7 @@ import {
 import {
   buildSanitizedPreviewPayload,
   createAnnotationServer,
+  extractStateFromUnifiedTimeline,
   normalizeAnnotations,
 } from "../server/index.ts";
 import {
@@ -486,6 +487,8 @@ async function runTests() {
       mismatchState.annotations.audio_asset.sha256,
       "old_audio_sha256_on_disk",
     );
+    // Restore valid annotationsFile after mismatch test
+    await fsp.writeFile(fixture.annotationsFile, validDiskContent, "utf8");
 
     // 13. Full async test: Stale 409 response arriving after reload + new edit D must be completely ignored
     let resolveStale409Fetch;
@@ -861,6 +864,92 @@ async function runTests() {
     assert.equal(parsedFromLrc.length, 2);
     assert.equal(parsedFromLrc[0].start_sec, 49.92);
     assert.equal(parsedFromLrc[0].end_sec, 51.03);
+
+    // 19. Verify unified multi-track timeline JSON (/api/timeline), custom tracks with overlap, and hydration
+    const currentBeforeCustom = await (await fetch(`${baseUrl}/api/state`)).json();
+    const customSaveRes = await fetch(`${baseUrl}/api/annotations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        base_revision: currentBeforeCustom.revision,
+        annotations: {
+          ...currentBeforeCustom.annotations,
+          custom_tracks: [
+            {
+              id: "sfx_accents",
+              collection_id: "col_custom",
+              name: "效果音与器乐特色音轴",
+              type: "sfx",
+              allow_overlap: true,
+              visible: true,
+              locked: false,
+              color: "#ec4899",
+              purpose_for_agent: "记录铜管与合成器音效，允许重叠",
+              items: [
+                {
+                  id: "E0001",
+                  kind: "region",
+                  group_id: "P002",
+                  parent_id: "L012",
+                  category: "brass_hit",
+                  label: "ほら！后铜管重音尾韵",
+                  color: "#ec4899",
+                  start_sec: 53.35,
+                  end_sec: 54.4,
+                  source: "human",
+                  status: "confirmed",
+                  linked_shots: ["S012"],
+                  note: "接在 L012 真实人声结束后的纯器乐空隙",
+                  script_idea: "铜管爆点触发镜头推近",
+                  agent_comment: "请在此区间叠加视觉震动",
+                  agent_status: "open",
+                  agent_reply: "",
+                },
+                {
+                  id: "E0002",
+                  kind: "point",
+                  group_id: "P002",
+                  parent_id: "E0001",
+                  category: "drum_fill",
+                  label: "过门鼓点",
+                  color: "#f59e0b",
+                  time_sec: 53.8,
+                  source: "human",
+                  status: "confirmed",
+                  linked_shots: ["S012"],
+                  note: "与 E0001 重叠的瞬态点",
+                  script_idea: "",
+                  agent_comment: "",
+                  agent_status: "none",
+                  agent_reply: "",
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    });
+    assert.equal(customSaveRes.status, 200);
+
+    const timelineRes = await fetch(`${baseUrl}/api/timeline`);
+    assert.equal(timelineRes.status, 200);
+    const timelineDoc = await timelineRes.json();
+    assert.equal(timelineDoc.schema_version, "0.2.0");
+    assert.ok(Array.isArray(timelineDoc.tracks));
+    const sfxTrack = timelineDoc.tracks.find((t) => t.id === "sfx_accents");
+    assert.ok(sfxTrack);
+    assert.equal(sfxTrack.type, "sfx");
+    assert.equal(sfxTrack.allow_overlap, true);
+    assert.equal(sfxTrack.items.length, 2);
+    assert.equal(sfxTrack.items[0].parent_id, "L012");
+    assert.equal(sfxTrack.items[1].kind, "point");
+
+    const hydrated = extractStateFromUnifiedTimeline(timelineDoc);
+    assert.ok(hydrated);
+    assert.equal(hydrated.annotations.custom_tracks.length, 1);
+    assert.equal(hydrated.annotations.custom_tracks[0].items.length, 2);
+    assert.equal(hydrated.lyrics.lines.length, 1);
+    assert.equal(hydrated.lyrics.lines[0].text, "TEST_PRIVATE_LYRIC_LINE_1");
 
     console.log(
       "PASS: All isolated annotation server, concurrency, validation & boundary tests passed!",

@@ -21,6 +21,7 @@ import {
   updateLyricStart,
   updatePointMarker,
   updateRegion,
+  updateCustomTrackItem,
   useWorkbenchStore,
 } from "../store/workbenchStore.ts";
 import type { WaveformBin } from "../types.ts";
@@ -410,6 +411,48 @@ export function AudioTimelineStage(): React.JSX.Element {
           }
         }
       }
+
+      // 4. Custom Multi-Track Timelines (SFX, Shots, User-defined tracks)
+      for (const trk of storeState.annotations.custom_tracks || []) {
+        if (storeState.trackVisibility[trk.id] === false) continue;
+        const isTrackFocused = activeTrack === trk.id;
+        const isLocked = Boolean(storeState.trackLocks[trk.id]);
+        const editable = isTrackFocused && !isLocked;
+
+        for (const item of trk.items || []) {
+          const isSelected =
+            storeState.selectedKind === "custom_item" &&
+            storeState.selectedId === item.id;
+          const baseColor = item.color || trk.color || "#38bdf8";
+
+          if (item.kind === "point") {
+            const t = item.time_sec ?? 0;
+            regionsPlugin.addRegion({
+              id: `cust_${trk.id}__${item.id}`,
+              start: t,
+              color: isSelected
+                ? "#ffffff"
+                : hexToRgba(baseColor, isTrackFocused ? 0.95 : 0.45),
+              content: isTrackFocused ? `${item.id}: ${item.label}` : item.id,
+              drag: editable,
+              resize: false,
+            });
+          } else {
+            const s = item.start_sec ?? 0;
+            const end = item.end_sec ?? s + 0.5;
+            const alpha = isSelected ? 0.36 : isTrackFocused ? 0.24 : 0.1;
+            regionsPlugin.addRegion({
+              id: `cust_${trk.id}__${item.id}`,
+              start: s,
+              end,
+              color: hexToRgba(baseColor, alpha),
+              content: isTrackFocused ? `${item.id}: ${item.label}` : item.id,
+              drag: editable,
+              resize: editable,
+            });
+          }
+        }
+      }
     } finally {
       suppressRegionEventRef.current = false;
     }
@@ -572,6 +615,14 @@ export function AudioTimelineStage(): React.JSX.Element {
         selectTimelineItem("region", reg.id.slice(4));
       } else if (reg.id.startsWith("pt_")) {
         selectTimelineItem("point", reg.id.slice(3));
+      } else if (reg.id.startsWith("cust_")) {
+        const rest = reg.id.slice(5);
+        const sep = rest.indexOf("__");
+        if (sep !== -1) {
+          const trackId = rest.slice(0, sep);
+          const itemId = rest.slice(sep + 2);
+          selectTimelineItem("custom_item", itemId, false, trackId);
+        }
       }
     });
 
@@ -615,6 +666,39 @@ export function AudioTimelineStage(): React.JSX.Element {
           !snapped.candidate,
         );
         selectTimelineItem("point", id);
+      } else if (reg.id.startsWith("cust_")) {
+        const rest = reg.id.slice(5);
+        const sep = rest.indexOf("__");
+        if (sep !== -1) {
+          const trackId = rest.slice(0, sep);
+          const itemId = rest.slice(sep + 2);
+          const trk = (storeState.annotations?.custom_tracks || []).find(
+            (t) => t.id === trackId,
+          );
+          const item = trk?.items.find((i) => i.id === itemId);
+          if (item) {
+            if (item.kind === "point") {
+              const snapped = maybeSnapTime(reg.start);
+              updateCustomTrackItem(
+                trackId,
+                itemId,
+                { time_sec: snapped.time_sec },
+                !snapped.candidate,
+              );
+            } else {
+              const sSnap = maybeSnapTime(reg.start);
+              const eSnap = maybeSnapTime(reg.end);
+              updateCustomTrackItem(trackId, itemId, {
+                start_sec: sSnap.time_sec,
+                end_sec: Math.min(
+                  getAudioDuration(),
+                  Math.max(sSnap.time_sec + 0.05, eSnap.time_sec),
+                ),
+              });
+            }
+            selectTimelineItem("custom_item", itemId, false, trackId);
+          }
+        }
       }
     });
 
@@ -692,6 +776,9 @@ export function AudioTimelineStage(): React.JSX.Element {
     cand_onsets: "自动起音参考层 (只读)",
     cand_energy: "能量包络参考层 (只读)",
   };
+  for (const trk of snap.annotations?.custom_tracks || []) {
+    focusTrackLabels[trk.id] = `${trk.name} (${trk.type})`;
+  }
 
   return (
     <section className="wb-audio-stage">
