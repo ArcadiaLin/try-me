@@ -9,15 +9,14 @@
   <body>
     <header class="topbar">
       <div class="brand">
-        <span class="badge">Stage 0.2</span>
         <h1>Try Me 标注与脚本工作台</h1>
       </div>
 
       <div class="transport-group">
         <button id="btn-play" class="btn primary" title="播放 / 暂停 (Space)">
-          ▶ 播放
+          播放
         </button>
-        <button id="btn-stop" class="btn" title="停止并回到起点">⏹</button>
+        <button id="btn-stop" class="btn" title="停止并回到起点">停止</button>
         <label class="inline-field" title="播放倍速">
           <span>倍速</span>
           <select id="select-rate">
@@ -62,21 +61,21 @@
           class="btn small"
           title="设当前位置为循环入点 (I)"
         >
-          [ 入点 I
+          [ 入点
         </button>
         <button
           id="btn-set-out"
           class="btn small"
           title="设当前位置为循环出点 (O)"
         >
-          出点 O ]
+          出点 ]
         </button>
         <button
           id="btn-toggle-loop"
           class="btn small toggle"
           title="切换 A-B 片段循环 (L)"
         >
-          🔁 循环: 关
+          循环: 关
         </button>
         <span id="loop-range-label" class="muted-tag">未设循环</span>
         <button
@@ -84,44 +83,44 @@
           class="btn small toggle active"
           title="经过已确认标记时播放节拍提示音 (K)"
         >
-          🔔 节拍音: 开
+          节拍音: 开
         </button>
         <button
           id="btn-toggle-snap"
           class="btn small toggle active"
           title="添加或拖拽标记时自动吸附到最近候选起音/拍点 (S)"
         >
-          🧲 磁吸: 开
+          磁吸: 开
         </button>
       </div>
 
       <div class="save-group">
         <button id="btn-undo" class="btn small" title="撤销 (Ctrl+Z)" disabled>
-          ↶
+          撤销
         </button>
         <button id="btn-redo" class="btn small" title="重做 (Ctrl+Y)" disabled>
-          ↷
+          重做
         </button>
         <button
           id="btn-copy-brief"
-          class="btn small accent"
+          class="btn small"
           title="复制结构化 Markdown 简报，可直接发给 Agent"
         >
-          📋 复制 Agent 简报
+          复制简报
         </button>
         <button
           id="btn-reload"
           class="btn small"
           title="从本地重新载入（获取 Agent 最新回复或修改）"
         >
-          ↻ 重载
+          重载
         </button>
         <button
           id="btn-save"
           class="btn primary small"
           title="立即保存到 local/annotations/ (Ctrl+S)"
         >
-          💾 保存
+          保存
         </button>
         <span id="save-status" class="save-status">已就绪</span>
       </div>
@@ -130,17 +129,19 @@
     <section class="waveform-section">
       <div class="layer-bar">
         <div class="layer-toggles">
-          <span class="section-label">候选图层（只读参考，单击画面候选线可直接采纳）：</span>
-          <label class="checkbox-pill beat-pill">
+          <span class="section-label">候选图层（Alt+单击采纳）：</span>
+          <label class="layer-check">
             <input id="chk-layer-beats" type="checkbox" checked />
+            <span class="swatch-dot swatch-beat"></span>
             <span>候选拍点 (<b id="count-cand-beats">0</b>)</span>
           </label>
-          <label class="checkbox-pill onset-pill">
+          <label class="layer-check">
             <input id="chk-layer-onsets" type="checkbox" checked />
+            <span class="swatch-dot swatch-onset"></span>
             <span>候选起音 (<b id="count-cand-onsets">0</b>)</span>
           </label>
           <label class="inline-field compact" title="过滤弱起音，只显示高于阈值的候选起音">
-            <span>起音阈值</span>
+            <span>阈值</span>
             <input
               id="slider-onset-thresh"
               type="range"
@@ -151,44 +152,45 @@
             />
             <small id="label-onset-thresh">2.0</small>
           </label>
-          <label class="checkbox-pill energy-pill">
+          <label class="layer-check">
             <input id="chk-layer-energy" type="checkbox" checked />
-            <span>能量突变与RMS (<b id="count-cand-energy">0</b>)</span>
+            <span class="swatch-dot swatch-energy"></span>
+            <span>能量与RMS (<b id="count-cand-energy">0</b>)</span>
           </label>
-          <label class="checkbox-pill click-cand-pill">
+          <label class="layer-check">
             <input id="chk-click-candidates" type="checkbox" />
-            <span>试听候选拍点提示音</span>
+            <span>试听候选拍提示音</span>
           </label>
         </div>
 
         <div class="quick-actions">
           <button
             id="btn-add-downbeat"
-            class="btn small warn"
+            class="btn small"
             title="在当前位置添加小节第一拍标记 (B)"
           >
-            + 小节第一拍 (B)
+            + 第一拍 (B)
           </button>
           <button
             id="btn-add-marker"
             class="btn small"
             title="在当前位置添加时间点标记 (M)"
           >
-            + 时间点标记 (M)
+            + 标记点 (M)
           </button>
           <button
             id="btn-adopt-nearest"
             class="btn small"
             title="将播放头最近的自动候选拍点采纳为已确认标记"
           >
-            ✓ 采纳最近候选拍
+            采纳最近候选拍
           </button>
           <button
             id="btn-add-region"
-            class="btn small info"
-            title="按当前循环区间（或播放头后 8 秒）新建段落/区间标记 (R)"
+            class="btn small"
+            title="按当前循环区间（或播放头后 12 秒）新建段落/区间标记 (R)"
           >
-            + 区间/段落 (R)
+            + 区间段落 (R)
           </button>
           <label class="inline-field compact">
             <span>缩放</span>
@@ -302,7 +304,7 @@
             </div>
             <div class="form-actions">
               <button id="btn-generate-grid" class="btn primary">
-                ✨ 在该区间均匀生成拍点标记
+                在该区间均匀生成拍点标记
               </button>
             </div>
           </div>
@@ -336,8 +338,8 @@
             </label>
             <div class="brief-preview-header">
               <span>自动生成的 Agent 可读简报 (`local/annotations/agent-brief.md`)</span>
-              <button id="btn-copy-brief-inline" class="btn small accent">
-                📋 复制全文
+              <button id="btn-copy-brief-inline" class="btn small">
+                复制全文
               </button>
             </div>
             <pre id="agent-brief-preview" class="brief-preview"></pre>
@@ -348,7 +350,7 @@
       <section class="panel right-panel">
         <div class="panel-header">
           <h2 id="inspector-title">选中标记详情与脚本设计</h2>
-          <span id="inspector-badge" class="status-pill">未选中</span>
+          <span id="inspector-badge" class="status-tag">未选中</span>
         </div>
 
         <div id="inspector-empty" class="inspector-empty">
@@ -357,113 +359,119 @@
             <kbd>M</kbd>（打点）、<kbd>B</kbd>（标第一拍）、<kbd>R</kbd>（建段落区间）开始标注与编写脚本设计。
           </p>
           <p class="sub-hint">
-            提示：开启候选图层后，直接点击波形上的橙色虚线（候选拍点）即可将其一键采纳为人工确认标记。
+            提示：开启候选图层后，按住 <kbd>Alt</kbd> 单击波形上的橙色虚线（候选拍点）即可将其一键采纳为人工确认标记。
           </p>
         </div>
 
         <form id="inspector-form" class="inspector-form hidden" onsubmit="return false;">
-          <div class="form-row three-col">
+          <div class="form-section">
+            <div class="form-row three-col">
+              <label>
+                <span>稳定 ID</span>
+                <input id="insp-id" type="text" required />
+              </label>
+              <label>
+                <span>显示标题 (Label)</span>
+                <input id="insp-label" type="text" />
+              </label>
+              <label>
+                <span>分类 (Category)</span>
+                <select id="insp-category"></select>
+              </label>
+            </div>
+
+            <div class="form-row three-col">
+              <label>
+                <span>确认状态</span>
+                <select id="insp-status">
+                  <option value="confirmed">confirmed (已人工确认)</option>
+                  <option value="candidate">candidate (草稿/待确认)</option>
+                </select>
+              </label>
+              <label>
+                <span>颜色标识</span>
+                <input id="insp-color" type="color" value="#f59e0b" />
+              </label>
+              <label>
+                <span>关联镜头 ID (逗号分隔)</span>
+                <input id="insp-shots" type="text" placeholder="如 S001, S002" />
+              </label>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div id="insp-point-time-row" class="form-row">
+              <label>
+                <span>时间位置 (秒) — 毫秒微调与磁吸</span>
+                <div class="time-nudge-group">
+                  <input id="insp-time-sec" type="number" step="0.001" />
+                  <button type="button" class="btn small" data-nudge="-0.01">-10ms</button>
+                  <button type="button" class="btn small" data-nudge="-0.001">-1ms</button>
+                  <button type="button" class="btn small" data-nudge="0.001">+1ms</button>
+                  <button type="button" class="btn small" data-nudge="0.01">+10ms</button>
+                  <button type="button" id="btn-insp-to-playhead" class="btn small">
+                    设为播放头
+                  </button>
+                  <button type="button" id="btn-insp-snap" class="btn small">
+                    吸附最近候选
+                  </button>
+                </div>
+              </label>
+            </div>
+
+            <div id="insp-region-time-row" class="form-row two-col hidden">
+              <label>
+                <span>起点秒数 (Start Sec)</span>
+                <div class="input-with-btn">
+                  <input id="insp-start-sec" type="number" step="0.001" />
+                  <button type="button" id="btn-region-start-playhead" class="btn small">
+                    取播放头
+                  </button>
+                </div>
+              </label>
+              <label>
+                <span>终点秒数 (End Sec)</span>
+                <div class="input-with-btn">
+                  <input id="insp-end-sec" type="number" step="0.001" />
+                  <button type="button" id="btn-region-end-playhead" class="btn small">
+                    取播放头
+                  </button>
+                  <button type="button" id="btn-region-loop" class="btn small">
+                    循环此段
+                  </button>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <div class="form-section">
             <label>
-              <span>稳定 ID</span>
-              <input id="insp-id" type="text" required />
+              <span>音乐特征与听感备注 (note — 用于同步 docs/music-map.md)</span>
+              <textarea
+                id="insp-note"
+                rows="2"
+                placeholder="记录这里的鼓点、合成器音色、停顿、重拍或能量变化..."
+              ></textarea>
             </label>
+
             <label>
-              <span>显示标题 (Label)</span>
-              <input id="insp-label" type="text" />
-            </label>
-            <label>
-              <span>分类 (Category)</span>
-              <select id="insp-category"></select>
+              <span>画面脚本与分镜设计构想 (script_idea — 表达目的 / 动作 / 转场)</span>
+              <textarea
+                id="insp-script"
+                rows="3"
+                placeholder="设计这一拍或这一段的画面内容、图形运动、角色动作、文字出现方式或切镜节奏..."
+              ></textarea>
             </label>
           </div>
 
-          <div class="form-row three-col">
-            <label>
-              <span>确认状态</span>
-              <select id="insp-status">
-                <option value="confirmed">✅ confirmed (已人工确认)</option>
-                <option value="candidate">⏳ candidate (草稿/待确认)</option>
-              </select>
-            </label>
-            <label>
-              <span>颜色标识</span>
-              <input id="insp-color" type="color" value="#f59e0b" />
-            </label>
-            <label>
-              <span>关联镜头 ID (逗号分隔)</span>
-              <input id="insp-shots" type="text" placeholder="如 S001, S002" />
-            </label>
-          </div>
-
-          <div id="insp-point-time-row" class="form-row">
-            <label>
-              <span>时间位置 (秒) — 支持毫秒微调与磁吸</span>
-              <div class="time-nudge-group">
-                <input id="insp-time-sec" type="number" step="0.001" />
-                <button type="button" class="btn small" data-nudge="-0.01">-10ms</button>
-                <button type="button" class="btn small" data-nudge="-0.001">-1ms</button>
-                <button type="button" class="btn small" data-nudge="0.001">+1ms</button>
-                <button type="button" class="btn small" data-nudge="0.01">+10ms</button>
-                <button type="button" id="btn-insp-to-playhead" class="btn small">
-                  设为当前播放头
-                </button>
-                <button type="button" id="btn-insp-snap" class="btn small">
-                  🧲 吸附最近候选
-                </button>
-              </div>
-            </label>
-          </div>
-
-          <div id="insp-region-time-row" class="form-row two-col hidden">
-            <label>
-              <span>起点秒数 (Start Sec)</span>
-              <div class="input-with-btn">
-                <input id="insp-start-sec" type="number" step="0.001" />
-                <button type="button" id="btn-region-start-playhead" class="btn small">
-                  取播放头
-                </button>
-              </div>
-            </label>
-            <label>
-              <span>终点秒数 (End Sec)</span>
-              <div class="input-with-btn">
-                <input id="insp-end-sec" type="number" step="0.001" />
-                <button type="button" id="btn-region-end-playhead" class="btn small">
-                  取播放头
-                </button>
-                <button type="button" id="btn-region-loop" class="btn small">
-                  🔁 循环此段
-                </button>
-              </div>
-            </label>
-          </div>
-
-          <label>
-            <span>🎵 音乐特征与听感备注 (`note` — 可用于更新 `docs/music-map.md`)</span>
-            <textarea
-              id="insp-note"
-              rows="2"
-              placeholder="记录这里的鼓点、合成器音色、停顿、重拍或能量变化..."
-            ></textarea>
-          </label>
-
-          <label>
-            <span>🎬 画面脚本与分镜设计构想 (`script_idea` — 表达目的 / 动作 / 转场)</span>
-            <textarea
-              id="insp-script"
-              rows="3"
-              placeholder="设计这一拍或这一段的画面内容、图形运动、角色动作、文字出现方式或切镜节奏..."
-            ></textarea>
-          </label>
-
-          <div class="agent-box">
+          <div class="form-section agent-section">
             <div class="agent-box-header">
-              <span>🤖 给 Agent 的评论与协作指令 (`agent_comment`)</span>
+              <span>给 Agent 的评论与协作指令 (agent_comment)</span>
               <select id="insp-agent-status">
                 <option value="none">无待办 (none)</option>
-                <option value="open">📌 待 Agent 处理 (open)</option>
-                <option value="in_progress">⚙️ 处理中 (in_progress)</option>
-                <option value="resolved">✔️ 已解决 (resolved)</option>
+                <option value="open">待 Agent 处理 (open)</option>
+                <option value="in_progress">处理中 (in_progress)</option>
+                <option value="resolved">已解决 (resolved)</option>
               </select>
             </div>
             <textarea
@@ -472,26 +480,28 @@
               placeholder="直接向 Agent 提问或下达指令，例如：帮我把这段拆成 4 个卡点镜头 S001-S004 / 这里的转场给我两个方案..."
             ></textarea>
             <div id="insp-agent-reply-wrap" class="agent-reply-wrap">
-              <span class="reply-label">Agent 回复 / 建议 (`agent_reply`)：</span>
+              <span class="reply-label">Agent 回复 / 建议 (agent_reply)</span>
               <div id="insp-agent-reply" class="agent-reply-text">
                 （尚无 Agent 回复）
               </div>
             </div>
           </div>
 
-          <label class="private-field">
-            <span>🔒 私人歌词定位提示 (`lyric_hint` — 仅存 `local/annotations/`，公开与预览自动剥离)</span>
-            <input
-              id="insp-lyric-hint"
-              type="text"
-              placeholder="仅留本地对照的歌词提示词，绝不进入公开文档或提交..."
-            />
-          </label>
+          <div class="form-section">
+            <label class="private-field">
+              <span>私人歌词定位提示 (lyric_hint — 仅存 local/annotations/，公开与预览自动剥离)</span>
+              <input
+                id="insp-lyric-hint"
+                type="text"
+                placeholder="仅留本地对照的歌词提示词，绝不进入公开文档或提交..."
+              />
+            </label>
+          </div>
 
           <div class="inspector-footer">
             <span id="insp-meta-info" class="meta-info"></span>
             <button type="button" id="btn-delete-item" class="btn danger small">
-              🗑 删除此项 (Del)
+              删除此项 (Del)
             </button>
           </div>
         </form>

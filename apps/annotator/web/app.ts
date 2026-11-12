@@ -694,16 +694,19 @@ function renderLists() {
 
     const card = document.createElement("div");
     card.className = `list-card ${state.selectedKind === "region" && state.selectedId === r.id ? "selected" : ""}`;
-    card.style.borderLeftColor = r.color || "#38bdf8";
 
     const top = document.createElement("div");
     top.className = "list-card-top";
     const title = document.createElement("div");
     title.className = "list-card-title";
 
+    const dot = document.createElement("span");
+    dot.className = "swatch-dot";
+    dot.style.backgroundColor = r.color || "#38bdf8";
+
     const nameSpan = document.createElement("span");
     nameSpan.textContent = `${r.id} · ${r.label}`;
-    title.append(nameSpan, createTagSpan(r.status, r.status));
+    title.append(dot, nameSpan, createTagSpan(r.status, r.status));
     if (r.agent_status === "open") {
       title.appendChild(createTagSpan("待Agent处理", "open"));
     }
@@ -747,16 +750,20 @@ function renderLists() {
 
     const card = document.createElement("div");
     card.className = `list-card ${state.selectedKind === "point" && state.selectedId === m.id ? "selected" : ""}`;
-    card.style.borderLeftColor = m.color || "#f59e0b";
 
     const top = document.createElement("div");
     top.className = "list-card-top";
     const title = document.createElement("div");
     title.className = "list-card-title";
 
+    const dot = document.createElement("span");
+    dot.className = "swatch-dot";
+    dot.style.backgroundColor = m.color || "#f59e0b";
+
     const nameSpan = document.createElement("span");
     nameSpan.textContent = `${m.id} · ${m.label}`;
     title.append(
+      dot,
       nameSpan,
       createTagSpan(m.category),
       createTagSpan(m.status, m.status),
@@ -1003,7 +1010,7 @@ export function applyServerState(serverState) {
 
   refreshAllViews();
   if (state.audioHashMismatch) {
-    setSaveStatus("⚠ 音源 SHA-256 与标注记录不匹配（已禁止自动覆盖）", true);
+    setSaveStatus("音源 SHA-256 与标注记录不匹配（已禁止自动覆盖）", true);
   }
 }
 
@@ -1069,11 +1076,11 @@ async function initWaveSurfer() {
   });
 
   ws.on("play", () => {
-    document.getElementById("btn-play").textContent = "⏸ 暂停";
+    document.getElementById("btn-play").textContent = "暂停";
   });
 
   ws.on("pause", () => {
-    document.getElementById("btn-play").textContent = "▶ 播放";
+    document.getElementById("btn-play").textContent = "播放";
   });
 
   ws.on("interaction", (newTimeSec) => {
@@ -1081,9 +1088,9 @@ async function initWaveSurfer() {
     const nearest = findNearestCandidate(newTimeSec, 0.25);
     const btnAdopt = document.getElementById("btn-adopt-nearest");
     if (nearest) {
-      btnAdopt.textContent = `✓ 采纳 ${nearest.id} (${nearest.time_sec.toFixed(3)}s)`;
+      btnAdopt.textContent = `采纳 ${nearest.id} (${nearest.time_sec.toFixed(3)}s)`;
     } else {
-      btnAdopt.textContent = "✓ 采纳最近候选拍";
+      btnAdopt.textContent = "采纳最近候选拍";
     }
   });
 
@@ -1163,7 +1170,7 @@ function updateLoopUi() {
   const btn = document.getElementById("btn-toggle-loop");
   const label = document.getElementById("loop-range-label");
   btn.classList.toggle("active", state.loopEnabled);
-  btn.textContent = `🔁 循环: ${state.loopEnabled ? "开" : "关"}`;
+  btn.textContent = `循环: ${state.loopEnabled ? "开" : "关"}`;
   if (state.loopInSec !== null && state.loopOutSec !== null) {
     label.textContent = `${formatTime(state.loopInSec)} – ${formatTime(state.loopOutSec)} (${(state.loopOutSec - state.loopInSec).toFixed(2)}s)`;
   } else if (state.loopInSec !== null) {
@@ -1253,13 +1260,13 @@ function bindEvents() {
   document.getElementById("btn-toggle-click").addEventListener("click", (e) => {
     state.clickTrackEnabled = !state.clickTrackEnabled;
     e.currentTarget.classList.toggle("active", state.clickTrackEnabled);
-    e.currentTarget.textContent = `🔔 节拍音: ${state.clickTrackEnabled ? "开" : "关"}`;
+    e.currentTarget.textContent = `节拍音: ${state.clickTrackEnabled ? "开" : "关"}`;
   });
 
   document.getElementById("btn-toggle-snap").addEventListener("click", (e) => {
     state.snapEnabled = !state.snapEnabled;
     e.currentTarget.classList.toggle("active", state.snapEnabled);
-    e.currentTarget.textContent = `🧲 磁吸: ${state.snapEnabled ? "开" : "关"}`;
+    e.currentTarget.textContent = `磁吸: ${state.snapEnabled ? "开" : "关"}`;
   });
 
   document.getElementById("chk-layer-beats").addEventListener("change", (e) => {
@@ -1707,7 +1714,7 @@ function bindEvents() {
   const copyBrief = async () => {
     await saveAnnotations(false);
     await navigator.clipboard.writeText(state.agentBriefMarkdown || "");
-    setSaveStatus("📋 已复制简报!");
+    setSaveStatus("已复制简报");
   };
   document
     .getElementById("btn-copy-brief")
