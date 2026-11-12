@@ -4,32 +4,38 @@
 
 仓库计划公开代码、原创文档与确认可再分发的素材。用户已购买正版音源，歌曲只在本地使用，不随仓库提供下载。公开代码与最终含音乐视频的发布安排分别管理。
 
-## 目录
+## 目录（Monorepo 结构）
 
 ```text
+apps/
+  mv/                    Remotion MV 渲染与预览子应用 (@try-me/mv)
+  annotator/             独立波形标注、脚本设计与 Agent 协作台 (@try-me/annotator)
+packages/
+  shared/                跨端共享的秒/帧换算公式与类型定义 (@try-me/shared)
+tools/
+  audio-analyzer/        Python 音频特征分析入口 (analyze-audio.py)
+  repo-guard/            Git 索引隐私边界检查工具 (check-repo.mjs)
 docs/                    创作与制作文档（提交）
   storyboard/            分镜表及原创分镜草图
 public/
   assets/                可公开的运行时素材（提交，子目录按需创建）
   private/audio/         try-me.flac 等本地音频（忽略）
-local/                   非运行时参考资料、源工程、私人笔记（忽略）
-src/                     Remotion 代码（提交）
-scripts/                 项目辅助工具（提交）
+local/                   非运行时参考资料、自动分析、人工标注与私人笔记（忽略）
 out/                     渲染视频、静帧等产物（忽略）
 build/、dist/            构建产物（忽略）
 ```
 
-Remotion 推荐将运行时资源放在根目录 `public/`，通过 `staticFile()` 引用。`assets` 和 `private` 是本项目约定，`private` 不提供访问控制。含私有素材的构建包和 Studio 服务均按本地材料管理，不直接公开。参见 [官方资源说明](https://www.remotion.dev/docs/assets)。
+Remotion 推荐将运行时资源放在根目录 `public/`（`apps/mv/remotion.config.ts` 已指向根 `public/`），通过 `staticFile()` 引用。`assets` 和 `private` 是本项目约定，`private` 不提供访问控制。含私有素材的构建包和 Studio 服务均按本地材料管理，不直接公开。参见 [官方资源说明](https://www.remotion.dev/docs/assets)。
 
 ## 本地开始
 
 1. 安装 `package.json` 要求的 Node.js 版本，运行 `npm ci`。
 2. 安装 `uv`，运行 `uv sync` 创建项目独立的 `.venv/`（Python 3.12）并安装锁定的音频分析依赖。
 3. 自行准备合法取得的音源，放在 `public/private/audio/try-me.flac`。Git 不保存空目录，新克隆后需自行创建路径。
-4. 运行 `npm run analyze:audio`（即 `uv run python scripts/analyze-audio.py`）校验本地 FLAC 并生成候选分析数据到 `local/analysis/`。
-5. 运行 `npm run annotate` 启动本地波形标注与脚本工作台（默认 `http://127.0.0.1:4321`），可浏览候选拍点/起音/能量层、打点、设置 A-B 循环、开启节拍提示音、编写段落脚本构想与给 Agent 的评论，并自动保存到 `local/annotations/annotations.json` 与 `local/annotations/agent-brief.md`。
-6. 运行 `npm run dev` 打开 Remotion Studio。`MyComp` 已接入 `public/private/annotations-preview.json` 与本地私有音轨进行声画同步预览；当不存在私有音源时自动切换为静音视觉预览模式。
-7. 运行 `npm run lint` 检查代码；运行 `npm run check:repo` 检查 Git 索引是否混入受保护路径或音频。
+4. 运行 `npm run analyze:audio`（即 `uv run python tools/audio-analyzer/analyze-audio.py`）校验本地 FLAC 并生成候选分析数据到 `local/analysis/`。
+5. 运行 `npm run annotate` 启动本地波形标注与脚本工作台（`apps/annotator`，默认 `http://127.0.0.1:4321`），可浏览候选拍点/起音/能量层、打点、设置 A-B 循环、开启节拍提示音、编写段落脚本构想与给 Agent 的评论，并自动保存到 `local/annotations/annotations.json` 与 `local/annotations/agent-brief.md`。
+6. 运行 `npm run dev` 打开 Remotion Studio（`apps/mv`）。`MyComp` 已接入 `@try-me/shared` 时间映射与 `public/private/annotations-preview.json` 进行声画同步预览；当不存在私有音源时自动切换为静音视觉预览模式。
+7. 运行 `npm run lint` 检查代码；运行 `npm run test:annotations` 运行标注台回归测试；运行 `npm run check:repo` 检查 Git 索引是否混入受保护路径或音频。
 
 未来通过 `staticFile("private/audio/try-me.flac")` 定位音轨，不写本机绝对路径。若实际预览或渲染遇到 FLAC 兼容问题，再生成 WAV 工作副本，放在同一私有目录并登记。
 

@@ -1,6 +1,6 @@
 # 制作准备与协作流程
 
-状态更新：2026-11-12。已完成阶段 0.1 与 0.2 工具链实现：Python 3.12 独立 `.venv/`、可复现分析入口 `scripts/analyze-audio.py`、`local/analysis/` 候选数据、独立波形标注与脚本工作台（`npm run annotate` / `scripts/annotation-server.mjs`）、Agent 协作简报自动生成（`local/annotations/agent-brief.md`）以及 Remotion 声画同步预览组件（`src/Composition.tsx`）。所有自动拍点与初始导入的 15.65 秒验证片段（`CLIP_01`）均保持 `candidate` 状态，待人工听辨播放确认。
+状态更新：2026-11-12。已完成阶段 0.1、0.2 工具链实现及 Monorepo 重组：根目录保持 Python 3.12 独立 `.venv/`（`pyproject.toml`、`uv.lock`）、可复现分析入口 `tools/audio-analyzer/analyze-audio.py`、候选数据 `local/analysis/`、独立波形标注与脚本工作台子应用 `apps/annotator/`（`npm run annotate`）、跨端共享时间映射包 `packages/shared/`（`@try-me/shared`）、Agent 协作简报自动生成（`local/annotations/agent-brief.md`）以及 Remotion MV 子应用 `apps/mv/`（`apps/mv/src/Composition.tsx`）。所有自动拍点与初始验证片段（`CLIP_01`）均保持 `candidate` 状态，待人工听辨播放确认。
 
 ## 当前环境与待办
 
@@ -13,7 +13,7 @@
 | uv / Python                   | uv 0.11.7，已创建项目独立 `.venv/`（Python 3.12.13），由 `pyproject.toml` 与 `uv.lock` 锁定                                        | 使用 `uv run` 或 `npm run analyze:audio` 执行分析脚本          |
 | 音频分析库                    | 已安装并锁定 `librosa 1.0.0`、`soundfile 0.14.0`、`numpy 2.5.4`、`scipy 1.18.1`、`numba 0.68.1`、`scikit-learn 1.9.1` 等基础依赖   | 后续按实际需要再评估是否引入分轨、歌词对齐或转录工具           |
 | 波形标注                      | 已安装 `wavesurfer.js 7.13.2` 并实现独立波形标注与脚本工作台（`npm run annotate`）                                                 | 通过浏览器播放试听，人工确认拍点、段落并编写脚本与评论         |
-| 同步画面预览                  | 已在 `src/Composition.tsx` 实现同步验证预览（支持私有音轨接入与无音源静音兜底）                                                    | 自定义标注页后续若需页内嵌入画面，再按同版本引入 Player        |
+| 同步画面预览                  | 已在 `apps/mv/src/Composition.tsx` 实现同步验证预览（共用 `@try-me/shared` 映射公式，支持私有音轨接入与无音源静音兜底）            | 自定义标注页后续若需页内嵌入画面，再按同版本引入 Player        |
 | 独立 FFmpeg / ffprobe         | 当前 PATH 未找到；`soundfile` 已直接读取本地 FLAC，无需转码                                                                        | 需要转码或额外容器工具时再核实与配置                           |
 | 原音源                        | `public/private/audio/try-me.flac`（SHA-256 `f0ec600d...f72476d`），实测 44100 Hz、2 声道 PCM_16、9248635 采样帧（209.719615 秒） | 已验证 HTTP Range 音频流与候选导入；待人工听辨确认段落与第一拍 |
 
@@ -49,7 +49,7 @@
 | 人工确认的音乐标记与修订                       | `local/annotations/`        | 与机器结果分开，重跑分析不得覆盖                               |
 | 私人歌词与歌词时间标记                         | `local/annotations/lyrics/` | 不提交完整歌词                                                 |
 | 需要在浏览器加载的分析派生数据、分轨或工作音频 | `public/private/`           | 保持私有，登记与原音源的关系                                   |
-| 可公开的镜头安排与执行时间线                   | `src/timeline/`             | 先确认公开范围，再导入必要的确认数据，不携带完整歌词或私人记录 |
+| 可公开的镜头安排与执行时间线                   | `apps/mv/src/timeline/`     | 先确认公开范围，再导入必要的确认数据，不携带完整歌词或私人记录 |
 | 段落解释、创作目的、镜头状态                   | `docs/`                     | 引用稳定 ID，与代码保持一致                                    |
 
 每批分析关联音源哈希、工具与参数，换音源时先检查标记是否仍然适用。分析结果保留秒数或采样位置及采样率，进入 Remotion 时统一加片头偏移并转换成整数帧；分析工具的特征帧与视频帧不是同一单位。FPS 变更时从原始时间重新计算，不反复换算已舍入的帧号。

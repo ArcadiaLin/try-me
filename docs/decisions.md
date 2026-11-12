@@ -25,9 +25,17 @@
 
 ## D004 — 2026-11-12：独立波形标注与脚本协作台 + Agent 简报双向交互
 
-- 采用 `wavesurfer.js` 独立本地标注页（`npm run annotate`，仅监听 `127.0.0.1`）配合 Remotion Studio 的诊断型同步预览 Composition（`src/Composition.tsx`，非正式分镜实现），替代在 Studio 时间轴直接塞入数百个候选拍点。
+- 采用 `wavesurfer.js` 独立本地标注页（`npm run annotate`，仅监听 `127.0.0.1`）配合 Remotion Studio 的诊断型同步预览 Composition（`apps/mv/src/Composition.tsx`，非正式分镜实现），替代在 Studio 时间轴直接塞入数百个候选拍点。
 - 人工标注主数据保存在 `local/annotations/annotations.json`（唯一事实来源），支持串行写入锁与内容哈希乐观锁（`revision` / `409 Conflict`）防止网页自动保存与 Agent 修改互相覆盖；损坏 JSON 或音源哈希不匹配时拒绝覆盖。
-- 每个时间点标记（`markers`）与区间标记（`regions`）维护稳定单调递增 ID（删除后不复用）、候选溯源信息（`origin_candidate_id`、`origin_analysis_run_id`、原候选秒数与采样帧）、状态（`candidate` / `confirmed`）、关联镜头，以及 `note`（音乐特征）、`script_idea`（画面脚本构想）、`agent_comment` / `agent_status`（`none | open | in_progress | resolved`）/ `agent_reply` 与仅存本地的 `lyric_hint`（私人歌词定位提示）。所有自由文本在转入公开 `docs/` 或 `src/timeline/` 前仍需人工复核。
+- 每个时间点标记（`markers`）与区间标记（`regions`）维护稳定单调递增 ID（删除后不复用）、候选溯源信息（`origin_candidate_id`、`origin_analysis_run_id`、原候选秒数与采样帧）、状态（`candidate` / `confirmed`）、关联镜头，以及 `note`（音乐特征）、`script_idea`（画面脚本构想）、`agent_comment` / `agent_status`（`none | open | in_progress | resolved`）/ `agent_reply` 与仅存本地的 `lyric_hint`（私人歌词定位提示）。所有自由文本在转入公开 `docs/` 或 `apps/mv/src/timeline/` 前仍需人工复核。
 - 每次保存自动同步重建两份派生文件：
   1. `local/annotations/agent-brief.md`：供 Agent 直接读取的结构化 Markdown 协作简报（自动排除 `lyric_hint`）；
   2. `public/private/annotations-preview.json`：按显式字段白名单导出的 Remotion 运行时预览数据。
+
+## D005 — 2026-11-12：Monorepo 目录重组与跨端共享时间映射包
+
+- 采用原生 `npm workspaces` 将仓库重组为 Monorepo：
+  - `apps/mv`（`@try-me/mv`）：Remotion 视频渲染与预览工程，通过 `Config.setPublicDir` 复用根目录 `public/`。
+  - `apps/annotator`（`@try-me/annotator`）：独立波形标注、脚本设计与 Agent 协作台（含 `server/`、`web/`、`test/`）。
+  - `packages/shared`（`@try-me/shared`）：跨端唯一权威的 `audioSecToGlobalFrame`、`globalFrameToAudioSec` 与 `computePreviewTimeline` 时间映射包，由标注前端、标注服务端与 Remotion 共同引用。
+  - `tools/audio-analyzer/` 与 `tools/repo-guard/`：存放 Python 音频特征提取脚本与 Git 索引隐私边界检查脚本；Python 环境配置（`pyproject.toml`、`uv.lock`、`.venv/`）与 `public/`、`local/`、`docs/`、`out/` 保持在仓库根目录。

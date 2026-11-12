@@ -1,6 +1,7 @@
 import WaveSurfer from "/vendor/wavesurfer/wavesurfer.esm.js";
 import RegionsPlugin from "/vendor/wavesurfer/plugins/regions.esm.js";
 import TimelinePlugin from "/vendor/wavesurfer/plugins/timeline.esm.js";
+import { audioSecToGlobalFrame } from "/vendor/shared/time-mapping.mjs";
 import {
   allocateMarkerId,
   allocateRegionId,
@@ -107,7 +108,7 @@ function toVideoFrame(audioSec) {
   const offset = Number(
     state.annotations?.preview_mapping?.audio_offset_seconds ?? 0,
   );
-  return Math.round((Number(audioSec) + offset) * fps);
+  return audioSecToGlobalFrame(audioSec, offset, fps);
 }
 
 function markEdited() {

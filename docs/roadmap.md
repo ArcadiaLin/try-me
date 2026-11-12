@@ -15,10 +15,10 @@
 | 6. 检查与本地导出 | 检查同步、黑帧、转场、音量、字体和最终参数                       | 未开始               |
 | 7. 公开仓库整理   | 干净克隆可运行静音视觉预览，公开文件均已确认，复现与署名说明完整 | 未开始               |
 
-当前已完成阶段 0、0.1 及 0.2 的全部工程实现：
-- 独立 Python 3.12 分析环境（`pyproject.toml`、`uv.lock`）与可复现分析入口 `scripts/analyze-audio.py` 已就绪，生成 `local/analysis/` 候选数据。
-- 独立波形标注、脚本设计与 Agent 协作台（`npm run annotate` → `scripts/annotation-server.mjs` + `scripts/annotator/`）已实现，支持播放、倍速、A-B 循环、节拍提示音（Click Track）、候选图层叠加与一键采纳、磁吸对齐、局部 BPM 测算与均匀补拍、乐观锁防覆盖保存/重载，并自动导出结构化 Agent 简报 `local/annotations/agent-brief.md` 与剥离私人歌词后的预览文件 `public/private/annotations-preview.json`。
-- Remotion Studio 中的 `MyComp`（`src/Composition.tsx`）已接入统一时间映射的声画同步验证界面，并在无私有音源时自动降级为静音视觉预览。
+当前已完成阶段 0、0.1、0.2 的全部工程实现及 Monorepo 结构重组：
+- 独立 Python 3.12 分析环境（根 `pyproject.toml`、`uv.lock`）与可复现分析入口 `tools/audio-analyzer/analyze-audio.py` 已就绪，生成 `local/analysis/` 候选数据。
+- 独立波形标注、脚本设计与 Agent 协作台子包 `apps/annotator/`（`npm run annotate`）已实现，支持播放、倍速、A-B 循环、节拍提示音（Click Track）、候选图层叠加与一键采纳、磁吸对齐、局部 BPM 测算与均匀补拍、乐观锁防覆盖保存/重载，并自动导出结构化 Agent 简报 `local/annotations/agent-brief.md` 与剥离私人歌词后的预览文件 `public/private/annotations-preview.json`。
+- 跨端共享包 `packages/shared/`（`@try-me/shared`）提供唯一权威的秒/帧换算与时间线计算，供 `apps/annotator` 与 `apps/mv`（`apps/mv/src/Composition.tsx`）直接共用，并在无私有音源时自动降级为静音视觉预览。
 
 下一次由用户在浏览器打开 `npm run annotate` 与 `npm run dev`，实际试听并人工确认 `CLIP_01`（`0.000s–15.650s`）及全曲段落，推进阶段 1（音乐结构确认）与阶段 2（创意方向讨论）。
 

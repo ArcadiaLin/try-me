@@ -4,9 +4,10 @@ import fsp from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { audioSecToGlobalFrame } from "@try-me/shared";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_REPO_ROOT = path.resolve(__dirname, "..");
+const DEFAULT_REPO_ROOT = path.resolve(__dirname, "../../..");
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -42,7 +43,9 @@ export function resolveServerPaths(custom = {}) {
       custom.previewJsonFile ||
       path.join(repoRoot, "public/private/annotations-preview.json"),
     annotatorStaticDir:
-      custom.annotatorStaticDir || path.join(repoRoot, "scripts/annotator"),
+      custom.annotatorStaticDir || path.join(repoRoot, "apps/annotator/web"),
+    sharedSrcDir:
+      custom.sharedSrcDir || path.join(repoRoot, "packages/shared/src"),
     wavesurferDistDir:
       custom.wavesurferDistDir ||
       path.join(repoRoot, "node_modules/wavesurfer.js/dist"),
@@ -497,12 +500,12 @@ export function normalizeAnnotations(
 export function buildAgentBriefMarkdown(annotations) {
   const fps = annotations.preview_mapping?.preview_fps ?? 30;
   const offset = annotations.preview_mapping?.audio_offset_seconds ?? 0;
-  const toFrame = (sec) => Math.round((sec + offset) * fps);
+  const toFrame = (sec) => audioSecToGlobalFrame(sec, offset, fps);
 
   const lines = [
     "# Try Me — 标注、脚本设计与 Agent 协作简报",
     "",
-    `> 本文件由 \`scripts/annotation-server.mjs\` 根据 \`local/annotations/annotations.json\` 自动生成，仅保存在本地忽略目录 \`local/annotations/\`。\`lyric_hint\` 私人歌词字段已排除；其余自由文本在转入公开文档前仍需人工复核。`,
+    `> 本文件由 \`apps/annotator/server/index.mjs\` 根据 \`local/annotations/annotations.json\` 自动生成，仅保存在本地忽略目录 \`local/annotations/\`。\`lyric_hint\` 私人歌词字段已排除；其余自由文本在转入公开文档前仍需人工复核。`,
     "",
     `- 更新时间 (UTC)：\`${annotations.updated_at_utc}\``,
     `- 音源：\`${annotations.audio_asset.path}\` (SHA-256: \`${annotations.audio_asset.sha256 ?? "unknown"}\`, 采样率: \`${annotations.audio_asset.samplerate}Hz\`, 总采样帧: \`${annotations.audio_asset.total_samples}\`, 时长: \`${annotations.audio_asset.duration_sec}s\`)`,
@@ -1006,6 +1009,12 @@ export function createAnnotationServer(customPaths = {}) {
       if (req.method === "GET" && pathname.startsWith("/vendor/wavesurfer/")) {
         const rel = pathname.slice("/vendor/wavesurfer/".length);
         await serveStaticFile(paths.wavesurferDistDir, rel, res);
+        return;
+      }
+
+      if (req.method === "GET" && pathname.startsWith("/vendor/shared/")) {
+        const rel = pathname.slice("/vendor/shared/".length);
+        await serveStaticFile(paths.sharedSrcDir, rel, res);
         return;
       }
 

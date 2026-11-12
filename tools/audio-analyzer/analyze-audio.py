@@ -28,7 +28,7 @@ import numpy as np
 import scipy
 import soundfile as sf
 
-REPO_ROOT = Path(__file__).resolve().parent.parent
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DEFAULT_AUDIO_REL_PATH = Path("public/private/audio/try-me.flac")
 DEFAULT_OUTPUT_REL_DIR = Path("local/analysis")
 

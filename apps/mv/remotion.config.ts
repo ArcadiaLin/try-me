@@ -5,8 +5,10 @@
  * All configuration options: https://remotion.dev/docs/config
  */
 
+import path from "node:path";
 import { Config } from "@remotion/cli/config";
 
+Config.setPublicDir(path.resolve(process.cwd(), "../../public"));
 Config.setRspack(true);
 Config.setVideoImageFormat("jpeg");
 Config.setOverwriteOutput(true);

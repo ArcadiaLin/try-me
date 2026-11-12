@@ -1,0 +1,17 @@
+{
+  "name": "@try-me/mv",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@remotion/cli": "4.0.542",
+    "@try-me/shared": "^1.0.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.542"
+  },
+  "scripts": {
+    "dev": "remotion studio",
+    "build": "remotion bundle",
+    "typecheck": "tsc --noEmit"
+  }
+}

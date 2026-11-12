@@ -1,13 +1,17 @@
 {
   "name": "try-me",
   "version": "1.0.0",
-  "description": "My Remotion video",
+  "description": "Kero Kero Bonito - Try Me MV Monorepo",
   "repository": {},
   "license": "UNLICENSED",
   "engines": {
     "node": "^20.19.0 || ^22.13.0 || >=24"
   },
   "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "dependencies": {
     "@remotion/cli": "4.0.542",
     "react": "19.3.1",
@@ -24,14 +28,14 @@
     "typescript": "5.9.3"
   },
   "scripts": {
-    "dev": "remotion studio",
-    "build": "remotion bundle",
+    "dev": "npm --workspace @try-me/mv run dev",
+    "build": "npm --workspace @try-me/mv run build",
     "upgrade": "remotion upgrade",
-    "lint": "eslint src scripts && tsc",
-    "check:repo": "node scripts/check-repo.mjs",
-    "analyze:audio": "uv run python scripts/analyze-audio.py",
-    "annotate": "node scripts/annotation-server.mjs",
-    "test:annotations": "node scripts/test-annotations.mjs"
+    "lint": "eslint apps packages tools && npm --workspace @try-me/mv run typecheck",
+    "check:repo": "node tools/repo-guard/check-repo.mjs",
+    "analyze:audio": "uv run python tools/audio-analyzer/analyze-audio.py",
+    "annotate": "npm --workspace @try-me/annotator run start",
+    "test:annotations": "npm --workspace @try-me/annotator run test"
   },
   "allowScripts": {
     "esbuild": false

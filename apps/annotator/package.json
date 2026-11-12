@@ -1,0 +1,14 @@
+{
+  "name": "@try-me/annotator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@try-me/shared": "^1.0.0",
+    "wavesurfer.js": "^8.0.5"
+  },
+  "scripts": {
+    "start": "node server/index.mjs",
+    "test": "node test/annotations.test.mjs"
+  }
+}

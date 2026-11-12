@@ -3,11 +3,16 @@ import { spawnSync } from "node:child_process";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  audioSecToGlobalFrame,
+  computePreviewTimeline,
+} from "@try-me/shared";
 import {
   buildSanitizedPreviewPayload,
   createAnnotationServer,
   normalizeAnnotations,
-} from "./annotation-server.mjs";
+} from "../server/index.mjs";
 import {
   allocateMarkerId,
   allocateRegionId,
@@ -17,7 +22,12 @@ import {
   executeReloadFlow,
   executeSaveFlow,
   reconcileSaveResponse,
-} from "./annotator/model.js";
+} from "../web/model.js";
+
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../..",
+);
 
 async function createTempFixture() {
   const tmpRoot = await fsp.mkdtemp(
@@ -130,6 +140,13 @@ async function runTests() {
       Buffer.from(await rangeRes.arrayBuffer()).toString("ascii"),
       "fLaC",
     );
+
+    const sharedModuleRes = await fetch(
+      `${baseUrl}/vendor/shared/time-mapping.mjs`,
+    );
+    assert.equal(sharedModuleRes.status, 200);
+    const sharedModuleText = await sharedModuleRes.text();
+    assert.ok(sharedModuleText.includes("export function audioSecToGlobalFrame"));
 
     // 2. First valid save
     const payloadA = structuredClone(initData.annotations);
@@ -303,12 +320,12 @@ async function runTests() {
       [
         "run",
         "python",
-        "scripts/analyze-audio.py",
+        "tools/audio-analyzer/analyze-audio.py",
         "--verify-only",
         "--output-dir",
         "local/annotations",
       ],
-      { encoding: "utf8" },
+      { cwd: REPO_ROOT, encoding: "utf8" },
     );
     assert.notEqual(pyCheck.status, 0);
     assert.ok(pyCheck.stderr.includes("must be inside local/analysis/"));
@@ -720,6 +737,27 @@ async function runTests() {
       asyncState.annotations.global_notes.overall_concept,
       "editedDuringForcedSave",
     );
+
+    // 16. Verify @try-me/shared time-mapping across non-zero clipStartSec & positive/negative offsets
+    const tl = computePreviewTimeline(
+      {
+        preview_mapping: { preview_fps: 30, audio_offset_seconds: 0 },
+        regions: [
+          {
+            id: "CLIP_01",
+            category: "representative_clip",
+            start_sec: 10,
+            end_sec: 25,
+          },
+        ],
+      },
+      { silentPreview: false, clipDurationSeconds: 15, audioOffsetSeconds: 0 },
+    );
+    assert.equal(tl.clipStartFrame, 300);
+    assert.equal(tl.audioSecToGlobalFrame(12), 360);
+    assert.equal(tl.audioSecToVideoFrame(12), 60);
+    assert.equal(tl.localFrameToGlobalFrame(60), 360);
+    assert.equal(audioSecToGlobalFrame(12, 0, 30), 360);
 
     console.log(
       "PASS: All isolated annotation server, concurrency, validation & boundary tests passed!",

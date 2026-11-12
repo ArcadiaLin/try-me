@@ -3,7 +3,12 @@ import { config } from "@remotion/eslint-config-flat";
 export default [
   ...config,
   {
-    files: ["scripts/**/*.mjs"],
+    files: [
+      "apps/annotator/server/**/*.mjs",
+      "apps/annotator/test/**/*.mjs",
+      "packages/shared/**/*.mjs",
+      "tools/**/*.mjs",
+    ],
     languageOptions: {
       globals: {
         Buffer: "readonly",
@@ -16,7 +21,7 @@ export default [
     },
   },
   {
-    files: ["scripts/annotator/**/*.js"],
+    files: ["apps/annotator/web/**/*.js"],
     languageOptions: {
       globals: {
         clearTimeout: "readonly",
