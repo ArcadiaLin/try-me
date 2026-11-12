@@ -190,6 +190,25 @@ def build_svg_overview(
     )
 
 
+def has_symlink_in_chain(path: Path, stop_at: Path) -> bool:
+    current = path
+    stop_resolved = stop_at.resolve()
+    while True:
+        if current.is_symlink():
+            return True
+        if current == stop_resolved or current.parent == current:
+            break
+        current = current.parent
+    return False
+
+
+def atomic_write_text(target: Path, content: str) -> None:
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = target.with_name(f"{target.name}.{dt.datetime.now(dt.timezone.utc).timestamp():.6f}.tmp")
+    tmp_path.write_text(content, encoding="utf-8")
+    tmp_path.replace(target)
+
+
 def run_analysis(
     audio_rel_path: Path,
     output_rel_dir: Path,
@@ -198,8 +217,31 @@ def run_analysis(
     envelope_bins_per_sec: int = 50,
     verify_only: bool = False,
 ) -> int:
+    if hop_length <= 0 or frame_length <= 0 or envelope_bins_per_sec <= 0:
+        print(
+            "Error: hop_length, frame_length, and envelope_bins_per_sec must all be positive integers.",
+            file=sys.stderr,
+        )
+        return 1
+
+    raw_output_path = REPO_ROOT / output_rel_dir
+    allowed_analysis_root = (REPO_ROOT / "local/analysis").resolve()
+    if has_symlink_in_chain(raw_output_path, REPO_ROOT):
+        print(
+            f"Error: symlink detected in --output-dir path ({output_rel_dir.as_posix()})",
+            file=sys.stderr,
+        )
+        return 1
+
     audio_path = (REPO_ROOT / audio_rel_path).resolve()
-    output_dir = (REPO_ROOT / output_rel_dir).resolve()
+    output_dir = raw_output_path.resolve()
+
+    if not output_dir.is_relative_to(allowed_analysis_root):
+        print(
+            f"Error: --output-dir must be inside local/analysis/ to protect human annotations (got {output_rel_dir.as_posix()})",
+            file=sys.stderr,
+        )
+        return 1
 
     if not audio_path.exists():
         print(f"Error: audio file not found at {audio_rel_path.as_posix()}", file=sys.stderr)
@@ -304,8 +346,11 @@ def run_analysis(
     )
 
     generated_at = dt.datetime.now(dt.timezone.utc).isoformat()
+    run_id_seed = f"{sha256_hex}:{librosa.__version__}:{sr}:{frame_length}:{hop_length}:{envelope_bins_per_sec}:{generated_at}"
+    analysis_run_id = "run_" + hashlib.sha256(run_id_seed.encode("utf-8")).hexdigest()[:16]
     provenance = {
         "schema_version": "0.1.0",
+        "analysis_run_id": analysis_run_id,
         "generated_at_utc": generated_at,
         "source": "auto",
         "status": "candidate",
@@ -468,15 +513,12 @@ def run_analysis(
     }
 
     print(f"[4/4] Writing candidate analysis files to {output_rel_dir.as_posix()}/ ...")
-    (output_dir / "summary.json").write_text(
-        json.dumps(summary_payload, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
-    )
-    (output_dir / "waveform.json").write_text(
+    atomic_write_text(
+        output_dir / "waveform.json",
         json.dumps({**provenance, **envelope_data}, indent=2, ensure_ascii=False) + "\n",
-        encoding="utf-8",
     )
-    (output_dir / "beats.json").write_text(
+    atomic_write_text(
+        output_dir / "beats.json",
         json.dumps(
             {
                 **provenance,
@@ -488,9 +530,9 @@ def run_analysis(
             ensure_ascii=False,
         )
         + "\n",
-        encoding="utf-8",
     )
-    (output_dir / "onsets.json").write_text(
+    atomic_write_text(
+        output_dir / "onsets.json",
         json.dumps(
             {
                 **provenance,
@@ -500,9 +542,9 @@ def run_analysis(
             ensure_ascii=False,
         )
         + "\n",
-        encoding="utf-8",
     )
-    (output_dir / "energy.json").write_text(
+    atomic_write_text(
+        output_dir / "energy.json",
         json.dumps(
             {
                 **provenance,
@@ -514,7 +556,6 @@ def run_analysis(
             ensure_ascii=False,
         )
         + "\n",
-        encoding="utf-8",
     )
     svg_text = build_svg_overview(
         duration_sec=duration_sec,
@@ -522,7 +563,12 @@ def run_analysis(
         beat_times=beat_times.tolist(),
         energy_events=energy_candidates,
     )
-    (output_dir / "overview.svg").write_text(svg_text + "\n", encoding="utf-8")
+    atomic_write_text(output_dir / "overview.svg", svg_text + "\n")
+    # Write summary.json last as the completion manifest for this analysis_run_id
+    atomic_write_text(
+        output_dir / "summary.json",
+        json.dumps(summary_payload, indent=2, ensure_ascii=False) + "\n",
+    )
 
     print(
         f"Done. Duration={duration_sec:.3f}s ({provenance['input_audio']['duration_hms']}), "

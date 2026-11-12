@@ -12,7 +12,8 @@
     "@remotion/cli": "4.0.542",
     "react": "19.3.1",
     "react-dom": "19.3.1",
-    "remotion": "4.0.542"
+    "remotion": "4.0.542",
+    "wavesurfer.js": "^8.0.5"
   },
   "devDependencies": {
     "@remotion/eslint-config-flat": "4.0.542",
@@ -26,9 +27,11 @@
     "dev": "remotion studio",
     "build": "remotion bundle",
     "upgrade": "remotion upgrade",
-    "lint": "eslint src && tsc",
+    "lint": "eslint src scripts && tsc",
     "check:repo": "node scripts/check-repo.mjs",
-    "analyze:audio": "uv run python scripts/analyze-audio.py"
+    "analyze:audio": "uv run python scripts/analyze-audio.py",
+    "annotate": "node scripts/annotation-server.mjs",
+    "test:annotations": "node scripts/test-annotations.mjs"
   },
   "allowScripts": {
     "esbuild": false

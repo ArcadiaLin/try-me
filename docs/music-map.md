@@ -23,5 +23,5 @@
 - `videoFrame = Math.round((audioSeconds + audioOffsetSeconds) * fps)`，镜头时长为 `endFrame - startFrame`。
 - 使用 `[startFrame, endFrame)`，相邻镜头共享边界，不分别累加四舍五入后的时长。
 - 时间码和秒数用于阅读，整数帧用于执行。FPS 未定时不填伪精确的帧号。
-- 记录鼓点、停顿、音色和能量变化，不复制完整歌词；私人逐句标记放 `local/notes/`。
+- 记录鼓点、停顿、音色和能量变化，不复制完整歌词；私人歌词与逐句时间标记放 `local/annotations/lyrics/`（标注台条目的私人歌词提示保存在 `local/annotations/annotations.json` 的 `lyric_hint` 字段，不进入公开文档或预览派生文件）。
 - 听辨复核后再进入脚本与分镜。后续精确执行数据放 `src/timeline/`，修改时同步此文档。
