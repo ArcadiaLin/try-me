@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "name": "合成设计示例，非真实歌曲标注",
+  "audio": "public/private/audio/try-me.flac",
+  "comments": [
+    {
+      "role": "human",
+      "text": "整体采用低饱和青绿灰；请先处理片段内的文字节奏。"
+    }
+  ],
+  "nodes": [
+    {
+      "kind": "group",
+      "id": "G001",
+      "name": "音乐标注",
+      "children": [
+        {
+          "kind": "group",
+          "id": "G002",
+          "name": "人声",
+          "children": [
+            {
+              "kind": "group",
+              "id": "G003",
+              "name": "片段示例",
+              "children": [
+                {
+                  "kind": "timeline",
+                  "id": "T001",
+                  "name": "主唱",
+                  "items": [
+                    {
+                      "id": "E001",
+                      "startSec": 12,
+                      "endSec": 14,
+                      "text": "区间示例，非歌曲歌词",
+                      "comments": [
+                        {
+                          "role": "human",
+                          "text": "文字提前出现，但不要改动人声边界。"
+                        },
+                        {
+                          "role": "agent",
+                          "text": "可调整视觉入场时机，保留这里的标注时间。"
+                        },
+                        { "role": "human", "text": "先做预览，确认后再制作。" }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "group",
+      "id": "G004",
+      "name": "视觉与声音设计",
+      "comments": [{ "role": "human", "text": "此分组的内容都是草案。" }],
+      "children": [
+        {
+          "kind": "timeline",
+          "id": "T002",
+          "name": "分镜",
+          "comments": [
+            { "role": "agent", "text": "后续按已确认的声画关系补充片段。" }
+          ],
+          "items": []
+        },
+        {
+          "kind": "timeline",
+          "id": "T003",
+          "name": "效果音",
+          "items": [{ "id": "E002", "startSec": 12.4, "text": "瞬时点示例" }]
+        }
+      ]
+    }
+  ]
+}
