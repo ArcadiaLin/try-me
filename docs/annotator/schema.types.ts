@@ -14,6 +14,7 @@ export interface TimelineEvent extends Commented {
   startSec: number;
   endSec?: number; // Omit for a point. Present => [startSec, endSec).
   text: string;
+  color?: string; // Optional #RRGGBB override; omit to inherit the track color.
 }
 
 export interface TimelineTrack extends Commented {
@@ -21,6 +22,7 @@ export interface TimelineTrack extends Commented {
   id: string;
   name: string;
   items: TimelineEvent[];
+  color?: string; // Optional #RRGGBB default for this track's events.
 }
 
 export interface TimelineGroup extends Commented {
@@ -77,7 +79,17 @@ export interface WorkbenchEditState {
   boundaryLinks: BoundaryLink[];
   snapEnabled: boolean;
 }
+export type ContextMenuState =
+  | { kind: "closed" }
+  | { kind: "events"; x: number; y: number; trackId: string; refs: EventRef[]; splitTimeSec: number }
+  | { kind: "explorer"; x: number; y: number; nodeId: string | null };
+export type ExplorerCommand =
+  | { type: "createNode"; parentGroupId: string | null; node: TimelineNode }
+  | { type: "renameNode"; nodeId: string; name: string }
+  | { type: "deleteNode"; nodeId: string };
 export type WorkbenchCommand =
+  | { type: "createEvent"; trackId: string; event: TimelineEvent }
+  | { type: "setTrackColor"; trackId: string; color: string | null }
   | { type: "update"; ref: EventRef; patch: Partial<Omit<TimelineEvent, "id">> }
   | { type: "move"; refs: EventRef[]; deltaSec: number }
   | {

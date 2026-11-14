@@ -1,10 +1,10 @@
-﻿import fs from "node:fs";
+import fs from "node:fs";
 import crypto from "node:crypto";
 import assert from "node:assert/strict";
 import console from "node:console";
 
 // Recompose the approved UI as a single annotated design, not a Q&A archive.
-const path = "docs/design.refined.excalidraw";
+const path = "docs/annotator/design.excalidraw";
 const original = fs.readFileSync(path, "utf8");
 const doc = JSON.parse(original);
 const digest = crypto
@@ -179,7 +179,7 @@ function arrow(card, coords, targetId) {
 
 patch("refined-1", { height: 1160 });
 patch("refined-3", {
-  text: "主界面设计 v4 · 波形、时间与事件均为示意 · 外围箭头说明用途、交互与工程类型",
+  text: "主界面设计 v5 · 波形、时间与事件均为示意 · 外围箭头说明用途、交互与工程类型",
 });
 patch("refined-569", { text: "拖动区间边缘调整时间；锁定事件不可修改。" });
 patch("refined-568", { text: "点事件只显示单时间，区间事件显示起止。" });
@@ -200,8 +200,8 @@ if (
   )
 )
   shape("rectangle", 2114, 299, 1410, 77, {
-    backgroundColor: "#d7e4e7",
-    strokeColor: "#d7e4e7",
+    backgroundColor: "#b8cdd2",
+    strokeColor: "#b8cdd2",
     id: "guide-ui-wave",
   });
 // Restore waveform background before strokes, while labels stay above panels.
@@ -298,7 +298,7 @@ const waveform = box(
   660,
   270,
   "主音轨波形与视觉层次",
-  "波形用于定位与试听，不把峰值直接认定为拍点。\n主波形背景加深，刻度与标注轨保持浅色。\n底色 #d7e4e7，波形 #567e87；文字保持不透明。\n\n工程：复用 AudioAssetMeta / AnalysisBundle / WaveformBin。\n机器分析只读，显式采纳后才进入人工标注。",
+  "波形用于定位与试听，不把峰值直接认定为拍点。\n主波形背景加深，刻度与标注轨保持浅色。\n底色 #b8cdd2，波形 #355f69；文字保持不透明。\n\n工程：复用 AudioAssetMeta / AnalysisBundle / WaveformBin。\n机器分析只读，显式采纳后才进入人工标注。",
 );
 arrow(
   waveform,
@@ -316,7 +316,7 @@ const tree = box(
   660,
   330,
   "Explorer：递归分组与轨道",
-  "“音乐标注”和“视觉与声音设计”都是同一种 Group。\nGroup 可包含 Group 或 Track；Track 才持有事件。\n名称与顺序自由组织，搜索用于快速定位节点。\nchildren 层级及顺序写入 JSON，重载后保留。\n\n工程：TimelineGroup / TimelineTrack / TimelineNode（新增）。\n单一父节点、稳定 ID；禁止循环和重复挂载。\n折叠状态属于 UI，不替代真实树结构。",
+  "“音乐标注”和“视觉与声音设计”都是同一种 Group。\nGroup 可包含 Group 或 Track；Track 才持有事件。\n右键新建分组 / 轨道、重命名、删除；空白处建根节点。\nchildren 层级及顺序写入 JSON，重载后保留。\n\n工程：TimelineGroup / TimelineTrack / TimelineNode（新增）。\n单一父节点、稳定 ID；禁止循环和重复挂载。\n工程交互：ExplorerCommand / ContextMenuState。",
 );
 arrow(
   tree,
@@ -422,7 +422,7 @@ const list = box(
   760,
   370,
   "统一事件列表与选择同步",
-  "所有轨道使用相同列表：内容、时间、批注数与最近作者。\n点显示单时间，区间显示起止；批注摘要从 comments 推导。\n点击只选择；双击定位并预听；Shift 扩展为多选。\n筛选改变可见结果，不删除或重排原始数据。\n画布、列表和 Workbench 指向同一个稳定事件 ID。\n\n工程：TimelineEvent / EventRef / SelectionState（新增）。\nEventRef 用 trackId + eventId 定位，不用列表下标。\n多选只改公共字段；未选事件时显示时间线设置。\n目标存储使用同一棵树，不再携带四种旧模型的副本。",
+  "所有轨道使用相同列表：内容、时间、批注数与最近作者。\n点显示单时间，区间显示起止；批注摘要从 comments 推导。\n点击只选择；双击定位并预听；Shift 扩展为多选。\n筛选改变可见结果，不删除或重排原始数据。\n画布、列表和 Workbench 指向同一个稳定事件 ID。\n\n工程：TimelineEvent / EventRef / SelectionState（新增）。\nEventRef 用 trackId + eventId 定位，不用列表下标。\n多选只改公共字段；未选事件时显示时间线设置。\n右键提供新建、切分、删除；详见下方菜单展开态。",
 );
 arrow(
   list,
@@ -478,7 +478,7 @@ const palette = box(
   660,
   440,
   "配色规范：青绿灰与轻层次",
-  "页面 #f3f5f5，编辑面板 #ffffff。\n主波形底 #d7e4e7，波形线 #567e87。\n选中底 #e7f2f2，强调与选中描边 #166b75。\n正文 #263238，辅助字 #637079，边框 #cbd2d6。\n\n文本保持完全不透明，不对整块容器降低 opacity。\n选区可用强调色约 10% 的局部覆盖，文字独立。\n颜色只辅助选中与定位，作者始终保留文字标签。",
+  "页面 #f3f5f5，编辑面板 #ffffff。\n主波形底 #b8cdd2，波形线 #355f69。\n选中底 #e7f2f2，强调与选中描边 #166b75。\n正文 #263238，辅助字 #637079，边框 #cbd2d6。\n\n文本保持完全不透明，不对整块容器降低 opacity。\n选区可用强调色约 10% 的局部覆盖，文字独立。\n事件颜色：event.color → track.color → 默认青绿。",
 );
 arrow(
   palette,
@@ -490,7 +490,7 @@ arrow(
   ],
   "refined-602",
 );
-["#f3f5f5", "#ffffff", "#d7e4e7", "#567e87", "#e7f2f2", "#166b75"].forEach(
+["#f3f5f5", "#ffffff", "#b8cdd2", "#355f69", "#e7f2f2", "#166b75"].forEach(
   (c, i) => {
     shape("rectangle", 1172 + i * 98, 1760, 88, 28, {
       backgroundColor: c,
@@ -505,7 +505,7 @@ const storage = box(
   760,
   440,
   "存储格式：最小可读 JSON",
-  "Project { version, name, audio?, nodes, comments? }\nGroup { kind, id, name, children, comments? }\nTimeline { kind, id, name, items, comments? }\nEvent { id, startSec, endSec?, text, comments? }\nComment { role: human | agent, text }\n\nchildren 保留多层级，items 保留同轨事件，数组保留顺序。\n不要求 hash、revision、分析清单或任务状态字段。\n空批注可省略；颜色、锁与播放偏好不属于业务 JSON。\n参考：docs/annotator-design.example.json（合成示例）。",
+  "Project { version, name, audio?, nodes, comments? }\nGroup { kind, id, name, children, comments? }\nTimeline { kind, id, name, items, color?, comments? }\nEvent { id, startSec, endSec?, text, color?, comments? }\nComment { role: human | agent, text }\n\nchildren 保留多层级，items 保留同轨事件，数组保留顺序。\n不要求 hash、revision、分析清单或任务状态字段。\n自定义 color 可选保存；锁、播放偏好不进入业务 JSON。\n参考：docs/annotator/example.json（合成示例）。",
 );
 arrow(
   storage,
@@ -518,6 +518,34 @@ arrow(
   ],
   "refined-20",
 );
+
+
+// v5: approved review comments integrated into the interface and direct callouts.
+patch(dark.id, { backgroundColor: "#b8cdd2", strokeColor: "#b8cdd2" });
+patch("refined-572", { text: "点击选择 · 双击预听 · Shift 多选 · 右键操作 / ··· 菜单" });
+patch("refined-594", { height: 88 });
+patch("refined-595", { fontSize: 13 });
+text(3160, 918, "事件颜色  自定义 ▾    选色… / 恢复自动", 12, muted);
+shape("rectangle", 3485, 917, 22, 18, { backgroundColor: "#ad754b", strokeColor: "#ad754b" });
+text(3010, 1010, "···", 18, accent);
+// Distinct muted event colors remain independent of selection and the playhead.
+patch("refined-504", { backgroundColor: "#f8fafa", strokeColor: "#cbd2d6" });
+patch("refined-573", { backgroundColor: "#f8fafa", strokeColor: "#cbd2d6" });
+patch("refined-536", { backgroundColor: "#ffffff", strokeColor: "#cbd2d6" });
+patch("refined-490", { backgroundColor: "#f8fafa", strokeColor: "#cbd2d6" });
+patch("refined-494", { backgroundColor: "#f8fafa", strokeColor: "#cbd2d6" });
+for (const e of doc.elements) if (e.type === "line" && e.x >= 2120 && e.y > 299 && e.y < 376) e.strokeColor = "#355f69";
+const colorDemo = doc.elements.filter(e => ["refined-492", "refined-496", "refined-498", "refined-500"].includes(e.id));
+colorDemo.forEach((e, i) => { e.backgroundColor = ["#e7f2f2", "#f0e4d9", "#e7e4ee"][i % 3]; e.strokeColor = ["#166b75", "#ad754b", "#7c7294"][i % 3]; });
+const eventMenu=box(1940, 1660, 760, 470, "事件列表右键：按上下文操作",
+  "新建点事件（当前播放头） / 新建区间…\n切分所选区间（打开菜单时的播放头）\n删除所选事件                         ··· 同样可打开菜单\n\n右键未选行先单选；已选行保留多选；空白不误删旧选择。\n切分仅限单个区间，且 start < 播放头 < end。\n多选、点事件、边界外或锁定时禁用切分并显示原因。\n新建明确目标轨道与时间；锁定轨道禁止新建 / 删除。\n工程：ContextMenuState / WorkbenchCommand。\n切分左段保留 ID、批注；右段新 ID，继承颜色与正文。\n每次操作可撤销；菜单打开不跳转、不播放。");
+arrow(eventMenu, [[1940,1890],[1820,1890],[1820,1145],[2680,1145],[2680,870]], "refined-528");
+const explorerMenu=box(2740, 1660, 800, 470, "Explorer 右键：层级与安全删除",
+  "新建分组 / 新建时间线 / 重命名 / 删除\nGroup：在组内新建；轨道：在同级新建。\n空白：新建根节点；只读候选不提供写操作。\n\n删除非空分组时明确提示影响的轨道与事件数量。\n确认后作为一次操作删除整棵子树，可整体撤销。\n父组锁定或后代含锁定节点时禁用删除，不绕过锁。\n右键不改变播放位置，Esc 或点击外部关闭菜单。\n工程：ExplorerCommand / ContextMenuState。\n同一菜单也可从节点旁 ··· 或键盘菜单键打开。\n左右分隔线可拖动；双击恢复默认栏宽。");
+arrow(explorerMenu, [[2740,1900],[1840,1900],[1840,860],[1940,860]], "refined-504");
+const colors=box(1940, 2180, 1600, 300, "事件配色：自动继承与可选覆盖",
+  "默认采用低饱和青绿；轨道可设默认色，事件可独立自定义；选择“自动”即移除覆盖。\n解析顺序 event.color → track.color → 默认 #166b75；只保存可选 #RRGGBB，不存派生填充色。\n同一事件在主波形叠层、轨道、列表色标与 Workbench 使用相同颜色；选中轮廓与播放头仍独立可辨。\n深色波形上采用局部浅色填充与实线边缘，文字完整不透明；颜色不替代作者与锁定提示。\n工程：TimelineEvent.color / TimelineTrack.color；预览、确认、取消、恢复自动共用颜色控件。\n切分继承颜色；移动到其他轨道时，自动色随目标轨道变化，显式覆盖保持不变。");
+arrow(colors, [[3540,2330],[3570,2330],[3570,927],[3520,927]], "refined-573");
 
 assert.equal(new Set(doc.elements.map((e) => e.id)).size, doc.elements.length);
 assert.ok(
@@ -558,14 +586,14 @@ function exportSvg(file, viewBox, filter) {
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="${viewBox.join(" ")}"><style>text{font-family:'Segoe UI','Microsoft YaHei',sans-serif}</style><defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#166b75" stroke-width="1.3"/></marker></defs><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#ffffff"/>${live.map(render).join("\n")}</svg>\n`,
   );
 }
-exportSvg("docs/design.review.svg", [1100, -430, 3420, 2390], () => true);
+exportSvg("docs/annotator/design.annotated.svg", [1100, -430, 3420, 2990], () => true);
 exportSvg(
-  "docs/design.refined.svg",
+  "docs/annotator/design.svg",
   [1900, 0, 1680, 1160],
   (e) =>
     !e.id.startsWith("guide-v3-") ||
     (e.type !== "arrow" && e.x >= 1900 && e.x < 3580 && e.y < 1160),
 );
 console.log(
-  `Recomposed design with 15 direct module callouts; old questions and bottom engineering board removed. Backup: ${backup}`,
+  `Recomposed design with 18 direct module callouts; old questions and bottom engineering board removed. Backup: ${backup}`,
 );

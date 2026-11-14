@@ -43,7 +43,10 @@
                           "role": "agent",
                           "text": "可调整视觉入场时机，保留这里的标注时间。"
                         },
-                        { "role": "human", "text": "先做预览，确认后再制作。" }
+                        {
+                          "role": "human",
+                          "text": "先做预览，确认后再制作。"
+                        }
                       ]
                     }
                   ]
@@ -58,22 +61,38 @@
       "kind": "group",
       "id": "G004",
       "name": "视觉与声音设计",
-      "comments": [{ "role": "human", "text": "此分组的内容都是草案。" }],
+      "comments": [
+        {
+          "role": "human",
+          "text": "此分组的内容都是草案。"
+        }
+      ],
       "children": [
         {
           "kind": "timeline",
           "id": "T002",
           "name": "分镜",
           "comments": [
-            { "role": "agent", "text": "后续按已确认的声画关系补充片段。" }
+            {
+              "role": "agent",
+              "text": "后续按已确认的声画关系补充片段。"
+            }
           ],
-          "items": []
+          "items": [],
+          "color": "#7c7294"
         },
         {
           "kind": "timeline",
           "id": "T003",
           "name": "效果音",
-          "items": [{ "id": "E002", "startSec": 12.4, "text": "瞬时点示例" }]
+          "items": [
+            {
+              "id": "E002",
+              "startSec": 12.4,
+              "text": "瞬时点示例",
+              "color": "#ad754b"
+            }
+          ]
         }
       ]
     }

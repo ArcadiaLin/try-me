@@ -16,6 +16,7 @@ tools/
   audio-analyzer/        Python 音频特征分析入口 (analyze-audio.py)
   repo-guard/            Git 索引隐私边界检查工具 (check-repo.ts)
 docs/                    创作与制作文档（提交）
+  annotator/             标注工作台设计草案、界面图、类型与 JSON 示例
   storyboard/            分镜表及原创分镜草图
 public/
   assets/                可公开的运行时素材（提交，子目录按需创建）
@@ -50,6 +51,7 @@ Remotion 推荐将运行时资源放在根目录 `public/`（`apps/mv/remotion.c
 - [素材清单](docs/assets.md)：来源、使用位置与是否可以公开。
 - [推进计划](docs/roadmap.md)：阶段产物及完成条件。
 - [制作准备与协作流程](docs/preparation.md)：环境现状、待装依赖、标注闭环与数据规则。
+- [标注工作台设计草案](docs/annotator/README.md)：界面交互、配色、存储类型与合成示例。
 - [决策记录](docs/decisions.md)：已确认约定与变更理由。
 
 下一步推进最小波形标注闭环（0.2），基于 `local/analysis/` 的自动候选数据通过播放与人工校正建立音乐结构；随后讨论视觉方向，选约 10–20 秒代表性片段制作动态分镜，确认后扩展全曲。当前已完成基础分析环境与候选数据生成，尚未进行人工听辨或开发标注界面。

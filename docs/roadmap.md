@@ -27,10 +27,11 @@
 
 ## 标注工作台设计提案（2026-11-14）
 
-- 当前产物为 v4：docs/design.refined.excalidraw、带完整外围介绍的 docs/design.review.svg、净版 docs/design.refined.svg；设计规则见 docs/annotator-design.md。
-- 已移除底部类型对照与旧问答，15 个箭头说明框附带模块、配色和精简存储要求。清理前快照在 local/design/。
-- 按 D008 精简类型与 JSON 示例：递归 Group、多条 Timeline、事件及统一 comments；不要求 hash、revision、分析溯源或任务状态。配色与编辑器会话状态不写入主文件。
-- v4 检查覆盖渲染、箭头、类型与合成 JSON、lint 和仓库静态规则；新增类型和真实格式迁移仍待实施，不改变阶段 1 的实际听辨状态。边界联动只保存起止修改，不持久化会话绑定。
+- 当前设计草案统一在 docs/annotator/，最初草图及依赖它的旧生成器已删除；产物为 v5：docs/annotator/design.excalidraw、带完整外围介绍的 docs/annotator/design.annotated.svg、净版 docs/annotator/design.svg；设计规则见 docs/annotator/README.md。
+- 已移除底部类型对照与旧问答，18 个箭头说明框附带模块、配色和精简存储要求。清理前快照在 local/design/。
+- 按 D008 精简类型与 JSON 示例：递归 Group、多条 Timeline、事件及统一 comments；不要求 hash、revision、分析溯源或任务状态。基础主题与编辑器会话状态不写入主文件；轨道／事件自定义 color 可选保存。
+- v5 检查覆盖渲染、箭头、类型与合成 JSON、lint 和仓库静态规则；新增类型和真实格式迁移仍待实施，不改变阶段 1 的实际听辨状态。边界联动只保存起止修改，不持久化会话绑定。
+- 本轮按新增意见绘制事件／Explorer 右键菜单展开态，补充切分、锁定、分组删除与撤销规则；波形继续加深，加入自动继承／事件自定义色。运行交互仍待实施。
 - 下一步先评审主界面和模块交互，再实现统一只读列表与选择同步；不预设业务 profile。
 
 每次收尾更新镜头状态、阶段产物和必要的决策记录，运行适当检查，区分已实际验证与待验证事项。生成文件统一放 out/。

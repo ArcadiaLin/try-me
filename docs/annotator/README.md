@@ -1,12 +1,12 @@
-# Annotate 界面设计提案 v4
+# Annotate 界面设计提案 v5
 
-状态：2026-11-14。已补充配色要求与精简存储规格，仍是设计方案，尚未迁移真实标注或接入运行界面。
+状态：2026-11-14。已按新增意见补充右键菜单、波形加深与事件自定义配色，仍是设计方案，尚未迁移真实标注或接入运行界面。
 
-- [完整设计图](design.review.svg)：主界面与 15 个箭头说明框，包含配色和存储要求。
-- [可编辑 Excalidraw](design.refined.excalidraw)、[净版主界面](design.refined.svg)。
-- [精简类型定义](annotator-design.types.ts)、[完整 JSON 示例](annotator-design.example.json)。
+- [完整设计图](design.annotated.svg)：主界面与 18 个箭头说明框，包含配色和存储要求。
+- [可编辑 Excalidraw](design.excalidraw)、[净版主界面](design.svg)。
+- [精简类型定义](schema.types.ts)、[完整 JSON 示例](example.json)。
 
-图中时间、波形、事件和 JSON 示例都是合成示意。原始 design.excalidraw 不变；编辑前快照在 local/design/。类型文件仅作为设计规格，不被应用导入。
+图中时间、波形、事件和 JSON 示例都是合成示意。最初草图已按要求删除，当前可编辑稿统一为本目录的 design.excalidraw；编辑前快照在 local/design/。类型文件仅作为设计规格，不被应用导入。
 
 ## 配色要求
 
@@ -17,8 +17,8 @@
 | 页面背景   | `#f3f5f5` | 面板之间的背景               |
 | 主编辑面板 | `#ffffff` | 列表、输入框与正文区         |
 | 次级面板   | `#f8fafa` | Explorer、Header 等辅助区域  |
-| 主音轨背景 | `#d7e4e7` | 比其余轨道更深，突出波形     |
-| 波形线     | `#567e87` | 波形主体                     |
+| 主音轨背景 | `#b8cdd2` | 比其余轨道更深，突出波形     |
+| 波形线     | `#355f69` | 波形主体                     |
 | 选中背景   | `#e7f2f2` | 选中的事件或轨道             |
 | 强调色     | `#166b75` | 主要操作、选中描边、说明箭头 |
 | 正文       | `#263238` | 主要文字                     |
@@ -28,7 +28,7 @@
 
 文本保持完整不透明度，不通过降低父容器 opacity 来获得通透感。通透感主要来自浅色层次；选区叠层需要透明度时可从强调色约 10% alpha 起调，文字独立绘制。避免高饱和大面积填色、厚重阴影和模糊玻璃层。颜色不单独承载信息，人类/Agent 作者、锁定与选中均保留明确文字或控件表现。
 
-配色属于界面规范，不复制到每个事件的业务 JSON。
+基础界面配色属于界面规范。用户主动设置的轨道／事件颜色以可选 color 保存，未自定义时省略，不在每个事件重复默认色。
 
 ## 存储要求：一份最小 JSON
 
@@ -37,9 +37,9 @@
 | 对象     | 必需字段                        | 可选字段         |
 | -------- | ------------------------------- | ---------------- |
 | Project  | version、name、nodes            | audio、comments  |
-| Group    | kind: group、id、name、children | comments         |
+| Group    | kind: group、id、name、children | comments、color  |
 | Timeline | kind: timeline、id、name、items | comments         |
-| Event    | id、startSec、text              | endSec、comments |
+| Event    | id、startSec、text              | endSec、comments、color |
 | Comment  | role: human 或 agent、text      | 无               |
 
 `version: 1` 是本次精简格式的版本，不是旧格式 0.2.0 的自动升级结果。`audio` 是相对项目根目录的音源路径，可省略以便只查看标注。音源时长从实际音频读取，不在主文件重复记录采样率、采样数或指纹。
@@ -87,12 +87,45 @@ Agent 抽屉汇总并定位这些批注，可按对象、作者筛选；不根�
 - 联动已有公共边界与主动设为紧邻是不同动作；默认独立，保留真实人声留白。联动修改两端时作为一次可撤销操作处理。
 - 预听窗口默认 500ms，输入文字时不截获 A / S / R / D / F；“下一条标注”只切换选择，不自动写入确认状态。
 
-颜色、播放与布局偏好可由客户端单独管理，但不要求在导出的业务 JSON 中携带。现有保存中的 hash 与 revision 机制尚未改动；本轮精简的是下一版格式与实现要求，真实数据迁移另行实施。迁移时应把已有备注、画面构想、Agent 指令和回复映射到 comments，保留正文、ID、时间和层级，不直接删除真实内容。
+基础主题、播放与布局偏好由客户端单独管理；用户设置的轨道／事件 color 随业务 JSON 导出与重载。现有保存中的 hash 与 revision 机制尚未改动；本轮精简的是下一版格式与实现要求，真实数据迁移另行实施。迁移时应把已有备注、画面构想、Agent 指令和回复映射到 comments，保留正文、ID、时间和层级，不直接删除真实内容。
 
 ## 工程类型与检查范围
 
-持久化类型只有 TimelineProject、TimelineGroup、TimelineTrack、TimelineEvent、Comment；Commented 仅复用可选 comments 字段。类型文件内的 SelectionState、TimelineViewState、TransportState、WorkbenchCommand、BoundaryLink、WorkspaceLayoutState 和 PersistenceState 都是编辑器内存状态，不会自动变成 JSON 字段。EventAdapter 仅承担过渡期旧数据转换。
+持久化类型只有 TimelineProject、TimelineGroup、TimelineTrack、TimelineEvent、Comment；Commented 仅复用可选 comments 字段。类型文件内的 SelectionState、TimelineViewState、TransportState、WorkbenchCommand、BoundaryLink、WorkspaceLayoutState 、ContextMenuState、ExplorerCommand 和 PersistenceState 都是编辑器内存状态，不会自动变成 JSON 字段。EventAdapter 仅承担过渡期旧数据转换。
 
-主界面及说明框由 tools/design/review-annotator-design.mjs 导出，执行前在 local/design 留存快照；后续手工修改设计后应先同步脚本，避免盲目重跑。旧 v1 生成器已保护现有设计，不会覆盖本稿。
+主界面及说明框由 tools/design/review-annotator-design.mjs 导出，执行前在 local/design 留存快照；后续手工修改设计后应先同步脚本，避免盲目重跑。依赖最初草图的旧 v1 生成器已移除。
 
 本轮检查设计图实际渲染、简化类型、合成 JSON 与其类型的一致性、嵌套和批注示例、lint 与仓库静态规则。真实格式迁移、跨端同步、保存重载和试听不在本轮已实现范围。
+
+## 本轮交互补充
+
+### 事件列表菜单
+
+右键未选中的行先选择该行；右键已选行保留当前多选。空白菜单仅提供新建，不对先前选择执行删除。菜单标题或禁用说明明确作用对象，节点旁的 ··· 与键盘菜单键提供相同入口，Esc／点击外部关闭；打开菜单不定位、不播放。
+
+- 新建点事件使用当前播放头，并显示目标时间线；新建区间先输入起止或采用已有有效选区，不默认猜测时长。跨轨多选或未选轨道时先选择可写目标轨道。
+- 切分只作用于单个区间，采用菜单打开时记录的播放头时间；必须严格位于区间内部。点、多选、边界外、锁定时禁用并说明原因。打开菜单后播放头继续走动也不改变本次切点。
+- 左段保留原 ID 与批注，右段生成新 ID、继承正文及颜色、不复制批注。切分涉及已有边界联动时清除该事件的会话绑定，避免旧绑定指向错误片段。删除清理选择及对应会话绑定。
+- 新建、切分和删除各自是一条可撤销命令；执行时再次检查对象存在、时间合法与继承锁，不能仅靠菜单禁用来阻止写入。
+
+### Explorer 菜单与分栏
+
+分组右键在组内新建 Group／Timeline；时间线右键在同一父级新建；空白处新建根节点。支持重命名、删除。只读分析候选不出现可执行的写操作。删除非空分组先展示将删除的轨道数与事件数，确认后整棵子树一次删除、一次撤销；自身、祖先或任一后代锁定时禁用删除，不能通过删除父组绕过锁。
+
+Explorer／列表／Workbench 之间可拖动分隔线，双击恢复默认栏宽；Tracker 高度也可拖动，最小尺寸与窄屏折叠避免面板被压成不可用区域。这些尺寸仅是 WorkspaceLayoutState，不进入业务 JSON。
+
+### 自定义事件颜色
+
+颜色解析顺序为 event.color → track.color → 默认 #166b75。TimelineTrack 和 TimelineEvent 仅增加可选 color，格式为 #RRGGBB；“自动”删除该字段以恢复继承。Group 不额外加颜色字段，不持久化透明度、派生填充色或重复的默认主题。
+
+Workbench 提供自动／自定义入口，轨道设置提供默认色，选色支持预览、确认、取消与恢复自动。确认作为一次可撤销更新；取消不改变已保存数据。示例包含轨道默认色与事件覆盖色。基础结构校验同时检查可选色值格式。
+
+同一事件的波形叠层、轨道绘制、列表色标和 Workbench 色样共享解析结果。主波形背景继续加深到 #b8cdd2，波形线用 #355f69；彩色事件以轻填充、实线边缘和完整不透明文本呈现，选中描边与播放头独立绘制。移动到其他轨道时，自动色采用新轨道默认色，显式自定义色保持不变。实际颜色对比与密集重叠情况下的辨识效果仍需运行界面验收。
+
+此次仅更新设计、规格与示例，未实现真实右键交互或迁移标注文件。用户新增意见已归入模块箭头说明，原标注保存在编辑前快照中。
+
+## 维护入口
+
+本目录汇集 Annotator 设计草案；README.md 为规范入口，design.excalidraw 为可编辑设计，design.annotated.svg 为完整箭头说明图，design.svg 为净版主界面，schema.types.ts 与 example.json 为候选存储契约。
+
+在仓库根目录运行 `node tools/design/review-annotator-design.mjs` 更新导出图；先将手工新增意见同步到脚本，避免重建时丢失。设计尚未接入实际应用。
