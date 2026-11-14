@@ -1,329 +1,485 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import {
+  findEventByRef,
+  migrateLegacyToTimelineProject,
+  validateAndNormalizeProject,
+} from "../model.ts";
 import { AgentBriefDrawer } from "./components/AgentBriefDrawer.tsx";
 import { AudioTimelineStage } from "./components/AudioTimelineStage.tsx";
-import { CustomTrackWorkbench } from "./components/CustomTrackWorkbench.tsx";
+import { ContextMenuLayer } from "./components/ContextMenuLayer.tsx";
+import { EventListPane } from "./components/EventListPane.tsx";
 import { HeaderBar } from "./components/HeaderBar.tsx";
-import { LyricsWorkbench } from "./components/LyricsWorkbench.tsx";
-import { RhythmWorkbench } from "./components/RhythmWorkbench.tsx";
-import { StructureWorkbench } from "./components/StructureWorkbench.tsx";
 import { TimelineExplorer } from "./components/TimelineExplorer.tsx";
-import {
-  addPointMarker,
-  applyServerState,
-  confirmLyricAndAdvance,
-  deleteSelectedItem,
-  getAudioDuration,
-  isBuiltInTrackId,
-  notifyStore,
-  performRedo,
-  performUndo,
-  saveAnnotations,
-  saveLyrics,
-  seekAudio,
-  selectTimelineItem,
-  setPlaybackRate,
-  setSaveStatus,
-  stopPlayback,
-  storeState,
-  togglePlayPause,
-  triggerLyricAudition,
-  updateLyricEnd,
-  updateLyricStart,
-  useWorkbenchStore,
-} from "./store/workbenchStore.ts";
-import type { ServerStatePayload } from "./types.ts";
-import { loadIdbDraft } from "./utils/idb-draft.ts";
+import { UnifiedWorkbench } from "./components/UnifiedWorkbench.tsx";
+import { useWorkbenchStore } from "./store/workbenchStore.ts";
+import type { AnalysisBundle, TimelineProject } from "./types.ts";
+import { clearLocalDraft, loadLocalDraft } from "./utils/idb-draft.ts";
 
-const EXPLORER_WIDTH_KEY = "try_me_wb_explorer_width";
-const DEFAULT_EXPLORER_WIDTH = 290;
-const MIN_EXPLORER_WIDTH = 180;
-const MAX_EXPLORER_WIDTH = 560;
-
-function readInitialExplorerWidth(): number {
-  try {
-    const raw = Number(window.localStorage.getItem(EXPLORER_WIDTH_KEY));
-    if (Number.isFinite(raw) && raw >= MIN_EXPLORER_WIDTH && raw <= MAX_EXPLORER_WIDTH) {
-      return Math.round(raw);
-    }
-  } catch {
-    // Ignore storage read errors
-  }
-  return DEFAULT_EXPLORER_WIDTH;
+function isEditableElement(target: EventTarget | null): boolean {
+  if (!target || !(target instanceof HTMLElement)) return false;
+  const tag = target.tagName.toLowerCase();
+  if (tag === "input" || tag === "textarea" || tag === "select") return true;
+  if (target.isContentEditable) return true;
+  return false;
 }
 
-export function App(): React.JSX.Element {
-  const snap = useWorkbenchStore();
-  const [explorerCollapsed, setExplorerCollapsed] = useState(false);
-  const [explorerWidth, setExplorerWidth] = useState<number>(readInitialExplorerWidth);
-  const [isDraggingExplorer, setIsDraggingExplorer] = useState(false);
+export const App: React.FC = () => {
+  const view = useWorkbenchStore((s) => s.view);
+  const transport = useWorkbenchStore((s) => s.transport);
+  const layout = useWorkbenchStore((s) => s.layout);
 
-  const updateExplorerWidth = useCallback((nextWidth: number) => {
-    const clamped = Math.max(
-      MIN_EXPLORER_WIDTH,
-      Math.min(MAX_EXPLORER_WIDTH, Math.round(nextWidth)),
-    );
-    setExplorerWidth(clamped);
+  const hydrate = useWorkbenchStore((s) => s.hydrate);
+  const replaceProject = useWorkbenchStore((s) => s.replaceProject);
+  const setCurrentTimeSec = useWorkbenchStore((s) => s.setCurrentTimeSec);
+  const setIsPlaying = useWorkbenchStore((s) => s.setIsPlaying);
+  const setLoopEnabled = useWorkbenchStore((s) => s.setLoopEnabled);
+  const setLoopRange = useWorkbenchStore((s) => s.setLoopRange);
+  const setLayout = useWorkbenchStore((s) => s.setLayout);
+  const setPersistence = useWorkbenchStore((s) => s.setPersistence);
+  const runWorkbenchCommand = useWorkbenchStore((s) => s.runWorkbenchCommand);
+  const openContextMenu = useWorkbenchStore((s) => s.openContextMenu);
+  const undo = useWorkbenchStore((s) => s.undo);
+  const redo = useWorkbenchStore((s) => s.redo);
+
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const auditionStopAtRef = useRef<number | null>(null);
+  const [resizingSplitter, setResizingSplitter] = useState<
+    "tracker" | "explorer" | "list" | null
+  >(null);
+
+  // Load initial data from /api/analysis and /api/annotations
+  const loadFromServer = useCallback(async () => {
     try {
-      window.localStorage.setItem(EXPLORER_WIDTH_KEY, String(clamped));
-    } catch {
-      // Ignore storage write errors
+      setPersistence({ statusMessage: "正在加载数据…", errorMessage: null });
+      const [analysisRes, annotationsRes] = await Promise.all([
+        fetch("/api/analysis"),
+        fetch("/api/annotations"),
+      ]);
+
+      const analysisData: AnalysisBundle | null = analysisRes.ok
+        ? ((await analysisRes.json()) as AnalysisBundle)
+        : null;
+
+      if (!annotationsRes.ok) {
+        throw new Error(`加载 /api/annotations 失败 (${annotationsRes.status})`);
+      }
+
+      const payload = (await annotationsRes.json()) as {
+        project?: unknown;
+        annotations?: unknown;
+        agentBriefMarkdown?: string;
+        savedAt?: string;
+      };
+
+      const rawProject = payload.project ?? payload.annotations ?? payload;
+      const loadedProject: TimelineProject =
+        rawProject &&
+        typeof rawProject === "object" &&
+        "version" in (rawProject as Record<string, unknown>)
+          ? validateAndNormalizeProject(rawProject)
+          : migrateLegacyToTimelineProject(rawProject);
+
+      const draft = await loadLocalDraft().catch(() => null);
+      hydrate({
+        project: loadedProject,
+        analysis: analysisData,
+        agentBriefMarkdown: payload.agentBriefMarkdown,
+        savedAt: payload.savedAt ?? null,
+        hasLocalDraft: Boolean(draft),
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setPersistence({
+        errorMessage: msg,
+        statusMessage: `加载失败：${msg}`,
+      });
     }
-  }, []);
+  }, [hydrate, setPersistence]);
 
-  const handleExplorerResizeStart = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      e.preventDefault();
-      const startX = e.clientX;
-      const startWidth = explorerWidth;
-      setIsDraggingExplorer(true);
-      document.body.style.cursor = "col-resize";
-      document.body.style.userSelect = "none";
+  useEffect(() => {
+    void loadFromServer();
+  }, [loadFromServer]);
 
-      const onMouseMove = (moveEv: MouseEvent) => {
-        const deltaX = moveEv.clientX - startX;
-        updateExplorerWidth(startWidth + deltaX);
+  // Save to server
+  const handleSaveServer = useCallback(async () => {
+    const currentProject = useWorkbenchStore.getState().project;
+    try {
+      setPersistence({
+        saving: true,
+        statusMessage: "正在保存到 annotations/try-me.timeline.json…",
+        errorMessage: null,
+      });
+      const res = await fetch("/api/annotations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ project: currentProject }),
+      });
+      const body = (await res.json()) as {
+        error?: string;
+        project?: TimelineProject;
+        agentBriefMarkdown?: string;
+        savedAt?: string;
       };
+      if (!res.ok) {
+        throw new Error(body.error ?? `HTTP ${res.status}`);
+      }
+      await clearLocalDraft().catch(() => undefined);
+      if (body.project) {
+        replaceProject(body.project, "已保存到磁盘", false);
+      }
+      setPersistence({
+        dirty: false,
+        saving: false,
+        hasLocalDraft: false,
+        lastSavedAt: body.savedAt ?? new Date().toISOString(),
+        statusMessage: "已保存至 annotations/try-me.timeline.json",
+        errorMessage: null,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setPersistence({
+        saving: false,
+        errorMessage: msg,
+        statusMessage: `保存失败：${msg}`,
+      });
+    }
+  }, [replaceProject, setPersistence]);
 
-      const onMouseUp = () => {
-        setIsDraggingExplorer(false);
-        document.body.style.cursor = "";
-        document.body.style.userSelect = "";
-        window.removeEventListener("mousemove", onMouseMove);
-        window.removeEventListener("mouseup", onMouseUp);
-      };
-
-      window.addEventListener("mousemove", onMouseMove);
-      window.addEventListener("mouseup", onMouseUp);
+  // Audio playback controls
+  const handleSeek = useCallback(
+    (sec: number) => {
+      auditionStopAtRef.current = null;
+      const clamped = Math.max(0, sec);
+      setCurrentTimeSec(clamped);
+      const audio = audioRef.current;
+      if (audio) {
+        try {
+          audio.currentTime = clamped;
+        } catch {
+          // Ignore seek errors when audio source is not ready
+        }
+      }
     },
-    [explorerWidth, updateExplorerWidth],
+    [setCurrentTimeSec]
   );
 
-  useEffect(() => {
-    let cancelled = false;
-    async function bootstrap() {
-      try {
-        const res = await fetch("/api/state");
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-        const initial = (await res.json()) as ServerStatePayload;
-        if (cancelled) return;
-        applyServerState(initial);
+  const handleTogglePlay = useCallback(() => {
+    auditionStopAtRef.current = null;
+    const audio = audioRef.current;
+    if (!audio) {
+      setIsPlaying(!transport.isPlaying);
+      return;
+    }
+    if (audio.paused) {
+      audio.play().then(
+        () => setIsPlaying(true),
+        () => setIsPlaying(false)
+      );
+    } else {
+      audio.pause();
+      setIsPlaying(false);
+    }
+  }, [setIsPlaying, transport.isPlaying]);
 
-        // Check if IndexedDB has an unsynced draft from an earlier disconnected session
-        const draft = await loadIdbDraft();
-        if (
-          draft &&
-          draft.hasUnsyncedChanges &&
-          draft.revision === initial.revision
-        ) {
-          if (draft.lyricsLines && draft.lyricsLines.length > 0) {
-            storeState.lyrics = {
-              ...storeState.lyrics,
-              lines: draft.lyricsLines,
-            };
-            void saveLyrics();
-          }
-          storeState.offlineDraftRestored = true;
-          setSaveStatus("✓ 已自动恢复断连期间的本地草稿并同步");
-        }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setSaveStatus(`服务连接异常 (${msg})，尝试读取离线草稿...`, true);
-        const draft = await loadIdbDraft();
-        if (draft && draft.annotations) {
-          storeState.annotations = draft.annotations;
-          if (draft.lyricsLines) {
-            storeState.lyrics = {
-              available: true,
-              lines: draft.lyricsLines,
-            };
-          }
-          notifyStore();
-        }
+  const handleStop = useCallback(() => {
+    auditionStopAtRef.current = null;
+    const audio = audioRef.current;
+    if (audio) {
+      audio.pause();
+      try {
+        audio.currentTime = view.visibleStartSec;
+      } catch {
+        // Ignore
       }
     }
-    void bootstrap();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+    setIsPlaying(false);
+    setCurrentTimeSec(view.visibleStartSec);
+  }, [setCurrentTimeSec, setIsPlaying, view.visibleStartSec]);
 
+  const handleAuditionWindow = useCallback(
+    (startSec: number, endSec: number) => {
+      const safeStart = Math.max(0, startSec);
+      const safeEnd = Math.max(safeStart + 0.05, endSec);
+      auditionStopAtRef.current = safeEnd;
+      setCurrentTimeSec(safeStart);
+      const audio = audioRef.current;
+      if (audio) {
+        try {
+          audio.currentTime = safeStart;
+          void audio.play().then(
+            () => setIsPlaying(true),
+            () => setIsPlaying(false)
+          );
+        } catch {
+          // Ignore
+        }
+      }
+    },
+    [setCurrentTimeSec, setIsPlaying]
+  );
+
+  const handleAuditionRangeLoop = useCallback(
+    (startSec: number, endSec: number) => {
+      setLoopRange([startSec, endSec]);
+      setLoopEnabled(true);
+      handleAuditionWindow(startSec, endSec);
+    },
+    [handleAuditionWindow, setLoopEnabled, setLoopRange]
+  );
+
+  // Sync audio element timeupdate with transport & loop/audition bounds
+  useEffect(() => {
+    const audio = new Audio("/api/audio");
+    audio.preload = "metadata";
+    audioRef.current = audio;
+
+    const onTimeUpdate = () => {
+      const cur = audio.currentTime;
+      const state = useWorkbenchStore.getState();
+      if (
+        auditionStopAtRef.current !== null &&
+        cur >= auditionStopAtRef.current
+      ) {
+        auditionStopAtRef.current = null;
+        if (
+          state.transport.loopEnabled &&
+          state.transport.loopRange &&
+          cur >= state.transport.loopRange[1]
+        ) {
+          audio.currentTime = state.transport.loopRange[0];
+          setCurrentTimeSec(state.transport.loopRange[0]);
+          return;
+        }
+        audio.pause();
+        setIsPlaying(false);
+        setCurrentTimeSec(cur);
+        return;
+      }
+
+      if (state.transport.loopEnabled && state.transport.loopRange) {
+        const [loopStart, loopEnd] = state.transport.loopRange;
+        if (cur >= loopEnd) {
+          audio.currentTime = loopStart;
+          setCurrentTimeSec(loopStart);
+          return;
+        }
+      }
+
+      setCurrentTimeSec(cur);
+    };
+
+    const onEnded = () => setIsPlaying(false);
+
+    audio.addEventListener("timeupdate", onTimeUpdate);
+    audio.addEventListener("ended", onEnded);
+    return () => {
+      audio.pause();
+      audio.removeEventListener("timeupdate", onTimeUpdate);
+      audio.removeEventListener("ended", onEnded);
+    };
+  }, [setCurrentTimeSec, setIsPlaying]);
+
+  // Global keyboard shortcuts (disabled when typing in inputs)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      const tag = (document.activeElement?.tagName || "").toLowerCase();
-      const isEditingText =
-        tag === "input" || tag === "textarea" || tag === "select";
-
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        if (storeState.lyricsSaveTimer) {
-          clearTimeout(storeState.lyricsSaveTimer);
-          storeState.lyricsSaveTimer = null;
-        }
-        void saveLyrics();
-        void saveAnnotations(false);
+        void handleSaveServer();
         return;
       }
 
-      if (
-        !isEditingText &&
-        (e.ctrlKey || e.metaKey) &&
-        e.key.toLowerCase() === "z"
-      ) {
-        e.preventDefault();
-        performUndo();
+      if (isEditableElement(e.target)) {
         return;
       }
 
-      if (
-        !isEditingText &&
-        (e.ctrlKey || e.metaKey) &&
-        e.key.toLowerCase() === "y"
-      ) {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
-        performRedo();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        redo();
         return;
       }
 
-      if (isEditingText) return;
+      if (e.key === " ") {
+        e.preventDefault();
+        handleTogglePlay();
+        return;
+      }
 
-      const keyLower = e.key.toLowerCase();
-      if (e.code === "Space") {
+      const state = useWorkbenchStore.getState();
+      const primaryRef = state.view.selection.primary;
+      const found = findEventByRef(state.project, primaryRef);
+
+      if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {
         e.preventDefault();
-        togglePlayPause();
-      } else if (keyLower === "r") {
-        e.preventDefault();
-        triggerLyricAudition("line");
-      } else if (keyLower === "a") {
-        e.preventDefault();
-        triggerLyricAudition("before_start");
-      } else if (keyLower === "s") {
-        e.preventDefault();
-        triggerLyricAudition("after_start");
-      } else if (keyLower === "d") {
-        e.preventDefault();
-        triggerLyricAudition("before_end");
-      } else if (keyLower === "f") {
-        e.preventDefault();
-        triggerLyricAudition("after_end");
-      } else if (keyLower === "q") {
-        e.preventDefault();
-        if (storeState.selectedLyricId) {
-          updateLyricStart(
-            storeState.selectedLyricId,
-            Number(storeState.currentTimeSec.toFixed(3)),
-            undefined,
-            true,
-          );
-        }
-      } else if (keyLower === "w") {
-        e.preventDefault();
-        if (storeState.selectedLyricId) {
-          updateLyricEnd(
-            storeState.selectedLyricId,
-            Number(storeState.currentTimeSec.toFixed(3)),
-            true,
-          );
-        }
-      } else if (keyLower === "g") {
-        e.preventDefault();
-        confirmLyricAndAdvance();
-      } else if (keyLower === "b") {
-        e.preventDefault();
-        addPointMarker({
-          timeSec: storeState.currentTimeSec,
-          category: "downbeat",
+        openContextMenu({
+          scope: "events",
+          x: Math.round(window.innerWidth * 0.45),
+          y: Math.round(window.innerHeight * 0.45),
+          anchorTimeSec: state.transport.currentTimeSec,
+          targetNodeId: state.view.selectedTrackId,
+          targetEventRef: primaryRef,
         });
-      } else if (keyLower === "m") {
-        e.preventDefault();
-        addPointMarker({
-          timeSec: storeState.currentTimeSec,
-          category: "beat",
-        });
-      } else if (e.key === "Delete" || e.key === "Backspace") {
-        e.preventDefault();
-        deleteSelectedItem();
-      } else if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
-        e.preventDefault();
-        const dir = e.key === "ArrowRight" ? 1 : -1;
-        const step = e.shiftKey ? 0.1 : e.altKey ? 0.001 : 0.01;
-        const next = Math.max(
-          0,
-          Math.min(getAudioDuration(), storeState.currentTimeSec + dir * step),
-        );
-        seekAudio(next);
-      } else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
-        const lines = storeState.lyrics?.lines || [];
-        if (storeState.activeTrackId === "lyrics_main" && lines.length > 0) {
+        return;
+      }
+
+      if (e.key === "Delete" || e.key === "Backspace") {
+        if (state.view.selection.selected.length > 0) {
           e.preventDefault();
-          const curIdx = lines.findIndex(
-            (l) => l.id === storeState.selectedLyricId,
-          );
-          const nextIdx =
-            e.key === "ArrowDown"
-              ? Math.min(lines.length - 1, curIdx + 1)
-              : Math.max(0, curIdx - 1);
-          if (lines[nextIdx]) {
-            selectTimelineItem("lyric", lines[nextIdx].id, true);
-          }
+          runWorkbenchCommand({
+            type: "delete",
+            refs: state.view.selection.selected,
+          });
         }
+        return;
+      }
+
+      if (!found || !primaryRef) return;
+      const ev = found.event;
+
+      if (e.key === "[") {
+        e.preventDefault();
+        runWorkbenchCommand({
+          type: "setBoundary",
+          ref: primaryRef,
+          edge: "start",
+          timeSec: state.transport.currentTimeSec,
+        });
+        return;
+      }
+      if (e.key === "]") {
+        e.preventDefault();
+        runWorkbenchCommand({
+          type: "setBoundary",
+          ref: primaryRef,
+          edge: "end",
+          timeSec: state.transport.currentTimeSec,
+        });
+        return;
+      }
+
+      const lower = e.key.toLowerCase();
+      if (lower === "a") {
+        e.preventDefault();
+        handleAuditionWindow(Math.max(0, ev.startSec - 0.5), ev.startSec);
+      } else if (lower === "s") {
+        e.preventDefault();
+        handleAuditionWindow(ev.startSec, ev.startSec + 0.5);
+      } else if (lower === "r") {
+        e.preventDefault();
+        handleAuditionWindow(ev.startSec, ev.endSec ?? ev.startSec + 0.8);
+      } else if (lower === "d" && ev.endSec !== undefined) {
+        e.preventDefault();
+        handleAuditionWindow(Math.max(ev.startSec, ev.endSec - 0.5), ev.endSec);
+      } else if (lower === "f" && ev.endSec !== undefined) {
+        e.preventDefault();
+        handleAuditionWindow(ev.endSec, ev.endSec + 0.5);
       }
     };
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  }, [
+    handleAuditionWindow,
+    handleSaveServer,
+    handleTogglePlay,
+    openContextMenu,
+    redo,
+    runWorkbenchCommand,
+    undo,
+  ]);
 
-  const renderActiveWorkbench = () => {
-    if (
-      snap.activeTrackId === "structure_sections" ||
-      snap.activeTrackId === "structure_clips"
-    ) {
-      return <StructureWorkbench />;
-    }
-    if (
-      snap.activeTrackId === "rhythm_downbeats" ||
-      snap.activeTrackId === "rhythm_markers"
-    ) {
-      return <RhythmWorkbench />;
-    }
-    if (!isBuiltInTrackId(snap.activeTrackId)) {
-      return <CustomTrackWorkbench />;
-    }
-    return <LyricsWorkbench />;
-  };
+  // Splitter drag handling
+  useEffect(() => {
+    if (!resizingSplitter) return;
+    const onMove = (e: MouseEvent) => {
+      if (resizingSplitter === "tracker") {
+        const nextHeight = Math.max(210, Math.min(520, e.clientY - 46));
+        setLayout({ trackerHeightPx: nextHeight });
+      } else if (resizingSplitter === "explorer") {
+        const nextWidth = Math.max(220, Math.min(480, e.clientX));
+        setLayout({ explorerWidthPx: nextWidth });
+      } else if (resizingSplitter === "list") {
+        const currentExplorer = useWorkbenchStore.getState().layout.explorerWidthPx;
+        const nextListWidth = Math.max(
+          360,
+          Math.min(960, e.clientX - currentExplorer - 6)
+        );
+        setLayout({ listWidthPx: nextListWidth });
+      }
+    };
+    const onUp = () => setResizingSplitter(null);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [resizingSplitter, setLayout]);
 
   return (
-    <div className="wb-app-shell">
+    <div className="annotator-shell">
       <HeaderBar
-        onPlayPause={togglePlayPause}
-        onStop={stopPlayback}
-        onRateChange={setPlaybackRate}
+        onSaveServer={handleSaveServer}
+        onReloadServer={loadFromServer}
       />
 
-      <AudioTimelineStage />
+      <AudioTimelineStage
+        onTogglePlay={handleTogglePlay}
+        onStop={handleStop}
+        onSeek={handleSeek}
+        onAuditionRange={handleAuditionRangeLoop}
+      />
 
-      <main className="wb-bottom-workspace">
-        <TimelineExplorer
-          width={explorerWidth}
-          collapsed={explorerCollapsed}
-          onToggleCollapse={() => setExplorerCollapsed((c) => !c)}
+      {/* Horizontal Splitter between Tracker and 3-Column Workspace */}
+      <div
+        className="splitter splitter--horizontal"
+        onMouseDown={() => setResizingSplitter("tracker")}
+        title="拖动调整上方多轨时间轴高度"
+      />
+
+      {/* 3-Column Workspace: Explorer | Event List | Unified Workbench */}
+      <div
+        className="annotator-workspace"
+        style={{
+          gridTemplateColumns: `${layout.explorerWidthPx}px 6px ${layout.listWidthPx}px 6px minmax(340px, 1fr)`,
+        }}
+      >
+        <TimelineExplorer />
+
+        <div
+          className="splitter splitter--vertical"
+          onMouseDown={() => setResizingSplitter("explorer")}
+          title="拖动调整资源管理器宽度"
         />
-        {!explorerCollapsed ? (
-          <div
-            className={`wb-resizer-v ${isDraggingExplorer ? "is-dragging" : ""}`}
-            onMouseDown={handleExplorerResizeStart}
-            onDoubleClick={() => updateExplorerWidth(DEFAULT_EXPLORER_WIDTH)}
-            role="separator"
-            aria-orientation="vertical"
-            title="左右拖动调整资源管理器宽度（双击恢复默认宽度）"
-          />
-        ) : null}
-        <section className="wb-main-editor">{renderActiveWorkbench()}</section>
-      </main>
 
-      <AgentBriefDrawer />
+        <EventListPane
+          onSeek={handleSeek}
+          onAuditionRange={handleAuditionRangeLoop}
+        />
+
+        <div
+          className="splitter splitter--vertical"
+          onMouseDown={() => setResizingSplitter("list")}
+          title="拖动调整事件列表与工作台宽度"
+        />
+
+        <UnifiedWorkbench
+          onSeek={handleSeek}
+          onAuditionWindow={handleAuditionWindow}
+        />
+      </div>
+
+      <AgentBriefDrawer onSeek={handleSeek} />
+
+      <ContextMenuLayer />
     </div>
   );
-}
+};

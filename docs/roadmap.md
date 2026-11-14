@@ -18,20 +18,57 @@
 当前已完成阶段 0、0.1、0.2 的全部工程实现与实际验证，以及阶段 1 的统一多轨时间轴架构升级与首轮人工精调：
 
 - 独立 Python 3.12 分析环境（根 `pyproject.toml`、`uv.lock`）与可复现分析入口 `tools/audio-analyzer/analyze-audio.py` 已就绪，生成 `local/analysis/` 候选数据。
-- 已建立受 Git 追踪的**统一多轨时间线主格式** `annotations/try-me.timeline.json`（`schema_version: "0.2.0"`）与 `annotations/agent-brief.md`（见决策 `D006`），以单一时间线（当前预览帧率 `60 FPS`）为基准承载多条独立或重叠时间轴（`lyrics_main`、`structure_sections`、`structure_clips`、`rhythm_downbeats`、`rhythm_markers`、自由扩展 `sfx_accents` 效果音轴、`visual_shots` 分镜轴及用户自定义类型轨道），支持事件层级归属（`group_id` / `parent_id`）、完整画面脚本（`script_idea`）与 Agent 专项指令。
-- 用户已完成 `P002`（Verse 1）及前 14 句歌词（`L001`–`L014`）的人工最高精度对轴确认，严格按主唱发声起止切出（剥离句尾伴奏空隙），同步保存在 `annotations/try-me.timeline.json` 与本地 `local/annotations/`（含 `.json`、`.ass`、`.lrc`）。
-- 独立波形标注、脚本设计与 Agent 协作台子包 `apps/annotator/`（`npm run annotate`）支持三栏可拖拽调节分栏宽度、自由新建与编辑自定义时间轴（`CustomTrackWorkbench`）、Aegisub 500ms 切点预听栏（`A`/`S`/`R`/`D`/`F`）、`.timeline.json` / `.ass` / `.lrc` 导出、底部 Agent 协作抽屉与 IndexedDB 断连草稿保护。
+- 已完成 Annotator v5 设计规范（`docs/annotator/`，见决策 `D007`–`D010`）的全量落码部署，并将受 Git 追踪的**统一多轨时间线主格式** `annotations/try-me.timeline.json` 迁移为 `version: 1` `TimelineProject` 精简结构（递归 `TimelineGroup`、多条 `TimelineTrack`、统一 `TimelineEvent` 与统一 `comments: Comment[]`），同步派生 `annotations/agent-brief.md`、`local/annotations/`（含 `.json`、`.ass`、`.lrc`）与 `public/private/annotations-preview.json`。
+- 用户已完成 `P002`（Verse 1）及前 14 句歌词（`L001`–`L014`）的人工最高精度对轴确认，严格按主唱发声起止切出（剥离句尾伴奏空隙），连同全曲 63 句歌词（`L001`–`L063`）、12 个段落（`P001`–`P012`）、代表性验证片段（`CLIP_01`）、节拍标记与多级自定义轨道完整保存在 `version: 1` `annotations/try-me.timeline.json`。
+- 独立波形标注与 Agent 协作台子包 `apps/annotator/`（`npm run annotate`）已按 v5 规范更新为低饱和青绿灰浅色界面（`#b8cdd2` 加深主波形、`#355f69` 波形线、`100%` 不透明正文），提供递归 `TimelineExplorer`（显隐、级联锁定、右键与 `···` 新建/重命名/子树影响统计确认删除）、统一事件列表 `EventListPane`（右键与 `···` 新建点/新建区间/播放头切分/删除）、统一事件工作台 `UnifiedWorkbench`（色退链 `event.color → track.color → #166b75` 实时预览与确认/恢复自动、会话态 `BoundaryLink` 独立/联动/紧邻、500ms 切点试听 `A`/`S`/`R`/`D`/`F`、`下一条标注`、评论线程）与底部 `AgentBriefDrawer`。
 - 跨端共享包 `packages/shared/`（`@try-me/shared`）提供唯一权威的秒/帧换算与时间线计算，供 `apps/annotator` 与 `apps/mv`（`apps/mv/src/Composition.tsx`）直接共用，并在无私有音源时自动降级为静音视觉预览。
 
 下一次可继续在 `npm run annotate` 中逐步推进 `L015`–`L063` 的严格人声对轴，或在效果音轴（`sfx_accents`）/ 分镜轴（`visual_shots`）中叠加伴奏特色音与画面脚本批注。
 
-## 标注工作台设计提案（2026-11-14）
+## 标注工作台 v5 设计与部署记录（2026-11-14）
 
-- 当前设计草案统一在 docs/annotator/，最初草图及依赖它的旧生成器已删除；产物为 v5：docs/annotator/design.excalidraw、带完整外围介绍的 docs/annotator/design.annotated.svg、净版 docs/annotator/design.svg；设计规则见 docs/annotator/README.md。
-- 已移除底部类型对照与旧问答，18 个箭头说明框附带模块、配色和精简存储要求。清理前快照在 local/design/。
-- 按 D008 精简类型与 JSON 示例：递归 Group、多条 Timeline、事件及统一 comments；不要求 hash、revision、分析溯源或任务状态。基础主题与编辑器会话状态不写入主文件；轨道／事件自定义 color 可选保存。
-- v5 检查覆盖渲染、箭头、类型与合成 JSON、lint 和仓库静态规则；新增类型和真实格式迁移仍待实施，不改变阶段 1 的实际听辨状态。边界联动只保存起止修改，不持久化会话绑定。
-- 本轮按新增意见绘制事件／Explorer 右键菜单展开态，补充切分、锁定、分组删除与撤销规则；波形继续加深，加入自动继承／事件自定义色。运行交互仍待实施。
-- 下一步先评审主界面和模块交互，再实现统一只读列表与选择同步；不预设业务 profile。
+- 设计规范与图件位于 `docs/annotator/`（`README.md`、`schema.types.ts`、`example.json`、`design.excalidraw`、`design.annotated.svg`、`design.svg`）。
+- 已完成 `apps/annotator/` 的前后端部署与真实数据迁移（见 `D010`）：`annotations/try-me.timeline.json` 已迁移为 `version: 1` `TimelineProject`，通过 `npm run test:annotations`（7 项模型/命令/字幕/服务端与 `/bundle.js` 构建集成测试）、`npm run lint` 与 `npm run check:repo` 验证。
+- 实际听辨进度保持不变（`P002` 及 `L001`–`L014` 已人工精调确认，其余歌词与段落待继续人工听辨复核）。
 
 每次收尾更新镜头状态、阶段产物和必要的决策记录，运行适当检查，区分已实际验证与待验证事项。生成文件统一放 out/。
+
+### 标注界面减法优化（2026-11-15）
+
+- 按用户提供的实际截图与 kill-ai-slop 审阅结果，完成首轮四项优化：编辑区减少套框、文字层级调整、操作文案简化、事件颜色设置默认折叠。
+- 右侧分区、时间边界与评论改用留白和分隔线；保留输入框、时间码等宽字体、青绿灰主题和 D011 的深色 WaveSurfer。常规按钮不再全部加粗，主要动作与面板标题保留强调。
+- 面板名称简化为“时间轴”“事件”“事件编辑”，字段使用“标注内容”“起点”“终点”等操作用语。事件颜色展开后保留预设色、精确色值与跟随时间轴；草稿确认和取消在折叠后仍可访问。
+- 已通过 npm run lint（ESLint 与 MV TypeScript 检查）、npm run check:repo、Annotator esbuild 内存构建与 git diff --check。扫描候选从 17 降到 16，余下为 TypeScript 泛型误报、播放符号及有用途的等宽字体，不据此判为界面缺陷。
+- 修改后页面尚待实际渲染和交互验收，尤其是颜色面板展开、预览确认/取消和窄栏布局；未将静态检查算作播放或保存闭环验证。本轮未修改标注数据，也未运行会写真实标注的旧集成测试。
+
+第二轮继续优化辅助信息：顶部路径、同步状态及评论数量/角色移除装饰边框，错误与未保存状态保留文字提示和强调色；循环范围在关闭时标为“待循环”。时间轴树的显隐和锁定状态常驻，更多菜单仅在桌面悬停、行内聚焦或选中时显示，触屏保持可见并保留原占位。底部说明收进可键盘展开的操作提示；Agent 栏简化名称，保留评论汇总与简报功能。已再次通过 lint、check:repo、Annotator 内存构建和 diff --check；扫描仍为 16 个已解释候选。实际显示、触屏与键盘导航尚待浏览器验收，本轮未触碰标注数据。
+
+第三轮按用户要求将“显/锁”替换为眼睛与锁图标，隐藏/未锁定使用 `/` 斜杠，沿用有效继承状态、可访问名称和文字提示；图标源为 Feather，许可登记 A002，未新增依赖。锁定提示改为中性底、正文色和“已锁定”说明；时间轴颜色设置默认折叠，预设色统一先预览后确认，取消与确认在折叠后仍可访问。设置页隐藏内部 ID（保留在悬停说明），清理色退链等技术文案。
+
+本轮通过 lint、check:repo、Annotator 内存构建、diff --check；隔离内存验证覆盖四种图标的服务端渲染、斜杠遮罩 ID 唯一性，以及时间轴颜色预览不改项目、取消、确认与撤销。未读写真实标注数据。扫描为 17 个候选，新增命中是有来源且用户明确要求的眼睛图标瞳孔，保留。实际浏览器视觉、键盘、触屏和选色弹窗操作仍待验收。
+
+### 波形名称栏宽度（2026-11-15）
+
+- 将固定 210px 名称栏改为默认/最小 64px，长名称使用省略号，悬停显示完整路径；拖动边界调宽，双击恢复最窄，提供方向键、Shift 微调及 Home/End。仅保存为当前页面状态，不改标注数据。
+- 波形和轨道共用 CSS 宽度，计算轨道纵向滚动条占位以保持时间坐标对齐；沿用 WaveSurfer 的 ResizeObserver 重算缩放与可见起点。轨道锁定图标复用色标位置，确保窄栏保留名称空间。
+- 已通过 lint、check:repo、Annotator 内存构建和 diff --check。实际拖动、触屏、窄栏省略效果和调整后的播放/点击定位仍待浏览器验收。
+
+### 设计文档与当前界面同步（2026-11-15）
+
+- 将 docs/annotator/README.md 从 v5 候选提案整理为当前实现规范，统一深色 WaveSurfer、64px 可调名称栏、眼睛/锁的斜杠关闭态、减少套框的事件编辑、折叠颜色设置、普通文字状态和评论摘要。
+- 重绘可编辑 design.excalidraw，并同步导出 design.svg、design.annotated.svg；保留主界面与 18 个外围箭头说明框。图中数据与波形为合成示意，明确标为非运行截图。清理尚未实现的倍速、吸附、窄屏抽屉等旧控件，修正 Group/Timeline 可选颜色字段及数据已迁移状态。
+- 更新图件生成入口，构图集中到 tools/design/current-annotator-design.mjs；生成前保留内容哈希快照，未知手工新增对象继续保留。schema.types.ts 仅描述已采用的持久化规格，移除过期临时界面类型。
+- 已查看结构化图件生成的 PNG 预览，检查主界面与完整说明图的排版；通过 SVG XML 解析、重复生成一致性、元素 ID 唯一性、18 个箭头目标有效性、lint、check:repo 与 diff --check。图件预览不代表实际应用播放或交互验收；本轮未改运行逻辑、音源或真实标注数据。
+
+### 本次版本提交检查（2026-11-15）
+
+- 提交范围涵盖此前尚未提交的统一工作台、version: 1 主时间线迁移，以及本轮界面优化和设计文档同步。
+- 提交前重新通过 npm run lint；将 server、web、test 及所需文档/标注副本复制到 out/ 下隔离目录，实际运行全部 7 项标注测试通过（含 HTTP 保存/重载、验证与前端 bundle 构建）。测试未访问原音轨，原受跟踪主时间线与简报的文件哈希保持不变。
+- 仓库检查与暂存差异检查作为提交前门禁；歌曲、私有派生文件、环境、图件预览和隔离测试副本不得进入提交。实际浏览器拖动、播放同步、触屏与选色体验仍按上文待验收记录处理。
+
+### 波形清晰度修正（2026-11-14）
+
+- 修复新版分析接口读取不存在的文件路径：重新读取 local/analysis/summary.json、beats.json 与 waveform.json，兼容现有播放器的 audio_file 时长读取。
+- 按后续用户纠正，主波形沿用 Git f8208f5 的 WaveSurfer + Regions + Timeline，恢复 138px 波形与 24px 刻度、深色背景及原波形／播放进度色；取消上一轮新写的 Canvas 包络与事件卡片方案。真实 bins 仍作为预计算 peaks 输入，不使用模拟波形兜底。
+- 保留统一事件模型与唯一 App 音频时钟，WaveSurfer 显示播放进度、区间选择及相邻边界；缩放、平移和重排尺寸同步当前视窗。主波形配色按用户明确要求保留旧版，其他面板维持新工作台。
+- 实际验证接口返回的 10,486 个 bins 与本地分析数据一致，时长为 209.719615 秒；已渲染并查看恢复 WaveSurfer 后的本地截图，检查插件挂载、缩放与点击定位后的进度显示。lint 与仓库路径检查通过，上一轮已有 7 项标注测试通过；恢复渲染后未重复运行会写真实标注的旧测试。本轮未验证实际听音同步和边界拖动体验。

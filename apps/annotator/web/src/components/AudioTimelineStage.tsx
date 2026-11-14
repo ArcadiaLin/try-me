@@ -1,1106 +1,770 @@
-import React, { useCallback, useEffect, useRef } from "react";
 import WaveSurfer from "wavesurfer.js";
 import RegionsPlugin from "wavesurfer.js/dist/plugins/regions.esm.js";
 import TimelinePlugin from "wavesurfer.js/dist/plugins/timeline.esm.js";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  addPointMarker,
-  addRegion,
-  confirmLyricAndAdvance,
-  findNearestCandidate,
-  findPlayingOrNearestLyric,
-  getAudioDuration,
-  maybeSnapTime,
-  notifyStore,
-  registerAudioPlayerBridge,
-  seekAudio,
-  selectTimelineItem,
-  storeState,
-  toggleLoopForLyric,
-  triggerLyricAudition,
-  updateLyricEnd,
-  updateLyricStart,
-  updatePointMarker,
-  updateRegion,
-  updateCustomTrackItem,
-  useWorkbenchStore,
-} from "../store/workbenchStore.ts";
-import type { WaveformBin } from "../types.ts";
-import { hexToRgba, playSynthesizedClick } from "../utils/audio-click.ts";
+  DEFAULT_RANGE_DURATION_SEC,
+  findEventByRef,
+  findTrackById,
+  flattenTracks,
+  formatSeconds,
+  isNodeEffectivelyLocked,
+  isNodeEffectivelyVisible,
+  isRangeEvent,
+} from "../../model.ts";
+import { useWorkbenchStore } from "../store/workbenchStore.ts";
+import { StateIcon } from "./StateIcon.tsx";
+import type { EventRef, TimelineTrack } from "../types.ts";
 
-function buildPeaksFromEnvelope(
-  bins: WaveformBin[] | undefined,
-): number[][] | undefined {
-  if (!bins || bins.length === 0) return undefined;
-  const peaks: number[] = [];
-  for (const b of bins) {
-    peaks.push(b.min, b.max);
-  }
-  return [peaks];
+interface AudioTimelineStageProps {
+  onTogglePlay: () => void;
+  onStop: () => void;
+  onSeek: (sec: number) => void;
+  onAuditionRange: (startSec: number, endSec: number) => void;
 }
 
-export function AudioTimelineStage(): React.JSX.Element {
-  const snap = useWorkbenchStore();
-  const minimapRef = useRef<HTMLCanvasElement | null>(null);
-  const waveformContainerRef = useRef<HTMLDivElement | null>(null);
-  const timelineContainerRef = useRef<HTMLDivElement | null>(null);
-  const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
+export const AudioTimelineStage: React.FC<AudioTimelineStageProps> = ({
+  onTogglePlay,
+  onStop,
+  onSeek,
+  onAuditionRange,
+}) => {
+  const project = useWorkbenchStore((s) => s.project);
+  const analysis = useWorkbenchStore((s) => s.analysis);
+  const view = useWorkbenchStore((s) => s.view);
+  const transport = useWorkbenchStore((s) => s.transport);
+  const layout = useWorkbenchStore((s) => s.layout);
+  const colorDraft = useWorkbenchStore((s) => s.edit.colorDraft);
 
-  const wsRef = useRef<WaveSurfer | null>(null);
-  const regionsPluginRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(
-    null,
+  const setVisibleWindow = useWorkbenchStore((s) => s.setVisibleWindow);
+  const zoomByFactor = useWorkbenchStore((s) => s.zoomByFactor);
+  const setLoopEnabled = useWorkbenchStore((s) => s.setLoopEnabled);
+  const setLoopRange = useWorkbenchStore((s) => s.setLoopRange);
+  const selectNode = useWorkbenchStore((s) => s.selectNode);
+  const selectEvent = useWorkbenchStore((s) => s.selectEvent);
+  const runWorkbenchCommand = useWorkbenchStore((s) => s.runWorkbenchCommand);
+  const openContextMenu = useWorkbenchStore((s) => s.openContextMenu);
+  const getEffectiveEventColor = useWorkbenchStore(
+    (s) => s.getEffectiveEventColor,
   );
-  const lastClickSecRef = useRef<number>(-1);
-  const suppressRegionEventRef = useRef<boolean>(false);
+  const getEffectiveTrackColor = useWorkbenchStore(
+    (s) => s.getEffectiveTrackColor,
+  );
 
-  const drawMinimap = useCallback((currentSec: number) => {
-    const canvas = minimapRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    const width = Math.max(300, Math.floor(rect.width * dpr));
-    const height = Math.max(24, Math.floor(rect.height * dpr));
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-    }
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, width, height);
-    ctx.fillStyle = "#080d19";
-    ctx.fillRect(0, 0, width, height);
-
-    const duration = getAudioDuration();
-    const bins = storeState.analysis?.waveform?.bins || [];
-    if (bins.length > 0) {
-      const midY = height / 2;
-      ctx.fillStyle = "rgba(56, 189, 248, 0.42)";
-      const step = Math.max(1, Math.floor(bins.length / width));
-      for (let i = 0; i < bins.length; i += step) {
-        const b = bins[i];
-        const x = (b.start_sec / duration) * width;
-        const top = midY - b.max * (height * 0.45);
-        const bottom = midY - b.min * (height * 0.45);
-        ctx.fillRect(
-          x,
-          top,
-          Math.max(1, (width / bins.length) * step),
-          Math.max(1, bottom - top),
-        );
-      }
-    }
-
-    for (const r of storeState.annotations?.regions || []) {
-      const x1 = (r.start_sec / duration) * width;
-      const x2 = (r.end_sec / duration) * width;
-      ctx.fillStyle = hexToRgba(r.color || "#38bdf8", 0.25);
-      ctx.fillRect(x1, 0, Math.max(2, x2 - x1), height);
-    }
-
-    if (storeState.loopInSec !== null && storeState.loopOutSec !== null) {
-      const lx1 = (storeState.loopInSec / duration) * width;
-      const lx2 = (storeState.loopOutSec / duration) * width;
-      ctx.strokeStyle = "#22c55e";
-      ctx.lineWidth = 2 * dpr;
-      ctx.strokeRect(lx1, 1, Math.max(2, lx2 - lx1), height - 2);
-    }
-
-    const ws = wsRef.current;
-    if (ws) {
-      try {
-        const wrapper = ws.getWrapper();
-        const scrollEl = wrapper?.parentElement;
-        if (wrapper && scrollEl && wrapper.scrollWidth > 0) {
-          const startRatio = scrollEl.scrollLeft / wrapper.scrollWidth;
-          const endRatio =
-            (scrollEl.scrollLeft + scrollEl.clientWidth) / wrapper.scrollWidth;
-          const vx = startRatio * width;
-          const vw = Math.max(4, (endRatio - startRatio) * width);
-          ctx.strokeStyle = "rgba(248, 250, 252, 0.65)";
-          ctx.lineWidth = 1.2 * dpr;
-          ctx.strokeRect(vx, 1, vw, height - 2);
-        }
-      } catch {
-        // Ignore before WaveSurfer ready
-      }
-    }
-
-    const px = (currentSec / duration) * width;
-    ctx.strokeStyle = "#f43f5e";
-    ctx.lineWidth = 2 * dpr;
-    ctx.beginPath();
-    ctx.moveTo(px, 0);
-    ctx.lineTo(px, height);
-    ctx.stroke();
-  }, []);
-
-  const drawCandidateOverlay = useCallback(() => {
-    const canvas = overlayCanvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    const width = Math.max(100, Math.floor(rect.width * dpr));
-    const height = Math.max(60, Math.floor(rect.height * dpr));
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-    }
-
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.clearRect(0, 0, width, height);
-
-    const duration = getAudioDuration();
-    let startSec = 0;
-    let endSec = duration;
-    const ws = wsRef.current;
-    if (ws) {
-      try {
-        const wrapper = ws.getWrapper();
-        const scrollEl = wrapper?.parentElement;
-        if (wrapper && scrollEl && wrapper.scrollWidth > 0) {
-          startSec = (scrollEl.scrollLeft / wrapper.scrollWidth) * duration;
-          endSec =
-            ((scrollEl.scrollLeft + scrollEl.clientWidth) /
-              wrapper.scrollWidth) *
-            duration;
-        }
-      } catch {
-        // Fallback
-      }
-    }
-
-    const span = Math.max(0.001, endSec - startSec);
-    const xForSec = (t: number) => ((t - startSec) / span) * width;
-
-    // Loop markers
-    if (storeState.loopInSec !== null) {
-      const ix = xForSec(storeState.loopInSec);
-      ctx.strokeStyle = "#22c55e";
-      ctx.lineWidth = 2 * dpr;
-      ctx.beginPath();
-      ctx.moveTo(ix, 0);
-      ctx.lineTo(ix, height);
-      ctx.stroke();
-    }
-    if (storeState.loopOutSec !== null) {
-      const ox = xForSec(storeState.loopOutSec);
-      ctx.strokeStyle = "#22c55e";
-      ctx.lineWidth = 2 * dpr;
-      ctx.beginPath();
-      ctx.moveTo(ox, 0);
-      ctx.lineTo(ox, height);
-      ctx.stroke();
-    }
-
-    // Audition stop marker
-    if (storeState.auditionStopAtSec !== null) {
-      const ax = xForSec(storeState.auditionStopAtSec);
-      ctx.save();
-      ctx.strokeStyle = "#38bdf8";
-      ctx.lineWidth = 2 * dpr;
-      ctx.setLineDash([3 * dpr, 3 * dpr]);
-      ctx.beginPath();
-      ctx.moveTo(ax, 0);
-      ctx.lineTo(ax, height);
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // Candidate Onsets
-    if (storeState.trackVisibility.cand_onsets && storeState.analysis?.onsets) {
-      ctx.strokeStyle = "rgba(56, 189, 248, 0.42)";
-      ctx.lineWidth = 1 * dpr;
-      ctx.beginPath();
-      for (const o of storeState.analysis.onsets) {
-        if (o.time_sec < startSec || o.time_sec > endSec) continue;
-        if ((o.onset_strength ?? 99) < storeState.onsetThreshold) continue;
-        const x = xForSec(o.time_sec);
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, 16 * dpr);
-        ctx.moveTo(x, height - 16 * dpr);
-        ctx.lineTo(x, height);
-      }
-      ctx.stroke();
-    }
-
-    // Candidate Beats
-    if (storeState.trackVisibility.cand_beats && storeState.analysis?.beats) {
-      ctx.save();
-      ctx.strokeStyle = "rgba(245, 158, 11, 0.45)";
-      ctx.lineWidth = 1.1 * dpr;
-      ctx.setLineDash([4 * dpr, 4 * dpr]);
-      ctx.beginPath();
-      for (const b of storeState.analysis.beats) {
-        if (b.time_sec < startSec || b.time_sec > endSec) continue;
-        const x = xForSec(b.time_sec);
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, height);
-      }
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // Candidate Energy
-    if (
-      storeState.trackVisibility.cand_energy &&
-      storeState.analysis?.energyFrames?.length
-    ) {
-      ctx.save();
-      ctx.strokeStyle = "rgba(34, 197, 94, 0.65)";
-      ctx.lineWidth = 1.4 * dpr;
-      ctx.beginPath();
-      let started = false;
-      for (const f of storeState.analysis.energyFrames) {
-        if (f.time_sec < startSec - 0.2 || f.time_sec > endSec + 0.2) continue;
-        const x = xForSec(f.time_sec);
-        const y = height - Math.min(1, f.rms * 2.1) * (height * 0.84);
-        if (!started) {
-          ctx.moveTo(x, y);
-          started = true;
-        } else {
-          ctx.lineTo(x, y);
-        }
-      }
-      ctx.stroke();
-      ctx.restore();
-    }
-
-    // Lyric tick marks across visible window
-    if (
-      storeState.trackVisibility.lyrics_main &&
-      storeState.lyrics?.lines?.length
-    ) {
-      ctx.save();
-      ctx.font = `${10 * dpr}px monospace`;
-      for (const l of storeState.lyrics.lines) {
-        const isSel = storeState.selectedLyricId === l.id;
-        if (l.start_sec >= startSec && l.start_sec <= endSec) {
-          const x = xForSec(l.start_sec);
-          ctx.strokeStyle = isSel
-            ? "#e879f9"
-            : l.status === "confirmed"
-              ? "rgba(74, 222, 128, 0.72)"
-              : "rgba(168, 85, 247, 0.5)";
-          ctx.lineWidth = (isSel ? 2.2 : 1.1) * dpr;
-          ctx.setLineDash([]);
-          ctx.beginPath();
-          ctx.moveTo(x, 0);
-          ctx.lineTo(x, height);
-          ctx.stroke();
-          ctx.fillStyle = isSel ? "#f0abfc" : "rgba(216, 180, 254, 0.85)";
-          ctx.fillText(l.id, x + 3 * dpr, 12 * dpr);
-        }
-        if (isSel && l.end_sec >= startSec && l.end_sec <= endSec) {
-          const ex = xForSec(l.end_sec);
-          ctx.strokeStyle = "#f472b6";
-          ctx.lineWidth = 2 * dpr;
-          ctx.setLineDash([4 * dpr, 3 * dpr]);
-          ctx.beginPath();
-          ctx.moveTo(ex, 0);
-          ctx.lineTo(ex, height);
-          ctx.stroke();
-          ctx.setLineDash([]);
-          ctx.fillStyle = "#f9a8d4";
-          ctx.fillText(`${l.id}尾`, ex + 3 * dpr, 24 * dpr);
-        }
-      }
-      ctx.restore();
-    }
-  }, []);
-
-  // Synchronize WaveSurfer regions with Focus Track & Lock rules
-  const syncWaveSurferRegions = useCallback(() => {
-    const regionsPlugin = regionsPluginRef.current;
-    if (!regionsPlugin || !storeState.annotations) return;
-    suppressRegionEventRef.current = true;
-    try {
-      regionsPlugin.clearRegions();
-      const activeTrack = storeState.activeTrackId;
-
-      // 1. Structure Sections & Representative Clips
-      for (const r of storeState.annotations.regions) {
-        const isClip = r.category === "representative_clip";
-        const trackKey = isClip ? "structure_clips" : "structure_sections";
-        if (!storeState.trackVisibility[trackKey]) continue;
-
-        const isTrackFocused = activeTrack === trackKey;
-        const isLocked = storeState.trackLocks[trackKey];
-        const isSelected =
-          storeState.selectedKind === "region" &&
-          storeState.selectedId === r.id;
-
-        const editable = isTrackFocused && !isLocked;
-        const alpha = isSelected ? 0.32 : isTrackFocused ? 0.2 : 0.08;
-
-        regionsPlugin.addRegion({
-          id: `reg_${r.id}`,
-          start: r.start_sec,
-          end: r.end_sec,
-          color: hexToRgba(r.color || "#38bdf8", alpha),
-          content: isTrackFocused ? `${r.id}: ${r.label}` : r.id,
-          drag: editable,
-          resize: editable,
-        });
-      }
-
-      // 2. Point Markers (Downbeats & Beats/Accents)
-      for (const m of storeState.annotations.markers) {
-        const isDownbeat = m.category === "downbeat";
-        const trackKey = isDownbeat ? "rhythm_downbeats" : "rhythm_markers";
-        if (!storeState.trackVisibility[trackKey]) continue;
-
-        const isTrackFocused = activeTrack === trackKey;
-        const isLocked = storeState.trackLocks[trackKey];
-        const isSelected =
-          storeState.selectedKind === "point" && storeState.selectedId === m.id;
-        const editable = isTrackFocused && !isLocked;
-
-        regionsPlugin.addRegion({
-          id: `pt_${m.id}`,
-          start: m.time_sec,
-          color: isSelected
-            ? "#ffffff"
-            : hexToRgba(m.color || "#f59e0b", isTrackFocused ? 0.95 : 0.4),
-          content: isTrackFocused ? `${m.id} (${m.label})` : "",
-          drag: editable,
-          resize: false,
-        });
-      }
-
-      // 3. Selected Lyric Line + Immediate Neighbors (when Lyrics track is visible)
-      if (
-        storeState.trackVisibility.lyrics_main &&
-        storeState.lyrics?.lines?.length
-      ) {
-        const lines = storeState.lyrics.lines;
-        const selIdx = lines.findIndex(
-          (l) => l.id === storeState.selectedLyricId,
-        );
-        const isLyricsFocused = activeTrack === "lyrics_main";
-        const isLyricsLocked = storeState.trackLocks.lyrics_main;
-
-        if (selIdx !== -1) {
-          // Render previous, current, and next lyric lines so adjacent boundaries are visible & draggable
-          const indices = isLyricsFocused
-            ? [selIdx - 1, selIdx, selIdx + 1].filter(
-                (i) => i >= 0 && i < lines.length,
-              )
-            : [selIdx];
-
-          for (const i of indices) {
-            const l = lines[i];
-            const isMainSel = i === selIdx;
-            const editable = isLyricsFocused && !isLyricsLocked;
-            const baseColor =
-              l.status === "confirmed" ? "#10b981" : "#a855f7";
-            const alpha = isMainSel
-              ? isLyricsFocused
-                ? 0.36
-                : 0.2
-              : 0.14;
-
-            regionsPlugin.addRegion({
-              id: `lyric_${l.id}`,
-              start: l.start_sec,
-              end: l.end_sec,
-              color: hexToRgba(baseColor, alpha),
-              content: `${l.id}: ${l.text.slice(0, 18)}`,
-              drag: editable && isMainSel,
-              resize: editable,
-            });
-          }
-        }
-      }
-
-      // 4. Custom Multi-Track Timelines (SFX, Shots, User-defined tracks)
-      for (const trk of storeState.annotations.custom_tracks || []) {
-        if (storeState.trackVisibility[trk.id] === false) continue;
-        const isTrackFocused = activeTrack === trk.id;
-        const isLocked = Boolean(storeState.trackLocks[trk.id]);
-        const editable = isTrackFocused && !isLocked;
-
-        for (const item of trk.items || []) {
-          const isSelected =
-            storeState.selectedKind === "custom_item" &&
-            storeState.selectedId === item.id;
-          const baseColor = item.color || trk.color || "#38bdf8";
-
-          if (item.kind === "point") {
-            const t = item.time_sec ?? 0;
-            regionsPlugin.addRegion({
-              id: `cust_${trk.id}__${item.id}`,
-              start: t,
-              color: isSelected
-                ? "#ffffff"
-                : hexToRgba(baseColor, isTrackFocused ? 0.95 : 0.45),
-              content: isTrackFocused ? `${item.id}: ${item.label}` : item.id,
-              drag: editable,
-              resize: false,
-            });
-          } else {
-            const s = item.start_sec ?? 0;
-            const end = item.end_sec ?? s + 0.5;
-            const alpha = isSelected ? 0.36 : isTrackFocused ? 0.24 : 0.1;
-            regionsPlugin.addRegion({
-              id: `cust_${trk.id}__${item.id}`,
-              start: s,
-              end,
-              color: hexToRgba(baseColor, alpha),
-              content: isTrackFocused ? `${item.id}: ${item.label}` : item.id,
-              drag: editable,
-              resize: editable,
-            });
-          }
-        }
-      }
-    } finally {
-      suppressRegionEventRef.current = false;
-    }
-  }, []);
+  const [showBeatGuides, setShowBeatGuides] = useState(true);
+  const [panningOverview, setPanningOverview] = useState(false);
+  const [labelWidth, setLabelWidth] = useState(64);
+  const [maxLabelWidth, setMaxLabelWidth] = useState(360);
+  const [laneScrollbarWidth, setLaneScrollbarWidth] = useState(0);
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const lanesRef = useRef<HTMLDivElement | null>(null);
+  const labelDragRef = useRef<{ pointerId: number; startX: number; width: number } | null>(null);
 
   useEffect(() => {
-    if (!waveformContainerRef.current || !timelineContainerRef.current) return;
-    const regionsPlugin = RegionsPlugin.create();
-    regionsPluginRef.current = regionsPlugin;
+    const content = contentRef.current;
+    const lanes = lanesRef.current;
+    if (!content || !lanes) return;
+    const measure = () => {
+      const maximum = Math.max(64, Math.min(360, content.clientWidth - 160));
+      setMaxLabelWidth(maximum);
+      setLabelWidth((width) => Math.max(64, Math.min(maximum, width)));
+      setLaneScrollbarWidth(lanes.offsetWidth - lanes.clientWidth);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(content);
+    observer.observe(lanes);
+    measure();
+    return () => observer.disconnect();
+  }, []);
 
-    const timelinePlugin = TimelinePlugin.create({
-      container: timelineContainerRef.current,
-      primaryLabelInterval: 5,
-      secondaryLabelInterval: 1,
-      style: {
-        fontSize: "11px",
-        color: "#94a3b8",
-      },
-    });
+  const resizeLabel = (width: number) =>
+    setLabelWidth(Math.max(64, Math.min(maxLabelWidth, Math.round(width))));
 
-    const peaks = buildPeaksFromEnvelope(storeState.analysis?.waveform?.bins);
-    const duration = getAudioDuration();
+  const waveformContainerRef = useRef<HTMLDivElement | null>(null);
+  const timelineContainerRef = useRef<HTMLDivElement | null>(null);
+  const wsRef = useRef<WaveSurfer | null>(null);
+  const regionsRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(
+    null,
+  );
+  const [waveReady, setWaveReady] = useState(0);
+  const waveformErrorRef = useRef<HTMLDivElement | null>(null);
+  const waveformWrapRef = useRef<HTMLDivElement | null>(null);
+  const overviewRef = useRef<HTMLDivElement | null>(null);
 
+  const durationSec =
+    analysis?.summary?.audio_file?.duration_sec ??
+    analysis?.waveform?.duration_sec ??
+    205.533;
+  const visibleStart = view.visibleStartSec;
+  const visibleEnd = Math.max(visibleStart + 1, view.visibleEndSec);
+  const visibleSpan = visibleEnd - visibleStart;
+
+  const activeTrack: TimelineTrack | null = view.selectedTrackId
+    ? findTrackById(project.nodes, view.selectedTrackId)
+    : null;
+
+  const visibleTracks = flattenTracks(project.nodes).filter((entry) =>
+    isNodeEffectivelyVisible(project.nodes, entry.track.id, view.hiddenNodeIds),
+  );
+
+  // Convert clientX inside waveform/lane area to timeSec
+  const clientXToTimeSec = useCallback(
+    (clientX: number, element: HTMLElement | null): number => {
+      if (!element) return transport.currentTimeSec;
+      const rect = element.getBoundingClientRect();
+      const ratio = Math.max(
+        0,
+        Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)),
+      );
+      return Number((visibleStart + ratio * visibleSpan).toFixed(3));
+    },
+    [transport.currentTimeSec, visibleSpan, visibleStart],
+  );
+
+  // Restore the renderer/options from Git HEAD (f8208f5), with the unified
+  // project supplying regions. App's audio element remains the only playback clock.
+  useEffect(() => {
+    const container = waveformContainerRef.current;
+    const timeline = timelineContainerRef.current;
+    const bins = analysis?.waveform?.bins;
+    if (!container || !timeline || !bins?.length) return;
+    const peaks = bins.flatMap((bin) => [bin.min, bin.max]);
+    const regions = RegionsPlugin.create();
     const ws = WaveSurfer.create({
-      container: waveformContainerRef.current,
-      url: "/api/audio",
-      peaks,
-      duration,
+      container,
+      peaks: [peaks],
+      duration: durationSec,
       height: 138,
       waveColor: "#334155",
       progressColor: "#0284c7",
       cursorColor: "#f43f5e",
       cursorWidth: 2,
-      minPxPerSec: storeState.zoomPxPerSec,
-      autoScroll: true,
-      autoCenter: true,
       normalize: false,
-      plugins: [regionsPlugin, timelinePlugin],
+      interact: false,
+      autoScroll: false,
+      autoCenter: false,
+      hideScrollbar: true,
+      plugins: [
+        regions,
+        TimelinePlugin.create({
+          container: timeline,
+          primaryLabelInterval: 5,
+          secondaryLabelInterval: 1,
+          style: { fontSize: "11px", color: "#94a3b8" },
+        }),
+      ],
     });
     wsRef.current = ws;
-
-    registerAudioPlayerBridge({
-      seekTo: (sec: number) => ws.setTime(sec),
-      play: () => {
-        void ws.play();
-      },
-      pause: () => ws.pause(),
-      playPause: () => {
-        void ws.playPause();
-      },
-      stop: () => ws.stop(),
-      setRate: (rate: number) => ws.setPlaybackRate(rate, true),
-      setZoom: (px: number) => ws.zoom(px),
-      getDuration: () => ws.getDuration() || duration,
-      getCurrentTime: () => ws.getCurrentTime(),
-    });
-
+    regionsRef.current = regions;
+    const fit = () => {
+      const current = useWorkbenchStore.getState();
+      const span = Math.max(
+        1,
+        current.view.visibleEndSec - current.view.visibleStartSec,
+      );
+      if (ws.getDecodedData()) {
+        ws.zoom(container.clientWidth / span);
+        ws.setScrollTime(current.view.visibleStartSec);
+        ws.setTime(current.transport.currentTimeSec);
+      }
+    };
     ws.on("ready", () => {
-      syncWaveSurferRegions();
-      drawMinimap(0);
-      drawCandidateOverlay();
+      fit();
+      setWaveReady((n) => n + 1);
     });
-
-    ws.on("play", () => {
-      storeState.isPlaying = true;
-      notifyStore();
+    ws.on("error", () => {
+      if (waveformErrorRef.current) waveformErrorRef.current.hidden = false;
     });
-
-    ws.on("pause", () => {
-      storeState.isPlaying = false;
-      notifyStore();
-    });
-
-    ws.on("timeupdate", (currentSec: number) => {
-      // 1. Check Aegisub one-shot audition stop boundary
-      if (
-        storeState.auditionStopAtSec !== null &&
-        ws.isPlaying() &&
-        currentSec >= storeState.auditionStopAtSec
-      ) {
-        const stopTarget = storeState.auditionStopAtSec;
-        storeState.auditionStopAtSec = null;
-        ws.pause();
-        ws.setTime(stopTarget);
-        storeState.currentTimeSec = stopTarget;
-        notifyStore();
-        return;
-      }
-
-      // 2. Check A-B loop boundary
-      if (
-        storeState.loopEnabled &&
-        storeState.loopInSec !== null &&
-        storeState.loopOutSec !== null &&
-        storeState.loopOutSec > storeState.loopInSec + 0.05 &&
-        currentSec >= storeState.loopOutSec
-      ) {
-        ws.setTime(storeState.loopInSec);
-        lastClickSecRef.current = storeState.loopInSec;
-        storeState.currentTimeSec = storeState.loopInSec;
-        notifyStore();
-        return;
-      }
-
-      // 3. Check synthesized click track
-      if (storeState.clickTrackEnabled && ws.isPlaying()) {
-        const prev = lastClickSecRef.current;
-        if (prev >= 0 && currentSec >= prev && currentSec - prev <= 0.25) {
-          for (const m of storeState.annotations?.markers || []) {
-            if (m.time_sec > prev && m.time_sec <= currentSec) {
-              const isDownbeat = m.category === "downbeat";
-              playSynthesizedClick(
-                isDownbeat ? 1360 : 920,
-                isDownbeat ? 0.3 : 0.2,
-              );
-              break;
-            }
-          }
-          if (storeState.clickCandidatesEnabled && storeState.analysis?.beats) {
-            for (const b of storeState.analysis.beats) {
-              if (b.time_sec > prev && b.time_sec <= currentSec) {
-                playSynthesizedClick(660, 0.12);
-                break;
-              }
-            }
-          }
-        }
-      }
-      lastClickSecRef.current = currentSec;
-      storeState.currentTimeSec = currentSec;
-      drawMinimap(currentSec);
-      drawCandidateOverlay();
-      notifyStore();
-    });
-
-    ws.on("scroll", () => {
-      drawMinimap(ws.getCurrentTime());
-      drawCandidateOverlay();
-    });
-
-    ws.on("zoom", () => {
-      drawMinimap(ws.getCurrentTime());
-      drawCandidateOverlay();
-    });
-
-    ws.on("interaction", (newTimeSec: number) => {
-      storeState.auditionStopAtSec = null;
-      storeState.activeAuditionLabel = null;
-      storeState.currentTimeSec = newTimeSec;
-      drawMinimap(newTimeSec);
-      drawCandidateOverlay();
-      notifyStore();
-    });
-
-    regionsPlugin.on("region-clicked", (reg, e) => {
+    regions.on("region-clicked", (region, e) => {
       e.stopPropagation();
-      if (reg.id.startsWith("lyric_")) {
-        selectTimelineItem("lyric", reg.id.slice(6));
-      } else if (reg.id.startsWith("reg_")) {
-        selectTimelineItem("region", reg.id.slice(4));
-      } else if (reg.id.startsWith("pt_")) {
-        selectTimelineItem("point", reg.id.slice(3));
-      } else if (reg.id.startsWith("cust_")) {
-        const rest = reg.id.slice(5);
-        const sep = rest.indexOf("__");
-        if (sep !== -1) {
-          const trackId = rest.slice(0, sep);
-          const itemId = rest.slice(sep + 2);
-          selectTimelineItem("custom_item", itemId, false, trackId);
-        }
-      }
-    });
-
-    regionsPlugin.on("region-updated", (reg) => {
-      if (suppressRegionEventRef.current) return;
-      if (reg.id.startsWith("lyric_")) {
-        const id = reg.id.slice(6);
-        const line = storeState.lyrics?.lines?.find((l) => l.id === id);
-        if (!line) return;
-        const sSnap = maybeSnapTime(reg.start);
-        const eSnap = maybeSnapTime(reg.end);
-        if (Math.abs(sSnap.time_sec - line.start_sec) > 0.001) {
-          updateLyricStart(
-            id,
-            sSnap.time_sec,
-            sSnap.candidate ? sSnap.candidate.id : line.origin_candidate_id,
-          );
-        }
-        if (Math.abs(eSnap.time_sec - line.end_sec) > 0.001) {
-          updateLyricEnd(id, eSnap.time_sec);
-        }
-        selectTimelineItem("lyric", id);
-      } else if (reg.id.startsWith("reg_")) {
-        const id = reg.id.slice(4);
-        const sSnap = maybeSnapTime(reg.start);
-        const eSnap = maybeSnapTime(reg.end);
-        updateRegion(id, {
-          start_sec: sSnap.time_sec,
-          end_sec: Math.min(
-            getAudioDuration(),
-            Math.max(sSnap.time_sec + 0.1, eSnap.time_sec),
-          ),
-        });
-        selectTimelineItem("region", id);
-      } else if (reg.id.startsWith("pt_")) {
-        const id = reg.id.slice(3);
-        const snapped = maybeSnapTime(reg.start);
-        updatePointMarker(
-          id,
-          { time_sec: snapped.time_sec },
-          !snapped.candidate,
+      const state = useWorkbenchStore.getState();
+      if (state.view.selectedTrackId)
+        state.selectEvent(
+          { trackId: state.view.selectedTrackId, eventId: region.id },
+          e.shiftKey,
         );
-        selectTimelineItem("point", id);
-      } else if (reg.id.startsWith("cust_")) {
-        const rest = reg.id.slice(5);
-        const sep = rest.indexOf("__");
-        if (sep !== -1) {
-          const trackId = rest.slice(0, sep);
-          const itemId = rest.slice(sep + 2);
-          const trk = (storeState.annotations?.custom_tracks || []).find(
-            (t) => t.id === trackId,
-          );
-          const item = trk?.items.find((i) => i.id === itemId);
-          if (item) {
-            if (item.kind === "point") {
-              const snapped = maybeSnapTime(reg.start);
-              updateCustomTrackItem(
-                trackId,
-                itemId,
-                { time_sec: snapped.time_sec },
-                !snapped.candidate,
-              );
-            } else {
-              const sSnap = maybeSnapTime(reg.start);
-              const eSnap = maybeSnapTime(reg.end);
-              updateCustomTrackItem(trackId, itemId, {
-                start_sec: sSnap.time_sec,
-                end_sec: Math.min(
-                  getAudioDuration(),
-                  Math.max(sSnap.time_sec + 0.05, eSnap.time_sec),
-                ),
-              });
-            }
-            selectTimelineItem("custom_item", itemId, false, trackId);
-          }
-        }
-      }
     });
-
+    regions.on("region-double-clicked", (region, e) => {
+      e.stopPropagation();
+      if (region.end > region.start) onAuditionRange(region.start, region.end);
+      else onSeek(region.start);
+    });
+    regions.on("region-updated", (region, side) => {
+      const state = useWorkbenchStore.getState();
+      const trackId = state.view.selectedTrackId;
+      if (!trackId) return;
+      const ref = { trackId, eventId: region.id };
+      const found = findEventByRef(state.project, ref);
+      if (!found) return;
+      if (side)
+        state.runWorkbenchCommand({
+          type: "setBoundary",
+          ref,
+          edge: side,
+          timeSec: Number(region[side].toFixed(3)),
+        });
+      else
+        state.runWorkbenchCommand({
+          type: "move",
+          refs: [ref],
+          deltaSec: region.start - found.event.startSec,
+        });
+      // Always restore the authoritative bounds if a command was clamped/rejected.
+      setWaveReady((n) => n + 1);
+    });
+    const observer = new ResizeObserver(fit);
+    observer.observe(container);
     return () => {
-      registerAudioPlayerBridge(null);
+      observer.disconnect();
+      wsRef.current = null;
+      regionsRef.current = null;
       ws.destroy();
     };
-  }, [drawCandidateOverlay, drawMinimap, syncWaveSurferRegions]);
+  }, [analysis?.waveform, durationSec, onAuditionRange, onSeek]);
 
-  // Re-sync regions whenever annotations, lyrics, selection, or track visibility/locks change
   useEffect(() => {
-    syncWaveSurferRegions();
-    drawMinimap(snap.currentTimeSec);
-    drawCandidateOverlay();
+    const ws = wsRef.current;
+    const container = waveformContainerRef.current;
+    if (!ws?.getDecodedData() || !container) return;
+    ws.zoom(container.clientWidth / visibleSpan);
+    ws.setScrollTime(visibleStart);
+  }, [visibleStart, visibleSpan, waveReady]);
+
+  useEffect(() => {
+    const ws = wsRef.current;
+    if (ws?.getDecodedData()) ws.setTime(transport.currentTimeSec);
+  }, [transport.currentTimeSec, waveReady]);
+
+  useEffect(() => {
+    const plugin = regionsRef.current;
+    if (!plugin || !wsRef.current?.getDecodedData()) return;
+    plugin.clearRegions();
+    if (!activeTrack) return;
+    const locked = isNodeEffectivelyLocked(
+      project.nodes,
+      activeTrack.id,
+      view.lockedNodeIds,
+    );
+    const primaryIndex = activeTrack.items.findIndex(
+      (item) => item.id === view.selection.primary?.eventId,
+    );
+    const rgba = (hex: string, alpha: number) => {
+      const value = Number.parseInt(hex.slice(1), 16);
+      return `rgba(${value >> 16}, ${(value >> 8) & 255}, ${value & 255}, ${alpha})`;
+    };
+    activeTrack.items.forEach((event, index) => {
+      const selected = view.selection.selected.some(
+        (ref) => ref.trackId === activeTrack.id && ref.eventId === event.id,
+      );
+      const point = !isRangeEvent(event);
+      // Like the old lyric view, show selected regions and immediate neighbors;
+      // other starts remain fine ticks rather than full event cards.
+      const nearSelection =
+        primaryIndex >= 0 && Math.abs(index - primaryIndex) <= 1;
+      const region = plugin.addRegion({
+        id: event.id,
+        start: event.startSec,
+        end: point || (!selected && !nearSelection) ? undefined : event.endSec,
+        color: rgba(
+          getEffectiveEventColor(event, activeTrack),
+          selected ? 0.36 : nearSelection ? 0.14 : 0.5,
+        ),
+        content:
+          selected || nearSelection
+            ? `${event.id}: ${event.text.slice(0, 18)}`
+            : event.id,
+        drag: !locked && selected,
+        resize: !locked && !point && (selected || nearSelection),
+      });
+      region.element?.addEventListener("contextmenu", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const state = useWorkbenchStore.getState();
+        const ref = { trackId: activeTrack.id, eventId: event.id };
+        if (!selected) state.selectEvent(ref, false);
+        state.openContextMenu({
+          scope: "events",
+          x: e.clientX,
+          y: e.clientY,
+          anchorTimeSec: state.transport.currentTimeSec,
+          targetNodeId: activeTrack.id,
+          targetEventRef: ref,
+        });
+      });
+    });
   }, [
-    snap.annotations,
-    snap.lyrics,
-    snap.activeTrackId,
-    snap.selectedKind,
-    snap.selectedId,
-    snap.selectedLyricId,
-    snap.trackVisibility,
-    snap.trackLocks,
-    snap.loopInSec,
-    snap.loopOutSec,
-    snap.onsetThreshold,
-    drawCandidateOverlay,
-    drawMinimap,
-    syncWaveSurferRegions,
-    snap.currentTimeSec,
+    project.nodes,
+    activeTrack,
+    view.selection,
+    view.lockedNodeIds,
+    colorDraft,
+    getEffectiveEventColor,
+    waveReady,
   ]);
 
-  const handleMinimapMouseDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    const canvas = minimapRef.current;
-    if (!canvas) return;
-    const seekFromEvent = (clientX: number) => {
-      const rect = canvas.getBoundingClientRect();
+  // Handle overview bar drag panning
+  useEffect(() => {
+    if (!panningOverview) return;
+    const handleMove = (e: MouseEvent) => {
+      const el = overviewRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
       const ratio = Math.max(
         0,
-        Math.min(1, (clientX - rect.left) / Math.max(1, rect.width)),
+        Math.min(1, (e.clientX - rect.left) / Math.max(1, rect.width)),
       );
-      seekAudio(ratio * getAudioDuration());
+      const centerSec = ratio * durationSec;
+      const half = visibleSpan / 2;
+      setVisibleWindow(centerSec - half, centerSec + half);
     };
-    seekFromEvent(e.clientX);
-    const onMove = (moveEv: MouseEvent) => seekFromEvent(moveEv.clientX);
-    const onUp = () => {
-      window.removeEventListener("mousemove", onMove);
-      window.removeEventListener("mouseup", onUp);
+    const handleUp = () => setPanningOverview(false);
+    window.addEventListener("mousemove", handleMove);
+    window.addEventListener("mouseup", handleUp);
+    return () => {
+      window.removeEventListener("mousemove", handleMove);
+      window.removeEventListener("mouseup", handleUp);
     };
-    window.addEventListener("mousemove", onMove);
-    window.addEventListener("mouseup", onUp);
+  }, [durationSec, panningOverview, setVisibleWindow, visibleSpan]);
+
+  const playheadRatio = (transport.currentTimeSec - visibleStart) / visibleSpan;
+  const playheadVisible = playheadRatio >= 0 && playheadRatio <= 1;
+
+  const handleJumpToSelection = () => {
+    const primary = findEventByRef(project, view.selection.primary);
+    if (!primary) return;
+    const ev = primary.event;
+    onSeek(ev.startSec);
+    if (ev.endSec !== undefined) {
+      setLoopRange([ev.startSec, ev.endSec]);
+    }
+    if (ev.startSec < visibleStart || ev.startSec > visibleEnd) {
+      const half = visibleSpan / 2;
+      setVisibleWindow(ev.startSec - half, ev.startSec + half);
+    }
   };
 
-  // Determine active/playing lyric line for the Aegisub bar
-  const playingLyric = findPlayingOrNearestLyric(snap.currentTimeSec);
-  const selectedLyric =
-    snap.lyrics.lines.find((l) => l.id === snap.selectedLyricId) ||
-    playingLyric ||
-    null;
-  const selIdx = selectedLyric
-    ? snap.lyrics.lines.findIndex((l) => l.id === selectedLyric.id)
-    : -1;
-  const nextLyric =
-    selIdx !== -1 && selIdx + 1 < snap.lyrics.lines.length
-      ? snap.lyrics.lines[selIdx + 1]
-      : null;
-
-  const focusTrackLabels: Record<string, string> = {
-    lyrics_main: "歌词对轴轨道 (可拖拽句首/句尾)",
-    structure_sections: "曲式段落轨道 P001–P012",
-    structure_clips: "代表性验证片段 CLIP_01",
-    rhythm_downbeats: "小节强拍轨道 (Downbeats)",
-    rhythm_markers: "拍点与重音轨道",
-    cand_beats: "自动拍点参考层 (只读)",
-    cand_onsets: "自动起音参考层 (只读)",
-    cand_energy: "能量包络参考层 (只读)",
+  const handleWaveformWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    if (e.ctrlKey || e.metaKey || Math.abs(e.deltaY) > 0) {
+      e.preventDefault();
+      if (e.shiftKey) {
+        const shiftSec = (e.deltaY > 0 ? 1 : -1) * visibleSpan * 0.15;
+        setVisibleWindow(visibleStart + shiftSec, visibleEnd + shiftSec);
+      } else {
+        const anchor = clientXToTimeSec(e.clientX, waveformWrapRef.current);
+        zoomByFactor(e.deltaY > 0 ? 1.2 : 0.82, anchor);
+      }
+    }
   };
-  for (const trk of snap.annotations?.custom_tracks || []) {
-    focusTrackLabels[trk.id] = `${trk.name} (${trk.type})`;
-  }
+
+  const handleWaveformContextMenu = (e: React.MouseEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const clickTimeSec = clientXToTimeSec(e.clientX, waveformWrapRef.current);
+    onSeek(clickTimeSec);
+    openContextMenu({
+      scope: "events",
+      x: e.clientX,
+      y: e.clientY,
+      anchorTimeSec: clickTimeSec,
+      targetNodeId: activeTrack?.id ?? null,
+      targetEventRef: view.selection.primary,
+    });
+  };
 
   return (
-    <section className="wb-audio-stage">
-      {/* Row 1: Minimap & Focus Track Status */}
-      <div className="wb-minimap-row">
-        <span className="wb-stage-tag">
-          焦点轨道: {focusTrackLabels[snap.activeTrackId] || snap.activeTrackId}
-        </span>
-        <canvas
-          ref={minimapRef}
-          className="wb-minimap-canvas"
-          onMouseDown={handleMinimapMouseDown}
-        />
-        <div className="wb-zoom-box">
-          <span>缩放</span>
-          <input
-            type="range"
-            min={25}
-            max={450}
-            step={5}
-            value={snap.zoomPxPerSec}
-            onChange={(e) => {
-              const px = Number(e.target.value);
-              storeState.zoomPxPerSec = px;
-              wsRef.current?.zoom(px);
-              notifyStore();
-            }}
-          />
-          <span className="wb-mono-small">{snap.zoomPxPerSec}px/s</span>
+    <section
+      className="tracker-stage"
+      style={{ height: `${layout.trackerHeightPx}px` }}
+    >
+      {/* 1. Transport Bar */}
+      <div className="tracker-transport">
+        <div className="tracker-transport__controls">
+          <button
+            type="button"
+            className="btn btn--primary"
+            onClick={onTogglePlay}
+            title="播放 / 暂停 (Space)"
+          >
+            {transport.isPlaying ? "暂停 (Space)" : "▶ 播放 (Space)"}
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={onStop}
+            title="停止并回到当前视窗起点"
+          >
+            ■ 停止
+          </button>
+          <button
+            type="button"
+            className={`btn ${transport.loopEnabled ? "btn--active" : "btn--ghost"}`}
+            onClick={() => setLoopEnabled(!transport.loopEnabled)}
+            title="切换选区/片段循环 (L)"
+          >
+            循环：{transport.loopEnabled ? "开" : "关"}
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost"
+            onClick={handleJumpToSelection}
+            disabled={!view.selection.primary}
+            title="跳转到当前选中标注并设为循环区间"
+          >
+            跳到选中标注
+          </button>
+          <span className="tracker-transport__clock">
+            <strong>{formatSeconds(transport.currentTimeSec)}</strong>
+            <span className="muted"> / {formatSeconds(durationSec)}</span>
+          </span>
+          {transport.loopRange && (
+            <span className={`tracker-transport__loop-badge ${transport.loopEnabled ? "is-active" : ""}`}>
+              {transport.loopEnabled ? "循环" : "待循环"}：{formatSeconds(transport.loopRange[0])} –{" "}
+              {formatSeconds(transport.loopRange[1])}
+            </span>
+          )}
+        </div>
+
+        <div className="tracker-transport__right">
+          <label className="tracker-transport__check">
+            <input
+              type="checkbox"
+              checked={showBeatGuides}
+              onChange={(e) => setShowBeatGuides(e.target.checked)}
+            />
+            <span>拍点参考线</span>
+          </label>
+          <span className="tracker-transport__window-info">
+            视窗：{formatSeconds(visibleStart)} – {formatSeconds(visibleEnd)} (
+            {visibleSpan.toFixed(1)}s)
+          </span>
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() => zoomByFactor(0.75, transport.currentTimeSec)}
+            title="放大波形视窗"
+          >
+            放大 +
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() => zoomByFactor(1.35, transport.currentTimeSec)}
+            title="缩小波形视窗"
+          >
+            缩小 −
+          </button>
+          <button
+            type="button"
+            className="btn btn--ghost btn--sm"
+            onClick={() => setVisibleWindow(0, durationSec)}
+            title="显示全曲范围"
+          >
+            全曲
+          </button>
         </div>
       </div>
 
-      {/* Row 2: Main Waveform + Candidate Canvas + Timeline */}
-      <div className="wb-waveform-wrap">
+      {/* 2. Overview Bar */}
+      <div
+        ref={overviewRef}
+        className="tracker-overview"
+        onMouseDown={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect();
+          const ratio = Math.max(
+            0,
+            Math.min(1, (e.clientX - rect.left) / Math.max(1, rect.width)),
+          );
+          const centerSec = ratio * durationSec;
+          const half = visibleSpan / 2;
+          setVisibleWindow(centerSec - half, centerSec + half);
+          setPanningOverview(true);
+        }}
+        title="点击或拖动平移全曲视窗"
+      >
+        <span className="tracker-overview__label">
+          总览窗（拖动平移视窗 · 滚轮缩放）
+        </span>
+        {/* Structure sections mini blocks */}
+        {(findTrackById(project.nodes, "trk_song_parts")?.items ?? []).map(
+          (sec) => {
+            const left = (sec.startSec / durationSec) * 100;
+            const width =
+              (((sec.endSec ?? sec.startSec + 1) - sec.startSec) /
+                durationSec) *
+              100;
+            return (
+              <div
+                key={sec.id}
+                className="tracker-overview__section"
+                style={{ left: `${left}%`, width: `${Math.max(0.5, width)}%` }}
+                title={`${sec.id}: ${sec.text}`}
+              />
+            );
+          },
+        )}
+        {/* Active viewport box */}
         <div
-          ref={waveformContainerRef}
-          className="wb-waveform-container"
-          onClick={(e) => {
-            if (!e.altKey) return;
-            const now = wsRef.current?.getCurrentTime() || 0;
-            const nearest = findNearestCandidate(now, 0.15);
-            if (nearest) {
-              addPointMarker({
-                timeSec: nearest.time_sec,
-                category: nearest.kind === "beat" ? "beat" : "accent",
-                originCandidate: nearest,
-                status: "confirmed",
-                note: `Alt+单击采纳自 ${nearest.id}`,
-              });
-            }
+          className="tracker-overview__window"
+          style={{
+            left: `${(visibleStart / durationSec) * 100}%`,
+            width: `${Math.max(1.5, (visibleSpan / durationSec) * 100)}%`,
           }}
         />
-        <canvas ref={overlayCanvasRef} className="wb-overlay-canvas" />
-        <div ref={timelineContainerRef} className="wb-timeline-container" />
+        {/* Overview playhead */}
+        <div
+          className="tracker-overview__playhead"
+          style={{ left: `${(transport.currentTimeSec / durationSec) * 100}%` }}
+        />
       </div>
 
-      {/* Row 3: Aegisub Audition & Rapid Timing Bar */}
-      <div className="wb-aegisub-bar">
-        <div className="wb-aegisub-lyric-info">
-          <div className="wb-aegisub-meta">
-            <span className="wb-tag-purple">
-              {selectedLyric
-                ? `${selectedLyric.id} · ${selectedLyric.section_id} · Bar ${selectedLyric.bar}`
-                : "未选歌词"}
-            </span>
-            {selectedLyric ? (
-              <span
-                className={`wb-status-pill ${selectedLyric.status === "confirmed" ? "confirmed" : "candidate"}`}
+      {/* 3. Original WaveSurfer renderer, regions and timeline */}
+      <div
+        ref={contentRef}
+        className="tracker-content"
+        style={{ "--tracker-label-width": `${labelWidth}px` } as React.CSSProperties}
+      >
+      <div
+        className="tracker-column-resizer"
+        role="separator"
+        tabIndex={0}
+        aria-label="调整轨道名称栏宽度"
+        aria-orientation="vertical"
+        aria-valuemin={64}
+        aria-valuemax={maxLabelWidth}
+        aria-valuenow={labelWidth}
+        title="拖动调整轨道名称栏；双击恢复默认；方向键微调"
+        onPointerDown={(e) => {
+          if (!e.isPrimary || e.button !== 0) return;
+          e.preventDefault();
+          e.currentTarget.focus();
+          labelDragRef.current = { pointerId: e.pointerId, startX: e.clientX, width: labelWidth };
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }}
+        onPointerMove={(e) => {
+          const drag = labelDragRef.current;
+          if (drag?.pointerId === e.pointerId) resizeLabel(drag.width + e.clientX - drag.startX);
+        }}
+        onPointerUp={(e) => {
+          if (labelDragRef.current?.pointerId !== e.pointerId) return;
+          labelDragRef.current = null;
+          e.currentTarget.releasePointerCapture(e.pointerId);
+        }}
+        onPointerCancel={() => { labelDragRef.current = null; }}
+        onLostPointerCapture={() => { labelDragRef.current = null; }}
+        onDoubleClick={() => resizeLabel(64)}
+        onKeyDown={(e) => {
+          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+          e.preventDefault();
+          if (e.key === "Home") resizeLabel(64);
+          else if (e.key === "End") resizeLabel(maxLabelWidth);
+          else resizeLabel(labelWidth + (e.key === "ArrowLeft" ? -1 : 1) * (e.shiftKey ? 1 : 8));
+        }}
+      />
+      <div
+        ref={waveformWrapRef}
+        className="tracker-waveform"
+        style={{ marginRight: laneScrollbarWidth }}
+        onWheel={handleWaveformWheel}
+        onClick={(e) => {
+          const sec = clientXToTimeSec(e.clientX, waveformWrapRef.current);
+          onSeek(sec);
+        }}
+        onDoubleClick={(e) => {
+          if (!activeTrack) return;
+          const sec = clientXToTimeSec(e.clientX, waveformWrapRef.current);
+          runWorkbenchCommand({
+            type: "createEvent",
+            trackId: activeTrack.id,
+            startSec: sec,
+            endSec: e.shiftKey
+              ? undefined
+              : Number((sec + DEFAULT_RANGE_DURATION_SEC).toFixed(3)),
+            text: e.shiftKey ? "新建点事件" : "新建区间",
+          });
+        }}
+        onContextMenu={handleWaveformContextMenu}
+      >
+        <div
+          ref={waveformContainerRef}
+          className="tracker-waveform__renderer"
+        />
+        <div ref={timelineContainerRef} className="tracker-waveform__ruler" />
+        <div ref={waveformErrorRef} className="tracker-waveform__empty" hidden>
+          波形加载失败，请检查分析数据。
+        </div>
+        {!analysis?.waveform?.bins?.length && (
+          <div className="tracker-waveform__empty">无真实波形数据</div>
+        )}
+        {showBeatGuides && (
+          <div className="tracker-waveform__guides">
+            {(findTrackById(project.nodes, "trk_downbeats")?.items ?? [])
+              .filter(
+                (event) =>
+                  event.startSec >= visibleStart &&
+                  event.startSec <= visibleEnd,
+              )
+              .map((event) => (
+                <i
+                  key={event.id}
+                  style={{
+                    left: `${((event.startSec - visibleStart) / visibleSpan) * 100}%`,
+                  }}
+                />
+              ))}
+          </div>
+        )}
+      </div>
+
+      {/* 4. Multi-track Lanes */}
+      <div className="tracker-lanes" ref={lanesRef}>
+        {visibleTracks.map(({ track, pathNames }) => {
+          const isSelectedTrack = track.id === view.selectedTrackId;
+          const isLocked = isNodeEffectivelyLocked(
+            project.nodes,
+            track.id,
+            view.lockedNodeIds,
+          );
+          const trackColor = getEffectiveTrackColor(track);
+          const itemsInView = track.items.filter((ev) => {
+            const end = ev.endSec ?? ev.startSec;
+            return end >= visibleStart && ev.startSec <= visibleEnd;
+          });
+
+          return (
+            <div
+              key={track.id}
+              className={`tracker-lane ${isSelectedTrack ? "is-active" : ""} ${
+                isLocked ? "is-locked" : ""
+              }`}
+              onClick={() => selectNode(track.id)}
+            >
+              <div
+                className="tracker-lane__header"
+                title={`${pathNames.join(" / ")}${isLocked ? "（已锁定）" : ""}`}
               >
-                {selectedLyric.status}
-              </span>
-            ) : null}
-            {selectedLyric ? (
-              <span className="wb-mono-small">
-                [{selectedLyric.start_sec.toFixed(3)}s –{" "}
-                {selectedLyric.end_sec.toFixed(3)}s |{" "}
-                {(selectedLyric.end_sec - selectedLyric.start_sec).toFixed(2)}s]
-              </span>
-            ) : null}
-            {snap.activeAuditionLabel ? (
-              <span className="wb-audition-badge">
-                预听: {snap.activeAuditionLabel}
-              </span>
-            ) : null}
-          </div>
-          <div className="wb-aegisub-lines">
-            <span className="wb-aegisub-cur">
-              {selectedLyric ? selectedLyric.text : "[器乐段落 / 点击下方歌词行开始对轴]"}
-            </span>
-            <span className="wb-aegisub-next">
-              {nextLyric
-                ? `→ 下一句 (${nextLyric.id} @ ${nextLyric.start_sec.toFixed(2)}s): ${nextLyric.text}`
-                : ""}
-            </span>
-          </div>
-        </div>
+                <span
+                  className="tracker-lane__swatch"
+                  style={{ backgroundColor: isLocked ? "transparent" : trackColor, color: trackColor }}
+                >
+                  {isLocked && <StateIcon name="lock" off={false} />}
+                </span>
+                <span className="tracker-lane__name">{track.name}</span>
+              </div>
 
-        {/* Aegisub 500ms Audition Controls */}
-        <div className="wb-aegisub-controls">
-          <div className="wb-btn-cluster" title="Aegisub 切点预听模式（自动在切点处停住，检验句首/句尾是否吃字）">
-            <button
-              type="button"
-              className="btn"
-              disabled={!selectedLyric}
-              onClick={() => triggerLyricAudition("before_start")}
-              title="播放句首前 500ms 至句首 [快捷键 A]：检查句首前是否漏掉起音"
-            >
-              句首前0.5s <kbd>A</kbd>
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={!selectedLyric}
-              onClick={() => triggerLyricAudition("after_start")}
-              title="播放句首后 500ms [快捷键 S]：检查句首第一个字是否准确"
-            >
-              句首后0.5s <kbd>S</kbd>
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={!selectedLyric}
-              onClick={() => triggerLyricAudition("line")}
-              title="完整播放当前选中句并在句尾自动停住 [快捷键 R]"
-            >
-              播本句 <kbd>R</kbd>
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={!selectedLyric}
-              onClick={() => triggerLyricAudition("before_end")}
-              title="播放句尾前 550ms 至句尾 [快捷键 D]：检查句尾是否把下一句的字吃进来（如 L011 与 L012 的『楽器』）"
-            >
-              句尾前0.5s <kbd>D</kbd>
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={!selectedLyric}
-              onClick={() => triggerLyricAudition("after_end")}
-              title="播放句尾后 550ms [快捷键 F]：确认下一句的第一个字刚好在句尾之后响起"
-            >
-              句尾后0.5s <kbd>F</kbd>
-            </button>
-          </div>
+              <div
+                className="tracker-lane__timeline"
+                onClick={(e) => {
+                  const sec = clientXToTimeSec(e.clientX, e.currentTarget);
+                  selectNode(track.id);
+                  onSeek(sec);
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  const sec = clientXToTimeSec(e.clientX, e.currentTarget);
+                  selectNode(track.id);
+                  onSeek(sec);
+                  openContextMenu({
+                    scope: "events",
+                    x: e.clientX,
+                    y: e.clientY,
+                    anchorTimeSec: sec,
+                    targetNodeId: track.id,
+                    targetEventRef: view.selection.primary,
+                  });
+                }}
+              >
+                {itemsInView.map((ev) => {
+                  const ref: EventRef = { trackId: track.id, eventId: ev.id };
+                  const isSelected = view.selection.selected.some(
+                    (r) =>
+                      r.trackId === ref.trackId && r.eventId === ref.eventId,
+                  );
+                  const evColor = getEffectiveEventColor(ev, track);
 
-          {/* Quick Start / End Nudge & Set */}
-          <div className="wb-btn-cluster">
-            <button
-              type="button"
-              className="btn"
-              disabled={!selectedLyric}
-              onClick={() => {
-                if (!selectedLyric) return;
-                updateLyricStart(
-                  selectedLyric.id,
-                  Number(snap.currentTimeSec.toFixed(3)),
-                  undefined,
-                  true,
-                );
-              }}
-              title="将当前句首设为播放头位置 [快捷键 Q]"
-            >
-              [句首=当前 <kbd>Q</kbd>
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={!selectedLyric}
-              onClick={() => {
-                if (!selectedLyric) return;
-                updateLyricStart(
-                  selectedLyric.id,
-                  selectedLyric.start_sec - 0.02,
-                  undefined,
-                  true,
-                );
-              }}
-            >
-              句首-20ms
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={!selectedLyric}
-              onClick={() => {
-                if (!selectedLyric) return;
-                updateLyricStart(
-                  selectedLyric.id,
-                  selectedLyric.start_sec + 0.02,
-                  undefined,
-                  true,
-                );
-              }}
-            >
-              句首+20ms
-            </button>
+                  if (!isRangeEvent(ev)) {
+                    const leftPct =
+                      ((ev.startSec - visibleStart) / visibleSpan) * 100;
+                    return (
+                      <div
+                        key={ev.id}
+                        className={`tracker-lane__point ${
+                          isSelected ? "is-selected" : ""
+                        }`}
+                        style={{
+                          left: `${leftPct}%`,
+                          backgroundColor: evColor,
+                        }}
+                        title={`${ev.id}: ${ev.text} (${formatSeconds(ev.startSec)})`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          selectEvent(ref, e.shiftKey);
+                          onSeek(ev.startSec);
+                        }}
+                      />
+                    );
+                  }
 
-            <button
-              type="button"
-              className="btn"
-              disabled={!selectedLyric}
-              onClick={() => {
-                if (!selectedLyric) return;
-                updateLyricEnd(
-                  selectedLyric.id,
-                  selectedLyric.end_sec - 0.02,
-                  true,
-                );
-              }}
-            >
-              句尾-20ms
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={!selectedLyric}
-              onClick={() => {
-                if (!selectedLyric) return;
-                updateLyricEnd(
-                  selectedLyric.id,
-                  selectedLyric.end_sec + 0.02,
-                  true,
-                );
-              }}
-            >
-              句尾+20ms
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={!selectedLyric}
-              onClick={() => {
-                if (!selectedLyric) return;
-                updateLyricEnd(
-                  selectedLyric.id,
-                  Number(snap.currentTimeSec.toFixed(3)),
-                  true,
-                );
-              }}
-              title="将当前句尾设为播放头位置 [快捷键 W]"
-            >
-              句尾=当前] <kbd>W</kbd>
-            </button>
+                  const startPct = Math.max(
+                    0,
+                    ((ev.startSec - visibleStart) / visibleSpan) * 100,
+                  );
+                  const endPct = Math.min(
+                    100,
+                    (((ev.endSec ?? ev.startSec) - visibleStart) /
+                      visibleSpan) *
+                      100,
+                  );
+                  const widthPct = Math.max(0.35, endPct - startPct);
 
-            <button
-              type="button"
-              className={`btn ${selectedLyric && snap.loopEnabled && snap.loopingLyricId === selectedLyric.id ? "active" : ""}`}
-              disabled={!selectedLyric}
-              onClick={() => {
-                if (selectedLyric) toggleLoopForLyric(selectedLyric);
-              }}
-              title="A-B 循环当前句"
-            >
-              循环本句
-            </button>
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={!selectedLyric}
-              onClick={() => confirmLyricAndAdvance(selectedLyric?.id)}
-              title="确认当前句已对齐并跳到下一句播放 [快捷键 G]"
-            >
-              确认并下一句 <kbd>G</kbd>
-            </button>
-          </div>
+                  return (
+                    <div
+                      key={ev.id}
+                      className={`tracker-lane__item ${
+                        isSelected ? "is-selected" : ""
+                      }`}
+                      style={{
+                        left: `${startPct}%`,
+                        width: `${widthPct}%`,
+                        borderColor: evColor,
+                        backgroundColor: isSelected ? "#e7f2f2" : "#ffffff",
+                      }}
+                      title={`${ev.id}: ${ev.text} (${formatSeconds(
+                        ev.startSec,
+                      )} – ${formatSeconds(ev.endSec!)})`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        selectEvent(ref, e.shiftKey);
+                      }}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        selectEvent(ref, false);
+                        if (ev.endSec !== undefined) {
+                          onAuditionRange(ev.startSec, ev.endSec);
+                        }
+                      }}
+                    >
+                      <span
+                        className="tracker-lane__item-bar"
+                        style={{ backgroundColor: evColor }}
+                      />
+                      <span className="tracker-lane__item-label">
+                        {ev.id} {ev.text}
+                      </span>
+                    </div>
+                  );
+                })}
 
-          {/* Quick Marker / Region creation when in Structure or Rhythm tracks */}
-          <div className="wb-btn-cluster">
-            <button
-              type="button"
-              className="btn btn-subtle"
-              onClick={() =>
-                addPointMarker({
-                  timeSec: snap.currentTimeSec,
-                  category: "downbeat",
-                })
-              }
-              title="在播放头添加小节第一拍 (B)"
-            >
-              +强拍(B)
-            </button>
-            <button
-              type="button"
-              className="btn btn-subtle"
-              onClick={() =>
-                addPointMarker({
-                  timeSec: snap.currentTimeSec,
-                  category: "beat",
-                })
-              }
-              title="在播放头添加普通拍点/重音 (M)"
-            >
-              +打点(M)
-            </button>
-            <button
-              type="button"
-              className="btn btn-subtle"
-              onClick={() => {
-                const startSec =
-                  snap.loopInSec !== null && snap.loopOutSec !== null
-                    ? snap.loopInSec
-                    : snap.currentTimeSec;
-                const endSec =
-                  snap.loopInSec !== null && snap.loopOutSec !== null
-                    ? snap.loopOutSec
-                    : Math.min(getAudioDuration(), snap.currentTimeSec + 10);
-                addRegion({
-                  startSec,
-                  endSec,
-                  category: "section",
-                  status: "candidate",
-                });
-              }}
-              title="新建音乐段落区间"
-            >
-              +段落区间
-            </button>
-          </div>
-        </div>
+                {playheadVisible && (
+                  <div
+                    className="tracker-playhead tracker-playhead--lane"
+                    style={{ left: `${playheadRatio * 100}%` }}
+                  />
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
       </div>
     </section>
   );
-}
+};

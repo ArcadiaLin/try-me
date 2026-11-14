@@ -73,3 +73,24 @@
 - 根据用户新增意见，事件列表右键支持新建、切分和删除，Explorer 右键支持层级新建、重命名和删除；提供 ··· 等价入口，遵守继承锁并支持撤销。非空分组删除需明确影响范围。
 - 主波形背景继续加深为 #b8cdd2，波形线 #355f69。轨道默认色与事件覆盖色以可选 color: #RRGGBB 保存；优先事件、再轨道、再界面默认。此条更新 D008 中“配色不进入业务 JSON”的范围：基础主题仍不保存，用户自定义色需要随文件重载。
 - 不引入 hash、revision 或额外样式对象；仍为 version: 1 候选设计。菜单交互、真实数据迁移与运行时配色尚未实现。
+
+## D010 — 2026-11-14：部署 Annotator v5 统一工作台与 `version: 1` `TimelineProject` 主格式
+
+- **替代与生效范围**：正式将 `docs/annotator/` v5 规范（D007、D008、D009）落码部署到 `apps/annotator/`，并将 `annotations/try-me.timeline.json` 与 `local/annotations/annotations.json` 迁移为 `version: 1` `TimelineProject` 精简结构（替代 D006 中的 `schema_version: "0.2.0"` 冗余字段结构；严格人声对轴 Vocal Truth 原则与受 Git 追踪约定继续保留）。
+- **数据迁移与持久化**：
+  - 完整保留 `L001`–`L063`（63 句歌词严格人声区间）、`P001`–`P012`（12 个曲式段落）、`CLIP_01`（代表性验证片段）、`M0002`–`M0017`（14 个小节第一拍与 2 个拍点标记）、`sfx_accents` 与多级嵌套 `col_custom / grp_storyboard / visual_shots`；所有历史备注与协作批注统一迁移为 `comments: Comment[]`（`role: "human" | "agent"`），移除 JSON 中的哈希、溯源、确认状态与 UI 会话状态。
+  - 保存时自动派生 `annotations/agent-brief.md`、`local/annotations/agent-brief.md`、`local/annotations/lyrics/try-me.ass`、`local/annotations/lyrics/try-me.lrc` 与 `public/private/annotations-preview.json`。
+- **统一界面与交互能力**：
+  - 实现低饱和青绿灰浅色界面（`#f3f5f5` 页面底、`#ffffff` 主面板、`#f8fafa` 次级栏、`#b8cdd2` 加深主波形底、`#355f69` 波形线、`#e7f2f2` 选中底、`#166b75` 主强调色、`#b44e32` 播放头，正文保持 `100%` 不透明）。
+  - 落地递归 `TimelineExplorer`（显隐、继承锁、右键与 `···` 新建/重命名/非空子树影响统计与确认删除）、`EventListPane`（统一事件列表、右键与 `···` 新建点/新建区间/播放头切分/删除、时间轴设置与评论）、`UnifiedWorkbench`（单一 `TimelineEvent` 工作台、色退链 `event.color → track.color → #166b75` 实时预览与确认/取消/恢复自动、会话态 `BoundaryLink` 独立/联动/紧邻、500ms 切点试听 `A/S/R/D/F`、`下一条标注`、评论线程）与底部 `AgentBriefDrawer`。
+
+## D011 — 2026-11-14：主波形沿用旧版 WaveSurfer
+
+- 用户明确要求保留 Git 旧版波形显示。恢复 f8208f5 中的 WaveSurfer、Regions 与 Timeline 插件及 138px 波形／24px 刻度、原深色底、波形色与播放进度色，取消 v5 手绘 Canvas 和事件卡片叠层。这一要求替代 D009／D010 中主波形青灰配色的部分，其他面板与统一模型保持现状。
+- 区间使用统一事件及可选颜色供给，不恢复旧版歌词专用模型。显示选中及相邻区间、其他事件起点；区域修改交给现有命令处理继承锁和边界关系。当前 App 音频元素仍是唯一播放时钟，WaveSurfer 仅同步显示。
+- 实测真实分析数据读入、WaveSurfer 画布与 Regions 挂载、缩放及点击定位后的播放进度显示；实际听音、连续播放与拖动边界体验仍待验收。
+
+## D012 — 2026-11-15：显隐与锁定图标
+
+- 用户要求将时间轴树的“显”和“锁”替换为常见眼睛、锁图标，关闭态以 `/` 斜杠划去；因此可见/已锁定显示正常图标，隐藏/未锁定显示斜杠图标。
+- 图标读取当前有效继承状态，不改变显隐与锁定模型；保留按钮文字提示、可访问名称与键盘聚焦入口。使用 Feather 的 MIT 图标形状，来源和许可见素材 A002，未添加依赖。

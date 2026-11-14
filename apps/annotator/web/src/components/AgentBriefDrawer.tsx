@@ -1,220 +1,212 @@
-import React from "react";
-import {
-  notifyStore,
-  saveAnnotations,
-  scheduleAutoSave,
-  selectTimelineItem,
-  setSaveStatus,
-  storeState,
-  useWorkbenchStore,
-} from "../store/workbenchStore.ts";
+import React, { useState } from "react";
+import { collectProjectCommentEntries } from "../../model.ts";
+import { useWorkbenchStore } from "../store/workbenchStore.ts";
+import type { Comment } from "../types.ts";
 
-export function AgentBriefDrawer(): React.JSX.Element | null {
-  const snap = useWorkbenchStore();
-  if (!snap.agentDrawerOpen || !snap.annotations) return null;
+interface AgentBriefDrawerProps {
+  onSeek: (sec: number) => void;
+}
 
-  const openRegions = snap.annotations.regions.filter(
-    (r) => r.agent_comment || r.agent_status === "open",
-  );
-  const openMarkers = snap.annotations.markers.filter(
-    (m) => m.agent_comment || m.agent_status === "open",
-  );
-  const openLyrics = (snap.lyrics?.lines || []).filter(
-    (l) => l.agent_comment || l.agent_status === "open",
-  );
-  const openCustomItems = (snap.annotations.custom_tracks || []).flatMap((trk) =>
-    (trk.items || [])
-      .filter((i) => i.agent_comment || i.agent_status === "open")
-      .map((item) => ({ trackId: trk.id, trackName: trk.name, item })),
-  );
-  const totalOpenCount =
-    openRegions.length +
-    openMarkers.length +
-    openLyrics.length +
-    openCustomItems.length;
+export const AgentBriefDrawer: React.FC<AgentBriefDrawerProps> = ({
+  onSeek,
+}) => {
+  const project = useWorkbenchStore((s) => s.project);
+  const agentBriefMarkdown = useWorkbenchStore((s) => s.agentBriefMarkdown);
+  const layout = useWorkbenchStore((s) => s.layout);
 
-  const handleCopyBrief = async () => {
-    await saveAnnotations(false);
-    await navigator.clipboard.writeText(storeState.agentBriefMarkdown || "");
-    setSaveStatus("✓ 已复制 Agent 协作简报到剪贴板");
+  const setLayout = useWorkbenchStore((s) => s.setLayout);
+  const selectNode = useWorkbenchStore((s) => s.selectNode);
+  const selectEvent = useWorkbenchStore((s) => s.selectEvent);
+  const runWorkbenchCommand = useWorkbenchStore((s) => s.runWorkbenchCommand);
+  const setPersistence = useWorkbenchStore((s) => s.setPersistence);
+
+  const [activeTab, setActiveTab] = useState<"threads" | "markdown">("threads");
+  const [globalCommentRole, setGlobalCommentRole] =
+    useState<Comment["role"]>("human");
+  const [globalCommentText, setGlobalCommentText] = useState("");
+
+  const entries = collectProjectCommentEntries(project);
+  const totalCommentCount = entries.reduce(
+    (acc, entry) => acc + entry.comments.length,
+    0
+  );
+
+  const handleAppendProjectComment = () => {
+    const trimmed = globalCommentText.trim();
+    if (!trimmed) return;
+    runWorkbenchCommand({
+      type: "appendComment",
+      target: { scope: "project" },
+      comment: { role: globalCommentRole, text: trimmed },
+    });
+    setGlobalCommentText("");
+  };
+
+  const handleCopyMarkdown = async () => {
+    try {
+      await navigator.clipboard.writeText(agentBriefMarkdown);
+      setPersistence({ statusMessage: "已复制 Agent 协作简报 Markdown" });
+    } catch {
+      setPersistence({ statusMessage: "复制失败，请手动复制文本" });
+    }
   };
 
   return (
-    <section className="wb-agent-drawer">
-      <div className="wb-agent-drawer-header">
-        <div className="wb-toolbar-left">
-          <span className="wb-pane-title">
-            Agent 协作与全片创作简报抽屉 (annotations/agent-brief.md)
+    <footer
+      className={`agent-drawer ${layout.agentDrawerOpen ? "is-open" : ""}`}
+    >
+      <div
+        className="agent-drawer__bar"
+        onClick={() => setLayout({ agentDrawerOpen: !layout.agentDrawerOpen })}
+      >
+        <div className="agent-drawer__bar-left">
+          <span className="agent-drawer__chevron">
+            {layout.agentDrawerOpen ? "▾" : "▴"}
           </span>
-          <span className="wb-tree-badge">
-            待处理批注: {totalOpenCount}
+          <span className="agent-drawer__title" title="汇总项目、分组、时间轴和事件评论">
+            Agent 协作
+          </span>
+          <span className="agent-drawer__badge">
+            {entries.length} 处 · {totalCommentCount} 条评论
           </span>
         </div>
-        <div className="wb-toolbar-right">
+
+        <div
+          className="agent-drawer__bar-right"
+          onClick={(e) => e.stopPropagation()}
+        >
           <button
             type="button"
-            className="btn btn-primary btn-mini"
-            onClick={() => {
-              void handleCopyBrief();
-            }}
+            className="btn btn--ghost btn--xs"
+            onClick={handleCopyMarkdown}
           >
-            保存并复制简报给 Agent
+            复制简报
           </button>
           <button
             type="button"
-            className="btn btn-mini"
-            onClick={() => {
-              storeState.agentDrawerOpen = false;
-              notifyStore();
-            }}
+            className="btn btn--ghost btn--xs"
+            aria-expanded={layout.agentDrawerOpen}
+            aria-controls="agent-drawer-content"
+            onClick={() =>
+              setLayout({ agentDrawerOpen: !layout.agentDrawerOpen })
+            }
           >
-            收起抽屉 ×
+            {layout.agentDrawerOpen ? "收起" : "展开"}
           </button>
         </div>
       </div>
 
-      <div className="wb-agent-drawer-grid">
-        {/* Column 1: Global Notes */}
-        <div className="wb-agent-col">
-          <h4>1. 全片创意设定与给 Agent 的总要求</h4>
-          <label className="wb-block-label">
-            <span>全片核心概念 (Overall Concept)</span>
-            <textarea
-              rows={2}
-              value={snap.annotations.global_notes.overall_concept}
-              onChange={(e) => {
-                if (!storeState.annotations) return;
-                storeState.editSeq += 1;
-                storeState.annotations.global_notes.overall_concept =
-                  e.target.value;
-                scheduleAutoSave();
-                notifyStore();
-              }}
-            />
-          </label>
-          <label className="wb-block-label">
-            <span>视觉风格与运动规律 (Visual Style)</span>
-            <textarea
-              rows={2}
-              value={snap.annotations.global_notes.visual_style_notes}
-              onChange={(e) => {
-                if (!storeState.annotations) return;
-                storeState.editSeq += 1;
-                storeState.annotations.global_notes.visual_style_notes =
-                  e.target.value;
-                scheduleAutoSave();
-                notifyStore();
-              }}
-            />
-          </label>
-          <label className="wb-block-label">
-            <span>给 Agent 的下一步指令 (Instructions for Agent)</span>
-            <textarea
-              rows={2}
-              value={snap.annotations.global_notes.instructions_for_agent}
-              onChange={(e) => {
-                if (!storeState.annotations) return;
-                storeState.editSeq += 1;
-                storeState.annotations.global_notes.instructions_for_agent =
-                  e.target.value;
-                scheduleAutoSave();
-                notifyStore();
-              }}
-            />
-          </label>
-        </div>
-
-        {/* Column 2: Open Action Items */}
-        <div className="wb-agent-col">
-          <h4>2. 待 Agent 处理的专项批注队列</h4>
-          <div className="wb-agent-queue-list">
-            {totalOpenCount === 0 ? (
-              <div className="wb-muted">
-                当前没有标记为待处理 (open) 的批注。在任意歌词、段落、拍点或扩展时间轴右侧填写「给
-                Agent 的专项指令」后会自动汇总到这里。
-              </div>
-            ) : null}
-            {openRegions.map((r) => (
-              <div
-                key={r.id}
-                className="wb-agent-queue-card"
-                onClick={() => selectTimelineItem("region", r.id, true)}
-              >
-                <div className="wb-agent-queue-top">
-                  <strong>
-                    {r.id} · {r.label}
-                  </strong>
-                  <span className="wb-status-pill open">{r.agent_status}</span>
-                </div>
-                <div className="wb-agent-queue-body">
-                  {r.agent_comment || r.script_idea}
-                </div>
-              </div>
-            ))}
-            {openMarkers.map((m) => (
-              <div
-                key={m.id}
-                className="wb-agent-queue-card"
-                onClick={() => selectTimelineItem("point", m.id, true)}
-              >
-                <div className="wb-agent-queue-top">
-                  <strong>
-                    {m.id} · {m.label} ({m.time_sec.toFixed(2)}s)
-                  </strong>
-                  <span className="wb-status-pill open">{m.agent_status}</span>
-                </div>
-                <div className="wb-agent-queue-body">
-                  {m.agent_comment || m.script_idea}
-                </div>
-              </div>
-            ))}
-            {openLyrics.map((l) => (
-              <div
-                key={l.id}
-                className="wb-agent-queue-card"
-                onClick={() => selectTimelineItem("lyric", l.id, true)}
-              >
-                <div className="wb-agent-queue-top">
-                  <strong>
-                    {l.id} · {l.text.slice(0, 22)}
-                  </strong>
-                  <span className="wb-status-pill open">{l.agent_status || "open"}</span>
-                </div>
-                <div className="wb-agent-queue-body">
-                  {l.agent_comment || l.script_idea}
-                </div>
-              </div>
-            ))}
-            {openCustomItems.map(({ trackId, trackName, item }) => (
-              <div
-                key={`${trackId}_${item.id}`}
-                className="wb-agent-queue-card"
-                onClick={() =>
-                  selectTimelineItem("custom_item", item.id, true, trackId)
-                }
-              >
-                <div className="wb-agent-queue-top">
-                  <strong>
-                    [{trackName}] {item.id} · {item.label}
-                  </strong>
-                  <span className="wb-status-pill open">{item.agent_status}</span>
-                </div>
-                <div className="wb-agent-queue-body">
-                  {item.agent_comment || item.script_idea}
-                </div>
-              </div>
-            ))}
+      {layout.agentDrawerOpen && (
+        <div className="agent-drawer__content" id="agent-drawer-content">
+          <div className="agent-drawer__tabs">
+            <button
+              type="button"
+              className={`pane-tab ${activeTab === "threads" ? "is-active" : ""}`}
+              onClick={() => setActiveTab("threads")}
+            >
+              评论 ({entries.length})
+            </button>
+            <button
+              type="button"
+              className={`pane-tab ${activeTab === "markdown" ? "is-active" : ""}`}
+              onClick={() => setActiveTab("markdown")}
+            >
+              简报预览
+            </button>
           </div>
-        </div>
 
-        {/* Column 3: Markdown Preview */}
-        <div className="wb-agent-col">
-          <h4>3. 自动生成的 Agent Brief 预览</h4>
-          <pre className="wb-agent-md-preview">
-            {snap.agentBriefMarkdown || "（保存后自动生成 Markdown 简报）"}
-          </pre>
+          {activeTab === "threads" ? (
+            <div className="agent-drawer__threads-wrap">
+              <div className="agent-drawer__global-composer">
+                <span className="wb-label">工程全局评论：</span>
+                <select
+                  className="select select--sm"
+                  value={globalCommentRole}
+                  onChange={(e) =>
+                    setGlobalCommentRole(e.target.value as Comment["role"])
+                  }
+                >
+                  <option value="human">人类</option>
+                  <option value="agent">Agent</option>
+                </select>
+                <input
+                  type="text"
+                  className="input input--sm"
+                  placeholder="追加工程级全局创作说明或给 Agent 的指令…"
+                  value={globalCommentText}
+                  onChange={(e) => setGlobalCommentText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAppendProjectComment();
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn btn--primary btn--xs"
+                  disabled={!globalCommentText.trim()}
+                  onClick={handleAppendProjectComment}
+                >
+                  追加全局评论
+                </button>
+              </div>
+
+              <div className="agent-drawer__grid">
+                {entries.map((entry, idx) => (
+                  <div
+                    key={`${entry.scope}_${entry.targetId}_${idx}`}
+                    className="agent-thread-card"
+                    onClick={() => {
+                      if (entry.eventRef) {
+                        selectEvent(entry.eventRef, false);
+                        onSeek(entry.startSec);
+                      } else if (entry.nodeId) {
+                        selectNode(entry.nodeId);
+                        setLayout({ activeCenterSubView: "trackSettings" });
+                      }
+                    }}
+                  >
+                    <div className="agent-thread-card__head">
+                      <span className="agent-thread-card__scope">
+                        {entry.scope === "project"
+                          ? "全局"
+                          : entry.scope === "group"
+                            ? "分组"
+                            : entry.scope === "timeline"
+                              ? "时间轴"
+                              : "事件"}
+                      </span>
+                      <strong className="agent-thread-card__target">
+                        {entry.targetLabel}
+                      </strong>
+                      <span className="agent-thread-card__time">
+                        {entry.timeRangeLabel}
+                      </span>
+                    </div>
+                    <div className="agent-thread-card__path">
+                      路径：{entry.pathLabel}
+                    </div>
+                    <div className="agent-thread-card__list">
+                      {entry.comments.map((c, cIdx) => (
+                        <div key={cIdx} className="agent-thread-card__comment">
+                          <span
+                            className={`comment-role-pill ${
+                              c.role === "agent" ? "is-agent" : "is-human"
+                            }`}
+                          >
+                            {c.role === "agent" ? "Agent" : "人类"}
+                          </span>
+                          <span>{c.text}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <pre className="agent-drawer__markdown">{agentBriefMarkdown}</pre>
+          )}
         </div>
-      </div>
-    </section>
+      )}
+    </footer>
   );
-}
+};

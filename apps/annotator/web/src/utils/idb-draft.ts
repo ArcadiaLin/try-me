@@ -1,14 +1,12 @@
-import type { AnnotationsDocument, LyricLine } from "../types.ts";
+import type { TimelineProject } from "../types.ts";
 
 const DB_NAME = "try_me_annotator_pwa_db";
 const STORE_NAME = "draft_snapshots";
-const DRAFT_KEY = "active_draft_v1";
+const DRAFT_KEY = "active_draft_v5";
 
 export interface OfflineDraftRecord {
   savedAtUtc: string;
-  revision: string | null;
-  annotations: AnnotationsDocument | null;
-  lyricsLines: LyricLine[] | null;
+  project: TimelineProject | null;
   hasUnsyncedChanges: boolean;
 }
 
@@ -77,4 +75,20 @@ export async function clearIdbDraft(): Promise<void> {
       resolve();
     }
   });
+}
+
+export async function saveLocalDraft(project: TimelineProject): Promise<void> {
+  return saveIdbDraft({
+    savedAtUtc: new Date().toISOString(),
+    project,
+    hasUnsyncedChanges: true,
+  });
+}
+
+export async function loadLocalDraft(): Promise<OfflineDraftRecord | null> {
+  return loadIdbDraft();
+}
+
+export async function clearLocalDraft(): Promise<void> {
+  return clearIdbDraft();
 }
