@@ -118,6 +118,8 @@ export interface WorkbenchStoreState {
   eventCommentFilter: "all" | "commented";
   pendingDeleteConfirm: PendingGroupDeleteConfirm | null;
   pendingEventSwitch: { ref: EventRef; shiftRangeSelect: boolean; audition: boolean } | null;
+  eventEditBaseline: { ref: EventRef; snapshot: string } | null;
+  eventDraftDirty: boolean;
 
   // Undo / Redo stacks
   undoStack: UndoSnapshot[];
@@ -139,6 +141,8 @@ export interface WorkbenchStoreState {
   confirmEventSwitch: () => void;
   cancelEventSwitch: () => void;
   loopCurrentEvent: () => void;
+  hasCurrentEventChanges: () => boolean;
+  setEventDraftDirty: (dirty: boolean) => void;
   selectNextEvent: () => EventRef | null;
   toggleGroupCollapsed: (groupId: string) => void;
   toggleNodeHidden: (nodeId: string) => void;
@@ -193,6 +197,17 @@ const DEFAULT_DURATION_SEC = 205.533;
 function persistDraftQuietly(project: TimelineProject): void {
   saveLocalDraft(project).catch(() => {
     // Ignore IndexedDB quota/availability errors in non-browser environments
+  });
+}
+
+function eventSnapshot(event: TimelineEvent, trackId: string): string {
+  return JSON.stringify({
+    trackId,
+    startSec: event.startSec,
+    endSec: event.endSec ?? null,
+    text: event.text,
+    color: event.color ?? null,
+    comments: (event.comments ?? []).map(({ role, text }) => ({ role, text })),
   });
 }
 
@@ -257,6 +272,8 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
   eventCommentFilter: "all",
   pendingDeleteConfirm: null,
   pendingEventSwitch: null,
+  eventEditBaseline: null,
+  eventDraftDirty: false,
   undoStack: [],
   redoStack: [],
 
@@ -301,6 +318,8 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
         loopEnabled: false,
       },
       pendingEventSwitch: null,
+      eventEditBaseline: null,
+      eventDraftDirty: false,
       edit: {
         ...state.edit,
         boundaryLinks: [],
@@ -445,6 +464,10 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
     if (ref && !findEventByRef(state.project, ref)) return false;
     if (ref && current && (ref.trackId !== current.trackId || ref.eventId !== current.eventId)) {
       set({ pendingEventSwitch: { ref, shiftRangeSelect, audition } });
+      if (!state.hasCurrentEventChanges()) {
+        get().confirmEventSwitch();
+        return true;
+      }
       return false;
     }
     if (!ref) {
@@ -505,6 +528,23 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
   },
 
   cancelEventSwitch: () => set({ pendingEventSwitch: null }),
+
+  setEventDraftDirty: (dirty) => {
+    if (get().eventDraftDirty !== dirty) set({ eventDraftDirty: dirty });
+  },
+
+  hasCurrentEventChanges: () => {
+    const state = get();
+    const found = findEventByRef(state.project, state.view.selection.primary);
+    if (!found) return false;
+    const baseline = state.eventEditBaseline;
+    const draft = state.edit.colorDraft;
+    const hasColorPreview = draft?.target.kind === "event" &&
+      draft.target.ref.trackId === found.track.id && draft.target.ref.eventId === found.event.id &&
+      draft.draftColor !== resolveEventColor(found.event, found.track);
+    return state.eventDraftDirty || Boolean(hasColorPreview) ||
+      (baseline !== null && baseline.snapshot !== eventSnapshot(found.event, found.track.id));
+  },
 
   confirmEventSwitch: () => {
     const state = get();
@@ -1270,6 +1310,15 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
   setEventFilterQuery: (q) => set({ eventFilterQuery: q }),
   setEventCommentFilter: (filter) => set({ eventCommentFilter: filter }),
 }), (state) => {
+  const primary = state.view.selection.primary;
+  const active = findEventByRef(state.project, primary)?.event;
+  const baseline = state.eventEditBaseline;
+  if (!primary || !active) {
+    state = { ...state, eventEditBaseline: null, eventDraftDirty: false };
+  } else if (!baseline || baseline.ref.eventId !== primary.eventId) {
+    // Event IDs are globally unique. Moving the same event between tracks is an edit.
+    state = { ...state, eventEditBaseline: { ref: { ...primary }, snapshot: eventSnapshot(active, primary.trackId) }, eventDraftDirty: false };
+  }
   const pending = state.pendingEventSwitch;
   if (pending && !findEventByRef(state.project, pending.ref)) state = { ...state, pendingEventSwitch: null };
   const ref = state.transport.loopEventRef;

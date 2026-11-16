@@ -5,7 +5,7 @@
 
 export interface Comment {
   role: "human" | "agent";
-  text: string;
+  text: string; // Editable script/note text; preserves whitespace and may be empty.
 }
 
 // Comments may describe the project, a group, a timeline or a single event.

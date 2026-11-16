@@ -4,7 +4,7 @@
  */
 export interface Comment {
   role: "human" | "agent";
-  text: string;
+  text: string; // 脚本或备注原文；保留空白，允许空文本。
 }
 
 // Comments may describe the project, a group, a timeline or a single event.

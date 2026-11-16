@@ -11,7 +11,8 @@ import {
   parseTimeInput,
 } from "../../model.ts";
 import { useWorkbenchStore } from "../store/workbenchStore.ts";
-import type { BoundaryLink, Comment } from "../types.ts";
+import { ScriptNotesEditor } from "./ScriptNotesEditor.tsx";
+import type { BoundaryLink } from "../types.ts";
 
 const EVENT_COLOR_SWATCHES = [
   "#166b75",
@@ -41,6 +42,7 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({
   const confirmEventSwitch = useWorkbenchStore((s) => s.confirmEventSwitch);
   const cancelEventSwitch = useWorkbenchStore((s) => s.cancelEventSwitch);
   const loopCurrentEvent = useWorkbenchStore((s) => s.loopCurrentEvent);
+  const setEventDraftDirty = useWorkbenchStore((s) => s.setEventDraftDirty);
 
   const runWorkbenchCommand = useWorkbenchStore((s) => s.runWorkbenchCommand);
   const moveEventToAnotherTrack = useWorkbenchStore(
@@ -67,11 +69,15 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({
 
   const [startInput, setStartInput] = useState("");
   const [endInput, setEndInput] = useState("");
-  const [newCommentRole, setNewCommentRole] = useState<Comment["role"]>("human");
-  const [newCommentText, setNewCommentText] = useState("");
   const eventId = event?.id;
   const startSec = event?.startSec;
   const endSec = event?.endSec;
+  const markInputDraft = (start: string, end: string) => {
+    setEventDraftDirty(startSec !== undefined && (
+      parseTimeInput(start) !== startSec ||
+      (end.trim() ? parseTimeInput(end) : undefined) !== endSec
+    ));
+  };
 
   useEffect(() => {
     if (startSec === undefined) {
@@ -83,7 +89,12 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({
     setEndInput(endSec !== undefined ? endSec.toFixed(3) : "");
   }, [eventId, startSec, endSec]);
 
-  useEffect(() => { setNewCommentText(""); }, [primaryRef?.trackId, primaryRef?.eventId]);
+  useEffect(() => {
+    setEventDraftDirty(startSec !== undefined && (
+      parseTimeInput(startInput) !== startSec ||
+      (endInput.trim() ? parseTimeInput(endInput) : undefined) !== endSec
+    ));
+  }, [startInput, endInput, startSec, endSec, setEventDraftDirty]);
 
   if (!primaryRef || !track || !event) {
     return (
@@ -200,25 +211,6 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({
     }
   };
 
-  const handleAppendComment = () => {
-    const trimmed = newCommentText.trim();
-    if (!trimmed) return;
-    runWorkbenchCommand({
-      type: "appendComment",
-      target: { scope: "event", ref: primaryRef },
-      comment: { role: newCommentRole, text: trimmed },
-    });
-    setNewCommentText("");
-  };
-
-  const handleDeleteCommentAt = (index: number) => {
-    const nextComments = (event.comments ?? []).filter((_, i) => i !== index);
-    runWorkbenchCommand({
-      type: "update",
-      ref: primaryRef,
-      patch: { comments: nextComments },
-    });
-  };
 
   return (
     <aside className="workbench-pane">
@@ -320,7 +312,10 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({
                 className="input input--sm wb-time-input"
                 value={startInput}
                 disabled={isLocked}
-                onChange={(e) => setStartInput(e.target.value)}
+                onChange={(e) => {
+                  setStartInput(e.target.value);
+                  markInputDraft(e.target.value, endInput);
+                }}
                 onBlur={handleCommitStartInput}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleCommitStartInput();
@@ -396,7 +391,10 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({
                   className="input input--sm wb-time-input"
                   value={endInput}
                   disabled={isLocked}
-                  onChange={(e) => setEndInput(e.target.value)}
+                  onChange={(e) => {
+                    setEndInput(e.target.value);
+                    markInputDraft(startInput, e.target.value);
+                  }}
                   onBlur={handleCommitEndInput}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") handleCommitEndInput();
@@ -774,91 +772,24 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({
           </div>
         </div>
 
-        {/* Section 6: Comments Thread (Comment[]) */}
-        <div className="wb-section">
-          <div className="wb-section__header">
-            <span className="wb-section__title">
-              评论 ({event.comments?.length ?? 0})
-            </span>
-          </div>
-
-          <div className="comments-thread">
-            {(!event.comments || event.comments.length === 0) && (
-              <div className="comments-empty">
-                当前事件暂无评论。可添加人类备注、脚本想法或 Agent 协作回复。
-              </div>
-            )}
-            {event.comments?.map((c, idx) => (
-              <div
-                key={idx}
-                className={`comment-item ${
-                  c.role === "agent" ? "is-agent" : "is-human"
-                }`}
-              >
-                <span className="comment-item__role">
-                  {c.role === "agent" ? "Agent" : "人类"}
-                </span>
-                <span className="comment-item__text">{c.text}</span>
-                {!isLocked && (
-                  <button
-                    type="button"
-                    className="comment-item__del"
-                    title="删除此条评论"
-                    onClick={() => handleDeleteCommentAt(idx)}
-                  >
-                    ×
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-
-          <div className="comment-composer">
-            <select
-              className="select select--sm"
-              value={newCommentRole}
-              disabled={isLocked}
-              onChange={(e) =>
-                setNewCommentRole(e.target.value as Comment["role"])
-              }
-            >
-              <option value="human">人类</option>
-              <option value="agent">Agent</option>
-            </select>
-            <input
-              type="text"
-              className="input input--sm"
-              placeholder="输入评论内容，按 Enter 追加…"
-              value={newCommentText}
-              disabled={isLocked}
-              onChange={(e) => setNewCommentText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleAppendComment();
-              }}
-            />
-            <button
-              type="button"
-              className="btn btn--primary btn--sm"
-              disabled={isLocked || !newCommentText.trim()}
-              onClick={handleAppendComment}
-            >
-              追加
-            </button>
-          </div>
-        </div>
+        <ScriptNotesEditor key={event.id} comments={event.comments} disabled={isLocked}
+          onChange={(comments) => runWorkbenchCommand({
+            type: "update", ref: primaryRef, patch: { comments },
+          })}
+        />
       </div>
 
       {/* Footer Actions */}
       <div className="workbench-footer">
         {pendingTarget ? (
           <div className="wb-switch-confirm" role="region" aria-label="确认切换标注" aria-live="polite">
-            <div>当前编辑：<strong>{event.id}</strong></div>
+            <div>本句有修改：<strong>{event.id}</strong></div>
             <div className="wb-switch-target">准备切换到：<strong>{pendingTarget.event.id}</strong> · {pendingTarget.event.text}</div>
             <div className="wb-nudge-bar">
               <button type="button" className="btn btn--primary btn--sm" onClick={confirmEventSwitch}>确认切换</button>
               <button type="button" className="btn btn--ghost btn--sm" onClick={cancelEventSwitch}>继续编辑本句</button>
             </div>
-            <div className="muted">切换不代表已保存或已完成校准。</div>
+            <div className="muted">已应用修改会保留；未提交输入和颜色预览会丢弃。切换不会自动保存。</div>
           </div>
         ) : <>
         <button
@@ -879,7 +810,7 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({
           type="button"
           className="btn btn--primary btn--sm"
           onClick={() => selectNextEvent()}
-          title="请求切换到下一条标注，确认后切换"
+          title="跳到下一条标注；本句有修改时先确认"
         >
           下一条标注 →
         </button>

@@ -104,8 +104,9 @@ export function normalizeComments(raw: unknown): Comment[] | undefined {
     if (!item || typeof item !== "object") continue;
     const obj = item as Record<string, unknown>;
     const role = obj.role === "agent" ? "agent" : obj.role === "human" ? "human" : null;
-    const text = typeof obj.text === "string" ? obj.text.trim() : "";
-    if (!role || !text) continue;
+    if (!role || typeof obj.text !== "string") continue;
+    // Script notes are editable documents: preserve empty entries, newlines and indentation.
+    const text = obj.text;
     out.push({ role, text });
   }
   return out.length > 0 ? out : undefined;
@@ -1872,6 +1873,8 @@ export function collectProjectCommentEntries(project: TimelineProject): Collecte
 }
 
 export function generateAgentBriefMarkdown(project: TimelineProject): string {
+  const listText = (text: string) => text.replace(/\r\n|\r|\n/g, "\n  ");
+  const tableText = (text: string) => text.replace(/\|/g, "\\|").replace(/\r\n|\r|\n/g, "<br>");
   const lines: string[] = [
     "# Try Me — 多轨时间轴与 Agent 协作简报 (v5)",
     "",
@@ -1885,7 +1888,7 @@ export function generateAgentBriefMarkdown(project: TimelineProject): string {
     lines.push("## 全局备注与说明", "");
     for (const c of project.comments) {
       const roleTag = c.role === "agent" ? "[Agent]" : "[人类]";
-      lines.push(`- **${roleTag}** ${c.text}`);
+      lines.push(`- **${roleTag}** ${listText(c.text)}`);
     }
     lines.push("");
   }
@@ -1917,7 +1920,7 @@ export function generateAgentBriefMarkdown(project: TimelineProject): string {
       lines.push(
         `| \`${ev.id}\` | \`${ev.startSec.toFixed(3)}s\` | \`${(ev.endSec ?? ev.startSec).toFixed(
           3
-        )}s\` | ${ev.text} | ${commentSummary} |`
+        )}s\` | ${tableText(ev.text)} | ${tableText(commentSummary)} |`
       );
     }
     lines.push("");
@@ -1933,7 +1936,7 @@ export function generateAgentBriefMarkdown(project: TimelineProject): string {
       lines.push(`- **所属路径**：${entry.pathLabel}`);
       for (const c of entry.comments) {
         const badge = c.role === "agent" ? "Agent" : "人类";
-        lines.push(`- **[${badge}]** ${c.text}`);
+        lines.push(`- **[${badge}]** ${listText(c.text)}`);
       }
       lines.push("");
     }

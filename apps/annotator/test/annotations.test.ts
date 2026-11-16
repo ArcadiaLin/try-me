@@ -25,7 +25,9 @@ import {
 import {
   buildSanitizedPreviewPayload,
   createAnnotatorServer,
+  loadOrInitializeProject,
   normalizeTimelineProjectInput,
+  persistProjectArtifacts,
 } from "../server/index.ts";
 import {
   exportEventsToAss,
@@ -515,4 +517,24 @@ test("7. Server HTTP GET/POST /api/annotations round-trip and validation", async
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
   }
+});
+
+test("8. Script notes preserve multiline text, empty entries and roles across disk save and reload", () => {
+  const fixtureParent = path.join(REPO_ROOT, "out");
+  fs.mkdirSync(fixtureParent, { recursive: true });
+  const fixtureRoot = fs.mkdtempSync(path.join(fixtureParent, "script-notes-"));
+  const scriptComments = [
+    { role: "human" as const, text: "  开场 opening\n\n    转身 action | transition →\n  " },
+    { role: "agent" as const, text: "" },
+  ];
+  const project = validateAndNormalizeProject({ version: 1, name: "Synthetic script fixture", nodes: [
+    { kind: "timeline", id: "T1", name: "Notes", items: [
+      { id: "E1", startSec: 1, endSec: 2, text: "Synthetic event", comments: scriptComments },
+    ] },
+  ] });
+  persistProjectArtifacts(project, fixtureRoot);
+  const loaded = loadOrInitializeProject(fixtureRoot);
+  assert.deepEqual(findTrackById(loaded.project.nodes, "T1")!.items[0]!.comments, scriptComments);
+  assert.deepEqual(loaded.project, project);
+  assert.ok(loaded.agentBriefMarkdown.includes("action | transition"));
 });
