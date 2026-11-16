@@ -24,72 +24,206 @@ import {
 import {
   ClawdMascot,
   type ClawdAction,
+  type ClawdEyes,
   type ClawdMouth,
   type ClawdOutfit,
   type ClawdProp,
 } from "./components/ClawdMascot";
+import {
+  ClawdVerse1Stage,
+  type Verse1PropStageId,
+} from "./components/ClawdVerse1Stage";
+
+function rangeProgress(sec: number, start: number, end: number): number {
+  return Math.max(0, Math.min(1, (sec - start) / Math.max(0.001, end - start)));
+}
 
 function getClawdStateForAudioTime(audioSec: number): {
   action: ClawdAction;
+  actionProgress?: number;
+  verse1Stage?: { stageId: Verse1PropStageId; progress: number };
+  eyes?: ClawdEyes;
   mouth: ClawdMouth;
   outfit: ClawdOutfit;
   prop: ClawdProp;
   stageLabel: string;
 } {
-  // P001 Intro: 保持极简风格，随合成器轻快点头呼吸（不提前堆砌复杂道具）
-  if (audioSec < 9.2) {
+  // L066 前奏 (0.000 -> 18.224s): 先轻呼吸眨眼，再逐步加入左右换重心 (A1)
+  if (audioSec < 6.5) {
     return {
       action: "idle",
       mouth: "none",
       outfit: "none",
       prop: "none",
-      stageLabel: "P001 Intro 前半 · [极简] 待机呼吸眨眼",
+      stageLabel: "L066 前奏初段 · [A1] 呼吸眨眼待机",
     };
   }
-  if (audioSec < 18.2) {
+  if (audioSec < 18.525) {
     return {
-      action: "nod",
+      action: "weight-shift",
+      actionProgress: ((audioSec - 6.5) / 2.8) % 1,
       mouth: "none",
       outfit: "none",
       prop: "none",
-      stageLabel: "P001 Intro 后半 · [极简] 随合成器点头律动",
+      stageLabel: "L066 前奏后段 · [A1] 贴地左右换重心",
     };
   }
-  // P002 Verse 1 前半: 挥手与小幅蹲起 (L064 间奏 34.03s–36.37s)
-  if (audioSec < 34.02) {
+  // L001 (18.525 -> 22.721s): 短挥手 + 重心前送 + 自信小蹲起 (A2)
+  if (audioSec < 22.721) {
     return {
-      action: "wave",
+      action: "wave-step",
+      actionProgress: rangeProgress(audioSec, 18.525, 22.721),
       mouth: "none",
       outfit: "none",
       prop: "none",
-      stageLabel: "P002 Verse 1 · [极简] 挥手自我介绍",
+      stageLabel: "L001 · [A2] 短挥手 → 前送重心 → 小蹲起",
     };
   }
-  if (audioSec < 36.37) {
+  // L002 (22.721 -> 27.161s 含句后留白): 侧身歪头 + 前足邀请等待 + 视线回正 (A3)
+  if (audioSec < 27.161) {
     return {
-      action: "crouch",
+      action: "tilt-invite",
+      actionProgress: rangeProgress(audioSec, 22.721, 27.161),
       mouth: "none",
       outfit: "none",
       prop: "none",
-      stageLabel: "L064 间奏 · [极简] 小幅度蹲起律动",
+      stageLabel: "L002 · [A3] 歪头邀请提问 + 停顿回正",
     };
   }
-  if (audioSec < 45.3) {
+  // L003 (27.161 -> 31.695s): 收拢姿态 → 抬头挺身 → 两次差幅点头 (A4)
+  if (audioSec < 31.695) {
     return {
-      action: "walk",
-      mouth: "talk",
+      action: "posture-nod",
+      actionProgress: rangeProgress(audioSec, 27.161, 31.695),
+      mouth: "none",
       outfit: "none",
       prop: "none",
-      stageLabel: "P002 Verse 1 · [轻互动] 迈步 + 多语言气泡",
+      stageLabel: "L003 · [A4] 收拢挺身 + 两次差幅点头",
     };
   }
-  if (audioSec < 54.75) {
+  // L004 (31.695 -> 34.026s): 前足朝自己示意 → 向外展开展示 (A5)
+  if (audioSec < 34.026) {
     return {
-      action: "idle",
+      action: "self-present",
+      actionProgress: rangeProgress(audioSec, 31.695, 34.026),
+      mouth: "none",
+      outfit: "none",
+      prop: "none",
+      stageLabel: "L004 · [A5] 前足指自己 → 向外展开",
+    };
+  }
+  // L064 间奏 (34.026 -> 36.371s): 贴地单次下压回正 + 句尾侧向预倾 (A6)
+  if (audioSec < 36.371) {
+    return {
+      action: "crouch-lean",
+      actionProgress: rangeProgress(audioSec, 34.026, 36.371),
+      mouth: "none",
+      outfit: "none",
+      prop: "none",
+      stageLabel: "L064 间奏 · [A6] 贴地下压回正 + 向旁预倾",
+    };
+  }
+  // L005 (36.371 -> 38.429s): 侧向探身张手 + 落回原位 + 视线移向日历侧 (A7)
+  if (audioSec < 38.429) {
+    return {
+      action: "peek-present",
+      actionProgress: rangeProgress(audioSec, 36.371, 38.429),
+      mouth: "none",
+      outfit: "none",
+      prop: "none",
+      stageLabel: "L005 · [A7] 侧向探身张手 + 视线引出日历",
+    };
+  }
+  // L006 (38.429 -> 40.800s): 365日 单页全勤日历右进右出 + 轻点头 (B1)
+  if (audioSec < 40.8) {
+    const p = rangeProgress(audioSec, 38.429, 40.8);
+    return {
+      action: "posture-nod",
+      actionProgress: p,
+      verse1Stage: { stageId: "L006", progress: p },
+      mouth: "none",
+      outfit: "none",
+      prop: "none",
+      stageLabel: "L006 · [B1] 365日 单页日历扫格完成",
+    };
+  }
+  // L007 (40.800 -> 42.910s): 五行气泡逐行打字显示四语歌词 + ...（Clawd 不张嘴）(B2)
+  if (audioSec < 42.91) {
+    const p = rangeProgress(audioSec, 40.8, 42.91);
+    return {
+      action: "weight-shift",
+      actionProgress: p,
+      verse1Stage: { stageId: "L007", progress: p },
+      mouth: "none",
+      outfit: "none",
+      prop: "none",
+      stageLabel: "L007 · [B2] 五行气泡打字显示四语歌词 + ...",
+    };
+  }
+  // L008 (42.910 -> 45.360s): 两侧极简听众理解回应点头 + 向两侧退场 (B3)
+  if (audioSec < 45.36) {
+    const p = rangeProgress(audioSec, 42.91, 45.36);
+    return {
+      action: "posture-nod",
+      actionProgress: p,
+      verse1Stage: { stageId: "L008", progress: p },
       mouth: "smile",
       outfit: "none",
+      prop: "none",
+      stageLabel: "L008 · [B3] 两侧极简听众理解回应点头",
+    };
+  }
+  // L009 (45.360 -> 47.580s): 左旋入白反光眼镜 + 右下书本 + 上方云训练框 (B4)
+  if (audioSec < 47.58) {
+    const p = rangeProgress(audioSec, 45.36, 47.58);
+    return {
+      action: "read-look-up",
+      actionProgress: p * 0.5,
+      verse1Stage: { stageId: "L009", progress: p },
+      mouth: "none",
+      outfit: "none",
       prop: "book",
-      stageLabel: "P002 Verse 1 后段 · [进阶道具] 学霸捧书",
+      stageLabel: "L009 · [B4] 左旋入反光眼镜 + 右下书本 + 云训练框",
+    };
+  }
+  // L010 (47.580 -> 49.892s): 三项能力汇成小奖章 + 抬头挺身 + 道具按原方向清场 (B5)
+  if (audioSec < 49.892) {
+    const p = rangeProgress(audioSec, 47.58, 49.892);
+    return {
+      action: "read-look-up",
+      actionProgress: 0.5 + p * 0.5,
+      verse1Stage: { stageId: "L010", progress: p },
+      mouth: "none",
+      outfit: "none",
+      prop: "book",
+      stageLabel: "L010 · [B5] 三项能力合成小奖章 + 道具清场",
+    };
+  }
+  // L011 (49.892 -> 52.576s): 铜管部小号入场接住吹奏与向右送出 (B6)
+  if (audioSec < 52.576) {
+    const p = rangeProgress(audioSec, 49.892, 52.576);
+    return {
+      action: "self-present",
+      actionProgress: p,
+      verse1Stage: { stageId: "L011", progress: p },
+      mouth: "none",
+      outfit: "none",
+      prop: "trumpet",
+      stageLabel: "L011 · [B6] 铜管部小号入场接住吹奏",
+    };
+  }
+  // L065 (52.576 -> 54.750s): (ほら！) 贴地快速回弹 (^ ^) + 红黄手写艺术字弹出消散 (B7)
+  if (audioSec < 54.75) {
+    const popProg = rangeProgress(audioSec, 52.576, 54.75);
+    return {
+      action: "elastic-pop",
+      actionProgress: popProg,
+      verse1Stage: { stageId: "L065", progress: popProg },
+      eyes: popProg >= 0.15 ? "happy" : "normal",
+      mouth: "none",
+      outfit: "none",
+      prop: "none",
+      stageLabel: "L065 (ほら！) · [B7] 贴地回弹 + 红黄手写艺术字",
     };
   }
   if (audioSec < 63.03) {
@@ -481,14 +615,24 @@ export const MyComponent: React.FC<SyncPreviewProps> = (props) => {
             overflow: "hidden",
           }}
         >
-          <ClawdMascot
-            width={195}
-            action={clawdState.action}
-            mouth={clawdState.mouth}
-            outfit={clawdState.outfit}
-            prop={clawdState.prop}
-            beatPulse={pulseStrength}
-          />
+          {clawdState.verse1Stage ? (
+            <ClawdVerse1Stage
+              stageId={clawdState.verse1Stage.stageId}
+              progress={clawdState.verse1Stage.progress}
+              scale={1.08}
+            />
+          ) : (
+            <ClawdMascot
+              width={195}
+              action={clawdState.action}
+              actionProgress={clawdState.actionProgress}
+              eyes={clawdState.eyes}
+              mouth={clawdState.mouth}
+              outfit={clawdState.outfit}
+              prop={clawdState.prop}
+              beatPulse={pulseStrength}
+            />
+          )}
           <div
             style={{
               marginTop: 10,

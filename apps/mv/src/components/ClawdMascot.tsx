@@ -8,23 +8,63 @@ export type ClawdAction =
   | "nod"
   | "walk"
   | "wave"
-  | "bounce";
+  | "bounce"
+  | "weight-shift"
+  | "wave-step"
+  | "tilt-invite"
+  | "posture-nod"
+  | "self-present"
+  | "crouch-lean"
+  | "peek-present"
+  | "read-look-up"
+  | "elastic-pop";
 
 export type ClawdMouth = "none" | "smile" | "talk" | "yawn" | "blush";
+export type ClawdEyes = "normal" | "happy";
 export type ClawdOutfit = "none" | "swag" | "gentleman" | "party";
-export type ClawdProp = "none" | "coffee" | "book" | "juggle" | "dj";
+export type ClawdProp =
+  | "none"
+  | "coffee"
+  | "book"
+  | "juggle"
+  | "dj"
+  | "trumpet";
 
 export interface ClawdMascotProps {
   /** 渲染宽度（像素），高度按比例自动计算 */
   width?: number;
-  /** 预设肢体动作模式（包含极简纯肢体动作与进阶律动） */
+  /** 预设肢体动作模式（包含基础循环与 Verse 1 叙事单次动作 A1–A9） */
   action?: ClawdAction;
+  /**
+   * 叙事型动作进度 (0 ~ 1)。
+   * 传入时按句内时间进度精确驱动单次动作阶段；未传入时按默认周期自动循环演示。
+   */
+  actionProgress?: number;
+  /** 眼部原子状态（默认 normal 竖直像素眼；happy 为 ^ ^ 微笑弯眼） */
+  eyes?: ClawdEyes;
   /** 嘴部与五官表情（无 / 像素微笑 / 说话方嘴 / 打哈欠 / 弯眼腮红） */
   mouth?: ClawdMouth;
+  /** mouth="talk" 时是否显示右上角内置小叹号气泡（外部已有大型多语言气泡时可设为 false） */
+  showTalkBubble?: boolean;
   /** 换装造型（原版 / Superstar 潮人墨镜反戴帽 / 绅士高礼帽单片镜 / 派对尖顶帽） */
   outfit?: ClawdOutfit;
-  /** 手持或场景道具（无 / 端咖啡 / 捧书阅读 / 杂耍抛球 / DJ 打碟台） */
+  /** 手持或场景道具（无 / 端咖啡 / 捧书阅读 / 杂耍抛球 / DJ 打碟台 / 铜管小号） */
   prop?: ClawdProp;
+  /**
+   * L009–L010 中学生白反光眼镜进出场进度 (0 ~ 1)：
+   * 0 为画外左侧隐藏，0->1 从左侧旋转飞入并戴在眼部遮住黑眼，1->0 向左侧退回
+   */
+  glassesProgress?: number;
+  /**
+   * L009–L010 书本从右下进出场进度 (0 ~ 1)：
+   * 未传但 prop="book" 时默认常驻显示 (1)
+   */
+  bookProgress?: number;
+  /**
+   * L011 小号吹奏全流程进度 (0 ~ 1)：
+   * 0~0.22 从右侧入场接住 -> 0.22~0.76 抬起吹奏+飘出几何音符 -> 0.76~1.0 放低向右送出
+   */
+  trumpetProgress?: number;
   /** 外部节拍脉冲强度 (0 ~ 1)，用于和音乐拍点同步弹跳 */
   beatPulse?: number;
   /** 身体主色（默认取自参考图 #D87757 陶土橙） */
@@ -54,9 +94,15 @@ export interface ClawdMascotProps {
 export const ClawdMascot: React.FC<ClawdMascotProps> = ({
   width = 320,
   action = "idle",
+  actionProgress,
+  eyes = "normal",
   mouth = "none",
+  showTalkBubble = true,
   outfit = "none",
   prop = "none",
+  glassesProgress = 0,
+  bookProgress,
+  trumpetProgress,
   beatPulse = 0,
   bodyColor = "#D87757",
   eyeColor = "#000000",
@@ -70,16 +116,29 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
   const { fps } = useVideoConfig();
   const timeSec = frame / fps;
 
-  // 1. 整体呼吸 / 蹲起 / 弹跳位移与挤压拉伸 (Squash & Stretch)
+  // 叙事型单次动作进度 (0 ~ 1)：若外部未传入，则按 3.0 秒周期平滑循环演示
+  const p =
+    actionProgress !== undefined
+      ? Math.max(0, Math.min(1, actionProgress))
+      : (timeSec / 3.0) % 1;
+
+  // 1. 整体呼吸 / 蹲起 / 弹跳位移、侧倾与挤压拉伸 (Squash & Stretch)
   let bodyOffsetY = 0;
-  let bodyOffsetX = 0;
+  let bodyOffsetX = 0; // 上半身相对足底的水平重心偏移
+  let stageOffsetX = 0; // 整个人物在舞台上的水平侧移
+  let torsoTiltDeg = 0; // 上半身绕髋部 (8, 8) 的歪头/侧倾角度
   let scaleX = 1;
   let scaleY = 1;
+  let actionLookX = 0;
+  let actionLookY = 0;
+  let leftArmExtend = 0; // >0 向外伸展，<0 向内收拢
+  let rightArmExtend = 0;
+  let selfPointOpacity = 0; // L004 朝自己示意时的胸前前足内折提示线
 
   if (action === "idle") {
     bodyOffsetY = Math.sin(timeSec * Math.PI * 2) * 0.18;
   } else if (action === "crouch") {
-    // 间奏小幅度蹲起（对应 L064 批注：周期性下蹲蓄力再回弹）
+    // 间奏小幅度蹲起（周期性下蹲蓄力再回弹）
     const squatWave = Math.max(0, Math.sin(timeSec * Math.PI * 3.5));
     bodyOffsetY = squatWave * 0.65;
     scaleX = 1 + squatWave * 0.06;
@@ -98,6 +157,184 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
     bodyOffsetY = -jumpArc * 0.85;
     scaleX = phase < 0.12 ? 1.07 : 1 - jumpArc * 0.04;
     scaleY = phase < 0.12 ? 0.93 : 1 + jumpArc * 0.05;
+  } else if (action === "weight-shift") {
+    // A1 (L066 前奏): 先轻呼吸眨眼看向观众，逐步加入左右重心转移（足底贴地不动）
+    const sway = Math.sin(p * Math.PI * 2);
+    bodyOffsetX = sway * 0.48;
+    // 换重心经过中间时微微下沉，落到两侧时立稳
+    bodyOffsetY = (1 - Math.abs(sway)) * 0.24 + Math.sin(timeSec * Math.PI * 2) * 0.08;
+    torsoTiltDeg = sway * 1.8;
+    actionLookX = sway * 0.22;
+  } else if (action === "wave-step") {
+    // A2 (L001): 看向观众短挥手一次 (0~0.38) -> 重心稍向前送走到面试位 (0.38~0.64) -> 自信小幅蹲起 (0.64~1.0)
+    if (p < 0.38) {
+      bodyOffsetY = Math.sin((p / 0.38) * Math.PI * 2) * 0.12;
+      actionLookX = 0.08;
+    } else if (p < 0.64) {
+      const stepT = (p - 0.38) / 0.26;
+      const stepArc = Math.sin(stepT * Math.PI);
+      // 向前送重心：先微压再稍放大挺身
+      bodyOffsetY = interpolate(stepT, [0, 0.4, 1], [0.05, 0.32, -0.12]);
+      scaleX = 1 + stepArc * 0.045;
+      scaleY = 1 + stepArc * 0.045;
+    } else {
+      const crouchT = (p - 0.64) / 0.36;
+      const squat = Math.max(0, Math.sin(crouchT * Math.PI * 2));
+      bodyOffsetY = squat * 0.48;
+      scaleX = 1 + squat * 0.05;
+      scaleY = 1 - squat * 0.04;
+    }
+  } else if (action === "tilt-invite") {
+    // A3 (L002): 轻侧身、歪头，眼神朝一侧空白处等待回应，前足小邀请动作；停一下留喜感；留白期视线回正
+    const inviteEnv = interpolate(
+      p,
+      [0, 0.22, 0.72, 0.94, 1],
+      [0, 1, 1, 0, 0],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    bodyOffsetX = -0.22 * inviteEnv;
+    torsoTiltDeg = 4.6 * inviteEnv;
+    bodyOffsetY = Math.sin(timeSec * Math.PI * 2) * 0.12 - 0.08 * inviteEnv;
+    rightArmExtend = 0.72 * inviteEnv;
+    actionLookX = 0.48 * inviteEnv;
+    actionLookY = -0.08 * inviteEnv;
+  } else if (action === "posture-nod") {
+    // A4 (L003): 先收拢姿态 (0~0.24) -> 抬头挺身换重心 (0.24~0.46) -> 两次差幅点头 (0.46~0.84) -> 视线回镜头
+    if (p < 0.24) {
+      const gather = Math.sin((p / 0.24) * Math.PI);
+      bodyOffsetY = gather * 0.32;
+      scaleX = 1 - gather * 0.04;
+      leftArmExtend = -0.55 * gather;
+      rightArmExtend = -0.55 * gather;
+      actionLookY = 0.12 * gather;
+    } else if (p < 0.46) {
+      const tall = Math.sin(((p - 0.24) / 0.22) * Math.PI);
+      bodyOffsetY = -tall * 0.32;
+      bodyOffsetX = -tall * 0.24;
+      scaleY = 1 + tall * 0.04;
+      actionLookY = -0.18 * tall;
+    } else if (p < 0.62) {
+      // 第 1 次轻点头（小幅度）
+      const nod1 = Math.sin(((p - 0.46) / 0.16) * Math.PI);
+      bodyOffsetY = nod1 * 0.26;
+      bodyOffsetX = 0.18 * nod1;
+      actionLookY = nod1 * 0.2;
+    } else if (p < 0.84) {
+      // 第 2 次肯定点头（较大幅度）
+      const nod2 = Math.sin(((p - 0.62) / 0.22) * Math.PI);
+      bodyOffsetY = nod2 * 0.62;
+      bodyOffsetX = 0.24 * (1 - nod2 * 0.5);
+      scaleX = 1 + nod2 * 0.05;
+      scaleY = 1 - nod2 * 0.04;
+      actionLookY = nod2 * 0.36;
+    } else {
+      const settle = (p - 0.84) / 0.16;
+      bodyOffsetY = (1 - settle) * 0.08;
+      actionLookX = 0;
+      actionLookY = 0;
+    }
+  } else if (action === "self-present") {
+    // A5 (L004): 前足朝自己示意 (0~0.44) -> 向外展开展示“看看我的本事” (0.44~0.82) -> 微挺身收尾
+    if (p < 0.44) {
+      const inward = interpolate(p, [0, 0.14, 0.34, 0.44], [0, 1, 1, 0]);
+      const tap = Math.sin((p / 0.44) * Math.PI * 2) * 0.12;
+      leftArmExtend = -0.75 * inward;
+      rightArmExtend = -0.75 * inward;
+      selfPointOpacity = inward;
+      bodyOffsetY = 0.14 * inward + tap * 0.5;
+      actionLookY = 0.14 * inward;
+    } else {
+      const openEnv = interpolate(
+        p,
+        [0.44, 0.58, 0.84, 1],
+        [0, 1, 0.85, 0.45],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+      );
+      leftArmExtend = 0.72 * openEnv;
+      rightArmExtend = 0.72 * openEnv;
+      bodyOffsetY = -0.26 * openEnv;
+      scaleX = 1 + 0.03 * openEnv;
+      scaleY = 1 + 0.035 * openEnv;
+      actionLookY = -0.08 * openEnv;
+    }
+  } else if (action === "crouch-lean") {
+    // A6 (L064 间奏): 一次稍明显的贴地下压—回正 (0~0.42) -> 轻待机 (0.42~0.72) -> 句尾向旁预倾铺垫 L005 (0.72~1.0)
+    if (p < 0.42) {
+      const squat = Math.sin((p / 0.42) * Math.PI);
+      bodyOffsetY = squat * 0.82;
+      scaleX = 1 + squat * 0.075;
+      scaleY = 1 - squat * 0.065;
+    } else if (p < 0.72) {
+      const idleT = (p - 0.42) / 0.3;
+      bodyOffsetY = Math.sin(idleT * Math.PI * 2) * 0.14;
+    } else {
+      const leanT = interpolate(p, [0.72, 0.92, 1], [0, 1, 1]);
+      bodyOffsetX = 0.56 * leanT;
+      torsoTiltDeg = 3.8 * leanT;
+      bodyOffsetY = 0.22 * leanT;
+      actionLookX = 0.35 * leanT;
+    }
+  } else if (action === "peek-present") {
+    // A7 (L005): 从预倾接一次短侧移探身+朝观众张开前足 (0~0.46) -> 落回原位 (0.46~0.74) -> 句尾视线移向日历进入侧 (0.74~1.0)
+    if (p < 0.46) {
+      const peekEnv = interpolate(p, [0, 0.18, 0.36, 0.46], [0.4, 1, 1, 0.2]);
+      stageOffsetX = 1.15 * peekEnv;
+      bodyOffsetX = 0.35 * peekEnv;
+      torsoTiltDeg = 4.2 * peekEnv;
+      bodyOffsetY = -0.22 * peekEnv;
+      leftArmExtend = 0.65 * peekEnv;
+      rightArmExtend = 0.65 * peekEnv;
+    } else if (p < 0.74) {
+      const backT = (p - 0.46) / 0.28;
+      stageOffsetX = (1 - backT) * 0.22;
+      bodyOffsetY = Math.sin(backT * Math.PI) * 0.18;
+    } else {
+      const cueT = interpolate(p, [0.74, 0.9, 1], [0, 1, 1]);
+      bodyOffsetX = 0.24 * cueT;
+      actionLookX = 0.52 * cueT;
+      actionLookY = -0.05 * cueT;
+    }
+  } else if (action === "read-look-up") {
+    // A8 (L009-L010 本体): 低头读书配合微翻页 (0~0.56) -> 从书后抬头挺身 (0.56~1.0)
+    if (p < 0.56) {
+      const readT = p / 0.56;
+      bodyOffsetY = 0.22 + Math.sin(readT * Math.PI * 2) * 0.06;
+      actionLookX = Math.sin(readT * Math.PI * 3) * 0.32;
+      actionLookY = 0.32;
+    } else {
+      const proudEnv = interpolate(p, [0.56, 0.72, 0.92, 1], [0, 1, 1, 0.7]);
+      bodyOffsetY = interpolate(p, [0.56, 0.72, 1], [0.22, -0.28, -0.18]);
+      scaleY = 1 + 0.045 * proudEnv;
+      actionLookX = 0;
+      actionLookY = -0.18 * proudEnv;
+    }
+  } else if (action === "elastic-pop") {
+    // A9 (贴地弹性回弹原子动作): 极短下压蓄力 (0~0.14) -> 瞬间弹起伸展 (0.14~0.21) -> 快速微回摆稳住 (0.21~0.42)
+    bodyOffsetY = interpolate(
+      p,
+      [0, 0.11, 0.14, 0.21, 0.3, 0.38, 0.46, 1],
+      [0, 0.94, 0.98, -0.48, 0.16, -0.05, 0, 0],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    scaleX = interpolate(
+      p,
+      [0, 0.14, 0.21, 0.3, 0.4, 1],
+      [1, 1.12, 0.91, 1.03, 1, 1],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    scaleY = interpolate(
+      p,
+      [0, 0.14, 0.21, 0.3, 0.4, 1],
+      [1, 0.87, 1.11, 0.97, 1, 1],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    const popFlare = interpolate(p, [0.14, 0.21, 0.36], [0, 1, 0], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
+    leftArmExtend = 0.48 * popFlare;
+    rightArmExtend = 0.48 * popFlare;
+    actionLookY = -0.18 * popFlare;
   }
 
   if (prop === "dj") {
@@ -140,32 +377,109 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
   } else if (action === "bounce") {
     leftArmOffsetY += bodyOffsetY * 0.35;
     rightArmOffsetY += bodyOffsetY * 0.35;
+  } else if (action === "weight-shift") {
+    const sway = Math.sin(p * Math.PI * 2);
+    leftArmOffsetY += -sway * 0.18;
+    rightArmOffsetY += sway * 0.18;
+  } else if (action === "wave-step") {
+    if (p < 0.38) {
+      const waveEnv = Math.sin((p / 0.38) * Math.PI);
+      const waveOsc = Math.sin((p / 0.38) * Math.PI * 4);
+      rightArmOffsetY += -0.75 * waveEnv + waveOsc * 0.38 * waveEnv;
+      rightArmExtend = 0.25 * waveEnv;
+    } else if (p < 0.64) {
+      leftArmOffsetY += -0.18;
+      rightArmOffsetY += -0.18;
+    }
+  } else if (action === "tilt-invite") {
+    const inviteEnv = interpolate(
+      p,
+      [0, 0.22, 0.72, 0.94, 1],
+      [0, 1, 1, 0, 0],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    rightArmOffsetY += -0.48 * inviteEnv;
+    leftArmOffsetY += 0.12 * inviteEnv;
+  } else if (action === "posture-nod") {
+    if (p < 0.24) {
+      const gather = Math.sin((p / 0.24) * Math.PI);
+      leftArmOffsetY += -0.35 * gather;
+      rightArmOffsetY += -0.35 * gather;
+    } else if (p < 0.46) {
+      leftArmOffsetY += -0.22;
+      rightArmOffsetY += -0.22;
+    }
+  } else if (action === "self-present") {
+    if (p < 0.44) {
+      const inward = interpolate(p, [0, 0.14, 0.34, 0.44], [0, 1, 1, 0]);
+      leftArmOffsetY += -0.65 * inward;
+      rightArmOffsetY += -0.65 * inward;
+    } else {
+      const openEnv = interpolate(
+        p,
+        [0.44, 0.58, 0.84, 1],
+        [0, 1, 0.85, 0.45],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+      );
+      leftArmOffsetY += -0.45 * openEnv;
+      rightArmOffsetY += -0.45 * openEnv;
+    }
+  } else if (action === "crouch-lean") {
+    if (p < 0.42) {
+      const squat = Math.sin((p / 0.42) * Math.PI);
+      leftArmOffsetY += -squat * 0.28;
+      rightArmOffsetY += -squat * 0.28;
+    } else if (p >= 0.72) {
+      const leanT = interpolate(p, [0.72, 0.92, 1], [0, 1, 1]);
+      rightArmOffsetY += -0.25 * leanT;
+    }
+  } else if (action === "peek-present") {
+    if (p < 0.46) {
+      const peekEnv = interpolate(p, [0, 0.18, 0.36, 0.46], [0.4, 1, 1, 0.2]);
+      leftArmOffsetY += -0.52 * peekEnv;
+      rightArmOffsetY += -0.52 * peekEnv;
+    }
+  } else if (action === "read-look-up") {
+    if (p < 0.56) {
+      // 轻微翻页手势，不大幅蹲起
+      const flipPulse = Math.max(0, Math.sin((p / 0.56) * Math.PI * 3));
+      rightArmOffsetY += -0.2 - flipPulse * 0.28;
+      leftArmOffsetY += -0.15;
+    } else {
+      leftArmOffsetY += -0.25;
+      rightArmOffsetY += -0.25;
+    }
+  } else if (action === "elastic-pop") {
+    const preload = interpolate(p, [0, 0.14, 0.19], [0, 1, 0], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
+    const popUp = interpolate(p, [0.14, 0.21, 0.36], [0, 1, 0], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
+    leftArmOffsetY += preload * 0.34 - popUp * 0.78;
+    rightArmOffsetY += preload * 0.34 - popUp * 0.78;
   }
 
-  // 3. 四条小短腿动作
-  let leg1Height = 2;
-  let leg2Height = 2;
-  let leg3Height = 2;
-  let leg4Height = 2;
+  // 3. 四条小短腿离地抬升量（仅 walk 与 bounce 离地，其余所有动作足底均严格贴地 y = 10）
+  let leg1Lift = 0;
+  let leg2Lift = 0;
+  let leg3Lift = 0;
+  let leg4Lift = 0;
 
-  if (action === "crouch") {
-    const shorten = Math.max(0, bodyOffsetY);
-    leg1Height = 2 - shorten;
-    leg2Height = 2 - shorten;
-    leg3Height = 2 - shorten;
-    leg4Height = 2 - shorten;
-  } else if (action === "walk") {
+  if (action === "walk") {
     const stride = Math.sin(timeSec * Math.PI * 6);
-    leg1Height = 2 - Math.max(0, stride) * 0.75;
-    leg3Height = 2 - Math.max(0, stride) * 0.75;
-    leg2Height = 2 - Math.max(0, -stride) * 0.75;
-    leg4Height = 2 - Math.max(0, -stride) * 0.75;
+    leg1Lift = Math.max(0, stride) * 0.75;
+    leg3Lift = Math.max(0, stride) * 0.75;
+    leg2Lift = Math.max(0, -stride) * 0.75;
+    leg4Lift = Math.max(0, -stride) * 0.75;
   } else if (action === "bounce") {
-    const lift = Math.max(0, -bodyOffsetY) * 0.35;
-    leg1Height = 2 - lift;
-    leg2Height = 2 - lift;
-    leg3Height = 2 - lift;
-    leg4Height = 2 - lift;
+    const lift = Math.max(0, -bodyOffsetY) * 0.65;
+    leg1Lift = lift;
+    leg2Lift = lift;
+    leg3Lift = lift;
+    leg4Lift = lift;
   }
 
   // 4. 自动眨眼与阅读视线控制
@@ -205,12 +519,23 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
     bodyOffsetY +
     (2 - eyeHeight) / 2 +
     lookOffset.y +
+    actionLookY +
     readingLookY +
     nodLookY;
   const leftEyeX =
-    4 - (baseEyeWidth - 1) / 2 + lookOffset.x + readingLookX + bodyOffsetX;
+    4 -
+    (baseEyeWidth - 1) / 2 +
+    lookOffset.x +
+    actionLookX +
+    readingLookX +
+    bodyOffsetX;
   const rightEyeX =
-    11 - (baseEyeWidth - 1) / 2 + lookOffset.x + readingLookX + bodyOffsetX;
+    11 -
+    (baseEyeWidth - 1) / 2 +
+    lookOffset.x +
+    actionLookX +
+    readingLookX +
+    bodyOffsetX;
 
   const padX = 3.2;
   const padTop = 3.8;
@@ -219,52 +544,73 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
   const viewBoxHeight = 10 + padTop + padBottom;
   const height = Math.round(width * (viewBoxHeight / viewBoxWidth));
 
-  const overlap = 0.04;
+  // 双臂与四足均将根部锚点深入躯干内部（armInset=1.6, hipInset=1.4），允许身体歪头/位移时肢体自然拉伸不断裂
+  const armInset = 1.6;
+  const hipInset = 1.4;
+  const leftArmX = Math.min(1.4, -leftArmExtend);
+  const leftArmW = Math.max(0.6, 2 + leftArmExtend) + armInset;
+  const rightArmX = 14 - armInset;
+  const rightArmW = Math.max(0.6, 2 + rightArmExtend) + armInset;
+  const upperBodyTransform = `translate(${bodyOffsetX}, 0) rotate(${torsoTiltDeg}, 8, 8)`;
+  const tiltRad = (torsoTiltDeg * Math.PI) / 180;
+  const isAirborneAction = action === "walk" || action === "bounce";
+
+  const legConfigs = [
+    { baseX: 3, lift: leg1Lift },
+    { baseX: 5, lift: leg2Lift },
+    { baseX: 10, lift: leg3Lift },
+    { baseX: 12, lift: leg4Lift },
+  ];
 
   const renderBodyParts = (fill: string, stroke?: string, strokeWidth = 0) => (
     <g
-      transform={`translate(${bodyOffsetX}, 0)`}
       fill={fill}
       stroke={stroke}
       strokeWidth={strokeWidth}
       strokeLinejoin="round"
     >
-      {/* 躯干主体: x=2..14 (w=12), y=0..8 (h=8) */}
-      <rect x={2} y={bodyOffsetY} width={12} height={8} />
-      {/* 左臂: x=0..2 (w=2), y=4..6 (h=2) */}
-      <rect x={0} y={4 + leftArmOffsetY} width={2 + overlap} height={2} />
-      {/* 右臂: x=14..16 (w=2), y=4..6 (h=2) */}
-      <rect
-        x={14 - overlap}
-        y={4 + rightArmOffsetY}
-        width={2 + overlap}
-        height={2}
-      />
-      {/* 四条腿: x=3, 5, 10, 12 (w=1), y=8..10 (h=2) */}
-      <rect
-        x={3}
-        y={8 + bodyOffsetY - overlap}
-        width={1}
-        height={leg1Height + overlap}
-      />
-      <rect
-        x={5}
-        y={8 + bodyOffsetY - overlap}
-        width={1}
-        height={leg2Height + overlap}
-      />
-      <rect
-        x={10}
-        y={8 + bodyOffsetY - overlap}
-        width={1}
-        height={leg3Height + overlap}
-      />
-      <rect
-        x={12}
-        y={8 + bodyOffsetY - overlap}
-        width={1}
-        height={leg4Height + overlap}
-      />
+      {/* 上半身（躯干 + 根部内嵌双臂）：支持水平重心偏移与歪头/侧倾 */}
+      <g transform={upperBodyTransform}>
+        {/* 躯干主体: x=2..14 (w=12), y=0..8 (h=8) */}
+        <rect x={2} y={bodyOffsetY} width={12} height={8} />
+        {/* 左臂: 根部锚定在躯干内部 x=3.6，外端随 leftArmExtend 伸缩 */}
+        <rect
+          x={leftArmX}
+          y={4 + leftArmOffsetY}
+          width={leftArmW}
+          height={2}
+        />
+        {/* 右臂: 根部锚定在躯干内部 x=12.4，外端随 rightArmExtend 伸缩 */}
+        <rect
+          x={rightArmX}
+          y={4 + rightArmOffsetY}
+          width={rightArmW}
+          height={2}
+        />
+      </g>
+      {/* 四条腿: 顶部髋锚点内嵌于倾斜躯干内部并随身体拉伸，底端足尖锚定地面 y=10 */}
+      <g>
+        {legConfigs.map(({ baseX, lift }) => {
+          const cx = baseX + 0.5;
+          // 计算该腿所在 X 处躯干倾斜后的下沿高度，并将髋部锚点向躯干内部上移 hipInset
+          const torsoBottomAtLeg =
+            8 + bodyOffsetY + (cx - 8) * Math.tan(tiltRad);
+          const hipY = torsoBottomAtLeg - hipInset;
+          const footY = isAirborneAction
+            ? 10 + Math.min(0, bodyOffsetY) - lift
+            : 10;
+          // 髋部水平位置跟随躯干移动，足底保持贴地稳定（轻微跟随以保证自然过渡）
+          const hipX = baseX + (isAirborneAction ? bodyOffsetX : bodyOffsetX * 0.78);
+          const footX = baseX + (isAirborneAction ? bodyOffsetX : bodyOffsetX * 0.22);
+
+          return (
+            <polygon
+              key={baseX}
+              points={`${hipX},${hipY} ${hipX + 1},${hipY} ${footX + 1},${footY} ${footX},${footY}`}
+            />
+          );
+        })}
+      </g>
     </g>
   );
 
@@ -289,8 +635,9 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
       }}
     >
       <g
+        transform={`translate(${stageOffsetX}, 0)`}
         style={{
-          transformOrigin: "8px 9px",
+          transformOrigin: "8px 10px",
           scale: `${scaleX} ${scaleY}`,
         }}
       >
@@ -301,29 +648,47 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
         {/* 第 2 层：橙色实体填充层 */}
         {renderBodyParts(bodyColor)}
 
+        {/* L004 朝自己示意时的胸前前足内折像素折线（位于眼部下方胸口处） */}
+        {selfPointOpacity > 0.05 && (
+          <g
+            transform={upperBodyTransform}
+            fill={outlineColor}
+            opacity={selfPointOpacity * 0.85}
+          >
+            <rect x={4.2} y={5.15 + bodyOffsetY} width={1.35} height={0.34} />
+            <rect x={5.2} y={4.55 + bodyOffsetY} width={0.34} height={0.94} />
+            <rect x={10.45} y={5.15 + bodyOffsetY} width={1.35} height={0.34} />
+            <rect x={10.45} y={4.55 + bodyOffsetY} width={0.34} height={0.94} />
+          </g>
+        )}
+
         {/* 第 3 层：眼睛与墨镜 / 单片眼镜 / 弯眼笑脸 */}
         {outfit === "swag" ? (
-          <g transform={`translate(${bodyOffsetX}, ${bodyOffsetY})`}>
+          <g transform={`translate(${bodyOffsetX}, ${bodyOffsetY}) rotate(${torsoTiltDeg}, 8, 8)`}>
             <rect x={2} y={1.55} width={12} height={0.5} fill="#14131D" />
             <rect x={2.7} y={1.9} width={3.4} height={1.85} fill="#14131D" />
             <rect x={3.25} y={2.25} width={0.55} height={0.55} fill="#FFFFFF" />
             <rect x={9.5} y={1.9} width={3.4} height={1.85} fill="#14131D" />
             <rect x={10.05} y={2.25} width={0.55} height={0.55} fill="#FFFFFF" />
           </g>
-        ) : mouth === "blush" ? (
-          /* Clawd idle-heart 弯弯笑眼 ^ ^ + 粉色腮红 */
-          <g transform={`translate(${bodyOffsetX}, ${bodyOffsetY})`}>
+        ) : mouth === "blush" || eyes === "happy" ? (
+          /* Clawd 弯弯微笑眼 ^ ^（mouth="blush" 时额外带粉色腮红，eyes="happy" 为纯微笑弯眼原子状态） */
+          <g transform={`translate(${bodyOffsetX}, ${bodyOffsetY}) rotate(${torsoTiltDeg}, 8, 8)`}>
             <rect x={3.4} y={2.45} width={0.6} height={0.6} fill={eyeColor} />
             <rect x={4.0} y={1.85} width={0.6} height={0.6} fill={eyeColor} />
             <rect x={4.6} y={2.45} width={0.6} height={0.6} fill={eyeColor} />
             <rect x={10.8} y={2.45} width={0.6} height={0.6} fill={eyeColor} />
             <rect x={11.4} y={1.85} width={0.6} height={0.6} fill={eyeColor} />
             <rect x={12.0} y={2.45} width={0.6} height={0.6} fill={eyeColor} />
-            <rect x={2.6} y={3.45} width={1.4} height={0.65} fill="#F48FB1" />
-            <rect x={12.0} y={3.45} width={1.4} height={0.65} fill="#F48FB1" />
+            {mouth === "blush" && (
+              <>
+                <rect x={2.6} y={3.45} width={1.4} height={0.65} fill="#F48FB1" />
+                <rect x={12.0} y={3.45} width={1.4} height={0.65} fill="#F48FB1" />
+              </>
+            )}
           </g>
         ) : (
-          <g fill={eyeColor}>
+          <g transform={`rotate(${torsoTiltDeg}, ${8 + bodyOffsetX}, 8)`} fill={eyeColor}>
             <rect
               x={leftEyeX}
               y={eyeY}
@@ -441,23 +806,92 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
                 fill="#000000"
               />
             )}
-            <g
-              transform={`translate(14.5, ${-1.8 + Math.sin(timeSec * Math.PI * 4) * 0.2})`}
-            >
-              <rect
-                x={0}
-                y={0}
-                width={3.2}
-                height={3.2}
-                rx={0.4}
-                fill="#FFFFFF"
-                stroke="#11131F"
-                strokeWidth={0.18}
-              />
-              <polygon points="0.4,3.1 -0.3,3.8 1.2,3.1" fill="#FFFFFF" />
-              <rect x={1.35} y={0.55} width={0.45} height={1.35} fill="#000000" />
-              <rect x={1.35} y={2.25} width={0.45} height={0.45} fill="#000000" />
-            </g>
+            {showTalkBubble && (
+              <g
+                transform={`translate(14.5, ${-1.8 + Math.sin(timeSec * Math.PI * 4) * 0.2})`}
+              >
+                <rect
+                  x={0}
+                  y={0}
+                  width={3.2}
+                  height={3.2}
+                  rx={0.4}
+                  fill="#FFFFFF"
+                  stroke="#11131F"
+                  strokeWidth={0.18}
+                />
+                <polygon points="0.4,3.1 -0.3,3.8 1.2,3.1" fill="#FFFFFF" />
+                <rect
+                  x={1.35}
+                  y={0.55}
+                  width={0.45}
+                  height={1.35}
+                  fill="#000000"
+                />
+                <rect
+                  x={1.35}
+                  y={2.25}
+                  width={0.45}
+                  height={0.45}
+                  fill="#000000"
+                />
+              </g>
+            )}
+          </g>
+        )}
+
+        {/* L009–L010 中学生白反光眼镜（从左侧旋转飞入戴在眼部，白色镜片遮住原本纯黑眼睛，深色外框清晰） */}
+        {glassesProgress > 0.01 && (
+          <g
+            transform={`translate(${
+              bodyOffsetX + interpolate(glassesProgress, [0, 1], [-9.2, 0])
+            }, ${
+              bodyOffsetY + interpolate(glassesProgress, [0, 1], [-1.4, 0])
+            }) rotate(${
+              torsoTiltDeg + interpolate(glassesProgress, [0, 1], [-28, 0])
+            }, 8, 2.8)`}
+            opacity={interpolate(glassesProgress, [0, 0.2, 1], [0, 1, 1])}
+          >
+            {/* 左右镜腿与中梁 */}
+            <rect x={2.0} y={2.35} width={12.0} height={0.42} fill="#11131F" />
+            {/* 左镜框与白色反光镜片（覆盖左黑眼 x=4, y=2..4） */}
+            <rect
+              x={2.55}
+              y={1.45}
+              width={3.6}
+              height={2.65}
+              rx={0.22}
+              fill="#F8FAFC"
+              stroke="#11131F"
+              strokeWidth={0.34}
+            />
+            <polygon
+              points="3.0,3.85 4.2,1.65 4.85,1.65 3.65,3.85"
+              fill="#BAE6FD"
+            />
+            <polygon
+              points="4.95,3.85 5.65,2.45 5.95,2.45 5.25,3.85"
+              fill="#E0F2FE"
+            />
+            {/* 右镜框与白色反光镜片（覆盖右黑眼 x=11, y=2..4） */}
+            <rect
+              x={9.55}
+              y={1.45}
+              width={3.6}
+              height={2.65}
+              rx={0.22}
+              fill="#F8FAFC"
+              stroke="#11131F"
+              strokeWidth={0.34}
+            />
+            <polygon
+              points="10.0,3.85 11.2,1.65 11.85,1.65 10.65,3.85"
+              fill="#BAE6FD"
+            />
+            <polygon
+              points="11.95,3.85 12.65,2.45 12.95,2.45 12.25,3.85"
+              fill="#E0F2FE"
+            />
           </g>
         )}
 
@@ -555,22 +989,138 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
           </g>
         )}
 
-        {prop === "book" && (
-          <g transform={`translate(${bodyOffsetX}, ${bodyOffsetY})`}>
-            <rect x={2.9} y={4.0} width={10.2} height={3.5} fill="#7C5236" />
-            <rect x={3.3} y={4.25} width={4.5} height={2.95} fill="#F5F2EB" />
-            <rect x={8.2} y={4.25} width={4.5} height={2.95} fill="#F5F2EB" />
-            {[4.8, 5.5, 6.2].map((ly) => (
-              <React.Fragment key={ly}>
-                <rect x={3.8} y={ly} width={3.4} height={0.22} fill="#94A3B8" />
-                <rect x={8.7} y={ly} width={3.4} height={0.22} fill="#94A3B8" />
-              </React.Fragment>
-            ))}
-            <rect x={7.75} y={7.15} width={0.5} height={0.9} fill="#E04F4F" />
-            <rect x={2.3} y={4.7} width={1.3} height={1.8} fill="#B85D3D" />
-            <rect x={12.4} y={4.7} width={1.3} height={1.8} fill="#B85D3D" />
-          </g>
-        )}
+        {prop === "book" && (() => {
+          const bp = bookProgress !== undefined ? bookProgress : 1;
+          if (bp <= 0.01) return null;
+          const bx = interpolate(bp, [0, 1], [6.8, 0]);
+          const by = interpolate(bp, [0, 1], [4.8, 0]);
+          const bRot = interpolate(bp, [0, 1], [15, 0]);
+          const bOp = interpolate(bp, [0, 0.2, 1], [0, 1, 1]);
+          return (
+            <g
+              transform={`translate(${bodyOffsetX + bx}, ${
+                bodyOffsetY + by
+              }) rotate(${bRot}, 8, 5.8)`}
+              opacity={bOp}
+            >
+              <rect x={2.9} y={4.0} width={10.2} height={3.5} fill="#7C5236" />
+              <rect x={3.3} y={4.25} width={4.5} height={2.95} fill="#F5F2EB" />
+              <rect x={8.2} y={4.25} width={4.5} height={2.95} fill="#F5F2EB" />
+              {[4.8, 5.5, 6.2].map((ly) => (
+                <React.Fragment key={ly}>
+                  <rect x={3.8} y={ly} width={3.4} height={0.22} fill="#94A3B8" />
+                  <rect x={8.7} y={ly} width={3.4} height={0.22} fill="#94A3B8" />
+                </React.Fragment>
+              ))}
+              <rect x={7.75} y={7.15} width={0.5} height={0.9} fill="#E04F4F" />
+              <rect x={2.3} y={4.7} width={1.3} height={1.8} fill="#B85D3D" />
+              <rect x={12.4} y={4.7} width={1.3} height={1.8} fill="#B85D3D" />
+            </g>
+          );
+        })()}
+
+        {/* L011 铜管部小号入场、前足接住、抬起吹奏与放低送出 */}
+        {prop === "trumpet" && (() => {
+          const tp = trumpetProgress !== undefined ? trumpetProgress : p;
+          // 0~0.22: 从右侧滑入接住；0.22~0.76: 抬到脸前吹奏（喇叭口轻摆+飘出1~2枚几何音符）；0.76~1.0: 放低向右侧送出
+          const enterOut = interpolate(
+            tp,
+            [0, 0.22, 0.76, 1],
+            [0, 1, 1, 0],
+            { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+          );
+          if (enterOut <= 0.01) return null;
+          const isPlaying = tp >= 0.22 && tp <= 0.76;
+          const playPhase = isPlaying ? (tp - 0.22) / 0.54 : 0;
+          const bellSway = isPlaying
+            ? Math.sin(playPhase * Math.PI * 2) * -6.5
+            : interpolate(tp, [0.76, 1], [0, 14], {
+                extrapolateLeft: "clamp",
+                extrapolateRight: "clamp",
+              });
+          const tx = interpolate(enterOut, [0, 1], [7.2, 0]);
+          const ty = interpolate(enterOut, [0, 1], [1.4, 0]);
+
+          return (
+            <g
+              transform={`translate(${bodyOffsetX + tx}, ${
+                bodyOffsetY + ty
+              }) rotate(${bellSway}, 9.5, 4.2)`}
+              opacity={interpolate(enterOut, [0, 0.2, 1], [0, 1, 1])}
+            >
+              {/* 吹嘴与主号管 */}
+              <rect x={8.6} y={3.85} width={1.2} height={0.55} fill="#E2E8F0" />
+              <rect
+                x={9.6}
+                y={3.75}
+                width={5.6}
+                height={0.75}
+                fill="#F5C542"
+                stroke="#11131F"
+                strokeWidth={0.18}
+              />
+              {/* 活塞按键与下部回管 */}
+              <rect x={11.1} y={3.15} width={0.42} height={0.65} fill="#FEF08A" />
+              <rect x={11.8} y={3.15} width={0.42} height={0.65} fill="#FEF08A" />
+              <rect x={12.5} y={3.15} width={0.42} height={0.65} fill="#FEF08A" />
+              <rect
+                x={10.6}
+                y={4.5}
+                width={3.6}
+                height={0.85}
+                rx={0.35}
+                fill="none"
+                stroke="#D97706"
+                strokeWidth={0.28}
+              />
+              {/* 右侧喇叭口 (Bell) */}
+              <polygon
+                points="15.0,3.65 17.6,2.35 17.6,5.85 15.0,4.55"
+                fill="#F5C542"
+                stroke="#11131F"
+                strokeWidth={0.22}
+                strokeLinejoin="round"
+              />
+              <ellipse cx={17.55} cy={4.1} rx={0.35} ry={1.65} fill="#B45309" />
+              {/* Clawd 前足握持小号 */}
+              <rect
+                x={11.2}
+                y={4.35}
+                width={1.5}
+                height={1.25}
+                fill={bodyColor}
+                stroke="#11131F"
+                strokeWidth={0.18}
+              />
+              {/* 吹奏期间飘出的两枚短暂几何音符 */}
+              {isPlaying &&
+                [
+                  { delay: 0.05, color: "#38BDF8", dy: -1.6 },
+                  { delay: 0.32, color: "#F472B6", dy: -2.8 },
+                ].map((n, idx) => {
+                  const np = Math.max(
+                    0,
+                    Math.min(1, (playPhase - n.delay) / 0.55),
+                  );
+                  if (np <= 0 || np >= 1) return null;
+                  return (
+                    <g
+                      key={idx}
+                      transform={`translate(${18.2 + np * 2.6}, ${
+                        3.6 + n.dy * np
+                      })`}
+                      opacity={Math.sin(np * Math.PI)}
+                      fill={n.color}
+                    >
+                      <rect x={0} y={0.75} width={0.75} height={0.65} />
+                      <rect x={0.5} y={-0.45} width={0.28} height={1.3} />
+                      <rect x={0.5} y={-0.45} width={0.7} height={0.32} />
+                    </g>
+                  );
+                })}
+            </g>
+          );
+        })()}
 
         {prop === "juggle" && (
           <g>
