@@ -37,6 +37,10 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({
   const view = useWorkbenchStore((s) => s.view);
   const transport = useWorkbenchStore((s) => s.transport);
   const edit = useWorkbenchStore((s) => s.edit);
+  const pendingSwitch = useWorkbenchStore((s) => s.pendingEventSwitch);
+  const confirmEventSwitch = useWorkbenchStore((s) => s.confirmEventSwitch);
+  const cancelEventSwitch = useWorkbenchStore((s) => s.cancelEventSwitch);
+  const loopCurrentEvent = useWorkbenchStore((s) => s.loopCurrentEvent);
 
   const runWorkbenchCommand = useWorkbenchStore((s) => s.runWorkbenchCommand);
   const moveEventToAnotherTrack = useWorkbenchStore(
@@ -65,16 +69,21 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({
   const [endInput, setEndInput] = useState("");
   const [newCommentRole, setNewCommentRole] = useState<Comment["role"]>("human");
   const [newCommentText, setNewCommentText] = useState("");
+  const eventId = event?.id;
+  const startSec = event?.startSec;
+  const endSec = event?.endSec;
 
   useEffect(() => {
-    if (!event) {
+    if (startSec === undefined) {
       setStartInput("");
       setEndInput("");
       return;
     }
-    setStartInput(event.startSec.toFixed(3));
-    setEndInput(event.endSec !== undefined ? event.endSec.toFixed(3) : "");
-  }, [event]);
+    setStartInput(startSec.toFixed(3));
+    setEndInput(endSec !== undefined ? endSec.toFixed(3) : "");
+  }, [eventId, startSec, endSec]);
+
+  useEffect(() => { setNewCommentText(""); }, [primaryRef?.trackId, primaryRef?.eventId]);
 
   if (!primaryRef || !track || !event) {
     return (
@@ -93,6 +102,7 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({
   }
 
   const allTracks = flattenTracks(project.nodes);
+  const pendingTarget = pendingSwitch ? findEventByRef(project, pendingSwitch.ref) : null;
   const isRange = isRangeEvent(event);
   const resolvedColor = getEffectiveEventColor(event, track);
   const isColorDraftForThisEvent =
@@ -682,7 +692,23 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({
         {/* Section 5: 500ms Cut-Point Audition */}
         <div className="wb-section">
           <div className="wb-section__header">
-            <span className="wb-section__title">切点 500ms 试听 (A/S/R/D/F)</span>
+            <span className="wb-section__title">试听与循环</span>
+          </div>
+          <div className="wb-nudge-bar">
+            <button type="button" className="btn btn--primary btn--sm" disabled={!isRange}
+              onClick={() => { onSeek(event.startSec); loopCurrentEvent(); }}>
+              循环本句
+            </button>
+            <button type="button" className="btn btn--ghost btn--sm"
+              onClick={() => {
+                if (transport.loopEnabled && transport.loopEventRef?.eventId === event.id && transport.loopEventRef.trackId === track.id) {
+                  onSeek(event.startSec);
+                  loopCurrentEvent();
+                } else onAuditionWindow(event.startSec, event.endSec ?? event.startSec + 0.8);
+              }}>
+              从头重听
+            </button>
+            <span className="muted">循环跟随最新边界</span>
           </div>
           <div className="wb-audition-grid">
             <button
@@ -824,6 +850,17 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({
 
       {/* Footer Actions */}
       <div className="workbench-footer">
+        {pendingTarget ? (
+          <div className="wb-switch-confirm" role="region" aria-label="确认切换标注" aria-live="polite">
+            <div>当前编辑：<strong>{event.id}</strong></div>
+            <div className="wb-switch-target">准备切换到：<strong>{pendingTarget.event.id}</strong> · {pendingTarget.event.text}</div>
+            <div className="wb-nudge-bar">
+              <button type="button" className="btn btn--primary btn--sm" onClick={confirmEventSwitch}>确认切换</button>
+              <button type="button" className="btn btn--ghost btn--sm" onClick={cancelEventSwitch}>继续编辑本句</button>
+            </div>
+            <div className="muted">切换不代表已保存或已完成校准。</div>
+          </div>
+        ) : <>
         <button
           type="button"
           className="btn btn--danger btn--sm"
@@ -841,17 +878,12 @@ export const UnifiedWorkbench: React.FC<UnifiedWorkbenchProps> = ({
         <button
           type="button"
           className="btn btn--primary btn--sm"
-          onClick={() => {
-            const next = selectNextEvent();
-            if (next) {
-              const found = findEventByRef(project, next);
-              if (found) onSeek(found.event.startSec);
-            }
-          }}
-          title="切换到当前时间轴的下一条标注（不写入确认状态）"
+          onClick={() => selectNextEvent()}
+          title="请求切换到下一条标注，确认后切换"
         >
           下一条标注 →
         </button>
+        </>}
       </div>
     </aside>
   );

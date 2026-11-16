@@ -67,12 +67,11 @@ export interface TimelineViewState {
 }
 
 export interface TransportState {
-  audioPath: string | null;
-  durationSec: number;
   currentTimeSec: number;
-  playing: boolean;
-  rate: number;
-  loop: { startSec: number; endSec: number } | null;
+  isPlaying: boolean;
+  loopEnabled: boolean;
+  loopRange: [number, number] | null;
+  loopEventRef: EventRef | null;
 }
 
 // Boundary links are editing-session state, not required JSON fields.

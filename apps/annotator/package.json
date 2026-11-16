@@ -9,6 +9,7 @@
   },
   "scripts": {
     "start": "node server/index.ts",
-    "test": "node test/annotations.test.ts"
+    "test": "node test/annotations.test.ts && node --test test/workbench.test.ts",
+    "test:workbench": "node --test test/workbench.test.ts"
   }
 }

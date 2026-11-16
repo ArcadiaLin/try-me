@@ -156,8 +156,7 @@ export const AgentBriefDrawer: React.FC<AgentBriefDrawerProps> = ({
                     className="agent-thread-card"
                     onClick={() => {
                       if (entry.eventRef) {
-                        selectEvent(entry.eventRef, false);
-                        onSeek(entry.startSec);
+                        if (selectEvent(entry.eventRef, false)) onSeek(entry.startSec);
                       } else if (entry.nodeId) {
                         selectNode(entry.nodeId);
                         setLayout({ activeCenterSubView: "trackSettings" });

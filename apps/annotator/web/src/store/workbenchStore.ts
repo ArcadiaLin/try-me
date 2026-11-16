@@ -13,7 +13,8 @@ function create<T extends object>(
   initializer: (
     set: (updater: StateUpdater<T>) => void,
     get: () => T
-  ) => T
+  ) => T,
+  reconcile: (state: T) => T = (state) => state,
 ): StoreApi<T> {
   const listeners = new Set<() => void>();
   let state!: T;
@@ -21,7 +22,7 @@ function create<T extends object>(
   const getState = () => state;
   const setState = (updater: StateUpdater<T>) => {
     const partial = typeof updater === "function" ? updater(state) : updater;
-    state = { ...state, ...partial };
+    state = reconcile({ ...state, ...partial });
     for (const listener of listeners) {
       listener();
     }
@@ -116,6 +117,7 @@ export interface WorkbenchStoreState {
   eventFilterQuery: string;
   eventCommentFilter: "all" | "commented";
   pendingDeleteConfirm: PendingGroupDeleteConfirm | null;
+  pendingEventSwitch: { ref: EventRef; shiftRangeSelect: boolean; audition: boolean } | null;
 
   // Undo / Redo stacks
   undoStack: UndoSnapshot[];
@@ -133,7 +135,10 @@ export interface WorkbenchStoreState {
 
   // Selection & navigation
   selectNode: (nodeId: string) => void;
-  selectEvent: (ref: EventRef | null, shiftRangeSelect?: boolean) => void;
+  selectEvent: (ref: EventRef | null, shiftRangeSelect?: boolean, audition?: boolean) => boolean;
+  confirmEventSwitch: () => void;
+  cancelEventSwitch: () => void;
+  loopCurrentEvent: () => void;
   selectNextEvent: () => EventRef | null;
   toggleGroupCollapsed: (groupId: string) => void;
   toggleNodeHidden: (nodeId: string) => void;
@@ -171,6 +176,7 @@ export interface WorkbenchStoreState {
   setIsPlaying: (playing: boolean) => void;
   setLoopEnabled: (enabled: boolean) => void;
   setLoopRange: (range: [number, number] | null) => void;
+  setLoopEvent: (ref: EventRef | null) => void;
 
   // Context Menu, Layout & Persistence
   openContextMenu: (menu: Omit<ContextMenuState, "open">) => void;
@@ -213,6 +219,7 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
     isPlaying: false,
     loopEnabled: false,
     loopRange: null,
+    loopEventRef: null,
   },
   edit: {
     boundaryLinks: [],
@@ -249,6 +256,7 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
   eventFilterQuery: "",
   eventCommentFilter: "all",
   pendingDeleteConfirm: null,
+  pendingEventSwitch: null,
   undoStack: [],
   redoStack: [],
 
@@ -289,7 +297,10 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
       transport: {
         ...state.transport,
         loopRange: loopRange ?? state.transport.loopRange,
+        loopEventRef: null,
+        loopEnabled: false,
       },
+      pendingEventSwitch: null,
       edit: {
         ...state.edit,
         boundaryLinks: [],
@@ -351,6 +362,17 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
     const state = get();
     const entry = findNodeEntryById(state.project.nodes, nodeId);
     if (!entry) return;
+
+    const targetTrack = entry.node.kind === "timeline"
+      ? entry.node
+      : flattenTracks([entry.node])[0]?.track;
+    const current = state.view.selection.primary;
+    const containsCurrent = entry.node.kind === "group" &&
+      flattenTracks([entry.node]).some((t) => t.track.id === current?.trackId);
+    if (current && targetTrack?.items[0] && current.trackId !== targetTrack.id && !containsCurrent) {
+      state.selectEvent({ trackId: targetTrack.id, eventId: targetTrack.items[0].id });
+      return;
+    }
 
     if (entry.node.kind === "group") {
       const subTracks = flattenTracks([entry.node]);
@@ -417,8 +439,14 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
     });
   },
 
-  selectEvent: (ref, shiftRangeSelect = false) => {
+  selectEvent: (ref, shiftRangeSelect = false, audition = false) => {
     const state = get();
+    const current = state.view.selection.primary;
+    if (ref && !findEventByRef(state.project, ref)) return false;
+    if (ref && current && (ref.trackId !== current.trackId || ref.eventId !== current.eventId)) {
+      set({ pendingEventSwitch: { ref, shiftRangeSelect, audition } });
+      return false;
+    }
     if (!ref) {
       set({
         view: {
@@ -430,12 +458,12 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
           colorDraft: null,
         },
       });
-      return;
+      return true;
     }
 
     const trackEntry = findNodeEntryById(state.project.nodes, ref.trackId);
     const track = trackEntry?.node.kind === "timeline" ? trackEntry.node : null;
-    if (!track) return;
+    if (!track) return false;
 
     let nextSelected: EventRef[] = [ref];
     if (
@@ -458,6 +486,7 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
     }
 
     set({
+      pendingEventSwitch: null,
       view: {
         ...state.view,
         selectedGroupId: trackEntry?.parentGroupId ?? state.view.selectedGroupId,
@@ -472,6 +501,51 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
         colorDraft: null,
       },
     });
+    return true;
+  },
+
+  cancelEventSwitch: () => set({ pendingEventSwitch: null }),
+
+  confirmEventSwitch: () => {
+    const state = get();
+    const pending = state.pendingEventSwitch;
+    if (!pending) return;
+    const found = findEventByRef(state.project, pending.ref);
+    if (!found) { set({ pendingEventSwitch: null }); return; }
+    // Apply selection and transport together after explicit confirmation.
+    const trackEntry = findNodeEntryById(state.project.nodes, pending.ref.trackId);
+    let selected = [pending.ref];
+    if (pending.shiftRangeSelect && state.view.selection.primary?.trackId === pending.ref.trackId) {
+      const sorted = sortTrackItems(found.track.items);
+      const anchor = sorted.findIndex((e) => e.id === state.view.selection.primary?.eventId);
+      const target = sorted.findIndex((e) => e.id === pending.ref.eventId);
+      if (anchor >= 0 && target >= 0) selected = sorted.slice(Math.min(anchor, target), Math.max(anchor, target) + 1)
+        .map((e) => ({ trackId: found.track.id, eventId: e.id }));
+    }
+    const range = found.event.endSec !== undefined;
+    const followLoop = Boolean(state.transport.loopEventRef) || state.transport.loopEnabled || pending.audition;
+    set({
+      pendingEventSwitch: null,
+      view: { ...state.view, selectedTrackId: found.track.id,
+        selectedGroupId: trackEntry?.parentGroupId ?? null,
+        selection: { primary: pending.ref, selected } },
+      edit: { ...state.edit, colorDraft: null },
+      transport: { ...state.transport, currentTimeSec: found.event.startSec,
+        loopEventRef: followLoop && range ? pending.ref : null,
+        loopRange: followLoop && range ? [found.event.startSec, found.event.endSec!] : null,
+        loopEnabled: followLoop && range && (state.transport.loopEnabled || pending.audition),
+        isPlaying: (pending.audition && range) || state.transport.isPlaying },
+    });
+  },
+
+  loopCurrentEvent: () => {
+    const state = get();
+    const ref = state.view.selection.primary;
+    const found = findEventByRef(state.project, ref);
+    if (!ref || found?.event.endSec === undefined) return;
+    set({ transport: { ...state.transport, loopEventRef: ref, loopEnabled: true,
+      loopRange: [found.event.startSec, found.event.endSec],
+      currentTimeSec: found.event.startSec, isPlaying: true } });
   },
 
   selectNextEvent: () => {
@@ -487,28 +561,8 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
       idx === -1 ? sorted[0]! : sorted[Math.min(sorted.length - 1, idx + 1)]!;
     const nextRef: EventRef = { trackId: track.id, eventId: nextItem.id };
 
-    set({
-      view: {
-        ...state.view,
-        selectedTrackId: track.id,
-        selection: {
-          primary: nextRef,
-          selected: [nextRef],
-        },
-      },
-      transport: {
-        ...state.transport,
-        currentTimeSec: nextItem.startSec,
-      },
-      edit: {
-        ...state.edit,
-        colorDraft: null,
-      },
-      persistence: {
-        ...state.persistence,
-        statusMessage: `已切到下一条标注：${nextItem.id}`,
-      },
-    });
+    if (nextItem.id === currentId) return null;
+    state.selectEvent(nextRef);
     return nextRef;
   },
 
@@ -1157,6 +1211,7 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
       transport: {
         ...state.transport,
         loopEnabled: enabled,
+        loopEventRef: enabled ? state.view.selection.primary : state.transport.loopEventRef,
       },
     }));
   },
@@ -1166,9 +1221,14 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
       transport: {
         ...state.transport,
         loopRange: range,
+        loopEventRef: null,
       },
     }));
   },
+
+  setLoopEvent: (ref) => set((state) => ({
+    transport: { ...state.transport, loopEventRef: ref },
+  })),
 
   openContextMenu: (menu) => {
     set({
@@ -1209,4 +1269,16 @@ export const useWorkbenchStore = create<WorkbenchStoreState>((set, get) => ({
   setSearchQuery: (q) => set({ searchQuery: q }),
   setEventFilterQuery: (q) => set({ eventFilterQuery: q }),
   setEventCommentFilter: (filter) => set({ eventCommentFilter: filter }),
-}));
+}), (state) => {
+  const pending = state.pendingEventSwitch;
+  if (pending && !findEventByRef(state.project, pending.ref)) state = { ...state, pendingEventSwitch: null };
+  const ref = state.transport.loopEventRef;
+  if (!ref) return state;
+  const event = findEventByRef(state.project, ref)?.event;
+  if (!event || event.endSec === undefined) return {
+    ...state, transport: { ...state.transport, loopEventRef: null, loopRange: null, loopEnabled: false },
+  };
+  const range = state.transport.loopRange;
+  if (range?.[0] === event.startSec && range[1] === event.endSec) return state;
+  return { ...state, transport: { ...state.transport, loopRange: [event.startSec, event.endSec] } };
+});

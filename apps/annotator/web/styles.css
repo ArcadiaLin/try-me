@@ -1354,6 +1354,19 @@ button {
   flex-shrink: 0;
 }
 
+.wb-switch-confirm {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+}
+
+.wb-switch-target {
+  overflow-wrap: anywhere;
+  max-height: 4.5em;
+  overflow-y: auto;
+}
+
 /* ============================================================================
    Agent Collaboration Drawer
    ============================================================================ */

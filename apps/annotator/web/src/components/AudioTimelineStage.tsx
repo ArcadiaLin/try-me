@@ -186,6 +186,9 @@ export const AudioTimelineStage: React.FC<AudioTimelineStageProps> = ({
     });
     regions.on("region-double-clicked", (region, e) => {
       e.stopPropagation();
+      const state = useWorkbenchStore.getState();
+      const trackId = state.view.selectedTrackId;
+      if (!trackId || !state.selectEvent({ trackId, eventId: region.id }, false, true)) return;
       if (region.end > region.start) onAuditionRange(region.start, region.end);
       else onSeek(region.start);
     });
@@ -274,14 +277,14 @@ export const AudioTimelineStage: React.FC<AudioTimelineStageProps> = ({
             ? `${event.id}: ${event.text.slice(0, 18)}`
             : event.id,
         drag: !locked && selected,
-        resize: !locked && !point && (selected || nearSelection),
+        resize: !locked && !point && selected,
       });
       region.element?.addEventListener("contextmenu", (e) => {
         e.preventDefault();
         e.stopPropagation();
         const state = useWorkbenchStore.getState();
         const ref = { trackId: activeTrack.id, eventId: event.id };
-        if (!selected) state.selectEvent(ref, false);
+        if (!selected && !state.selectEvent(ref, false)) return;
         state.openContextMenu({
           scope: "events",
           x: e.clientX,
@@ -336,6 +339,7 @@ export const AudioTimelineStage: React.FC<AudioTimelineStageProps> = ({
     onSeek(ev.startSec);
     if (ev.endSec !== undefined) {
       setLoopRange([ev.startSec, ev.endSec]);
+      useWorkbenchStore.getState().setLoopEvent(view.selection.primary);
     }
     if (ev.startSec < visibleStart || ev.startSec > visibleEnd) {
       const half = visibleSpan / 2;
@@ -696,8 +700,7 @@ export const AudioTimelineStage: React.FC<AudioTimelineStageProps> = ({
                         title={`${ev.id}: ${ev.text} (${formatSeconds(ev.startSec)})`}
                         onClick={(e) => {
                           e.stopPropagation();
-                          selectEvent(ref, e.shiftKey);
-                          onSeek(ev.startSec);
+                          if (selectEvent(ref, e.shiftKey)) onSeek(ev.startSec);
                         }}
                       />
                     );
@@ -736,7 +739,7 @@ export const AudioTimelineStage: React.FC<AudioTimelineStageProps> = ({
                       }}
                       onDoubleClick={(e) => {
                         e.stopPropagation();
-                        selectEvent(ref, false);
+                        if (!selectEvent(ref, false, true)) return;
                         if (ev.endSec !== undefined) {
                           onAuditionRange(ev.startSec, ev.endSec);
                         }

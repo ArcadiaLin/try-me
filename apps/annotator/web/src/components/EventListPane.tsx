@@ -305,7 +305,7 @@ export const EventListPane: React.FC<EventListPaneProps> = ({
                       selectEvent(ref, e.shiftKey);
                     }}
                     onDoubleClick={() => {
-                      selectEvent(ref, false);
+                      if (!selectEvent(ref, false, true)) return;
                       if (ev.endSec !== undefined) {
                         onAuditionRange(ev.startSec, ev.endSec);
                       } else {
@@ -316,7 +316,7 @@ export const EventListPane: React.FC<EventListPaneProps> = ({
                       e.preventDefault();
                       e.stopPropagation();
                       if (!isSelected) {
-                        selectEvent(ref, false);
+                        if (!selectEvent(ref, false)) return;
                       }
                       openContextMenu({
                         scope: "events",

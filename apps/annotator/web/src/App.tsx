@@ -13,6 +13,7 @@ import { TimelineExplorer } from "./components/TimelineExplorer.tsx";
 import { UnifiedWorkbench } from "./components/UnifiedWorkbench.tsx";
 import { useWorkbenchStore } from "./store/workbenchStore.ts";
 import type { AnalysisBundle, TimelineProject } from "./types.ts";
+import { connectAudioTransport } from "./utils/audio-transport.ts";
 import { clearLocalDraft, loadLocalDraft } from "./utils/idb-draft.ts";
 
 function isEditableElement(target: EventTarget | null): boolean {
@@ -42,7 +43,7 @@ export const App: React.FC = () => {
   const redo = useWorkbenchStore((s) => s.redo);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const auditionStopAtRef = useRef<number | null>(null);
+  const audioTransportRef = useRef<ReturnType<typeof connectAudioTransport> | null>(null);
   const [resizingSplitter, setResizingSplitter] = useState<
     "tracker" | "explorer" | "list" | null
   >(null);
@@ -148,7 +149,7 @@ export const App: React.FC = () => {
   // Audio playback controls
   const handleSeek = useCallback(
     (sec: number) => {
-      auditionStopAtRef.current = null;
+      audioTransportRef.current?.setAuditionEnd(null);
       const clamped = Math.max(0, sec);
       setCurrentTimeSec(clamped);
       const audio = audioRef.current;
@@ -164,7 +165,7 @@ export const App: React.FC = () => {
   );
 
   const handleTogglePlay = useCallback(() => {
-    auditionStopAtRef.current = null;
+    audioTransportRef.current?.setAuditionEnd(null);
     const audio = audioRef.current;
     if (!audio) {
       setIsPlaying(!transport.isPlaying);
@@ -182,7 +183,7 @@ export const App: React.FC = () => {
   }, [setIsPlaying, transport.isPlaying]);
 
   const handleStop = useCallback(() => {
-    auditionStopAtRef.current = null;
+    audioTransportRef.current?.setAuditionEnd(null);
     const audio = audioRef.current;
     if (audio) {
       audio.pause();
@@ -200,7 +201,7 @@ export const App: React.FC = () => {
     (startSec: number, endSec: number) => {
       const safeStart = Math.max(0, startSec);
       const safeEnd = Math.max(safeStart + 0.05, endSec);
-      auditionStopAtRef.current = safeEnd;
+      audioTransportRef.current?.setAuditionEnd(safeEnd);
       setCurrentTimeSec(safeStart);
       const audio = audioRef.current;
       if (audio) {
@@ -221,10 +222,16 @@ export const App: React.FC = () => {
   const handleAuditionRangeLoop = useCallback(
     (startSec: number, endSec: number) => {
       setLoopRange([startSec, endSec]);
+      const state = useWorkbenchStore.getState();
+      const ref = state.view.selection.primary;
+      const event = findEventByRef(state.project, ref)?.event;
+      if (ref && event?.startSec === startSec && event.endSec === endSec) state.setLoopEvent(ref);
       setLoopEnabled(true);
-      handleAuditionWindow(startSec, endSec);
+      handleSeek(startSec);
+      const audio = audioRef.current;
+      if (audio) void audio.play().then(() => setIsPlaying(true), () => setIsPlaying(false));
     },
-    [handleAuditionWindow, setLoopEnabled, setLoopRange]
+    [handleSeek, setIsPlaying, setLoopEnabled, setLoopRange]
   );
 
   // Sync audio element timeupdate with transport & loop/audition bounds
@@ -233,46 +240,24 @@ export const App: React.FC = () => {
     audio.preload = "metadata";
     audioRef.current = audio;
 
-    const onTimeUpdate = () => {
-      const cur = audio.currentTime;
-      const state = useWorkbenchStore.getState();
-      if (
-        auditionStopAtRef.current !== null &&
-        cur >= auditionStopAtRef.current
-      ) {
-        auditionStopAtRef.current = null;
-        if (
-          state.transport.loopEnabled &&
-          state.transport.loopRange &&
-          cur >= state.transport.loopRange[1]
-        ) {
-          audio.currentTime = state.transport.loopRange[0];
-          setCurrentTimeSec(state.transport.loopRange[0]);
-          return;
-        }
-        audio.pause();
-        setIsPlaying(false);
-        setCurrentTimeSec(cur);
-        return;
-      }
-
-      if (state.transport.loopEnabled && state.transport.loopRange) {
-        const [loopStart, loopEnd] = state.transport.loopRange;
-        if (cur >= loopEnd) {
-          audio.currentTime = loopStart;
-          setCurrentTimeSec(loopStart);
-          return;
-        }
-      }
-
-      setCurrentTimeSec(cur);
+    const controller = connectAudioTransport(audio, useWorkbenchStore);
+    audioTransportRef.current = controller;
+    const onTimeUpdate = controller.tick;
+    let animationFrame = 0;
+    const poll = () => {
+      controller.tick();
+      animationFrame = window.requestAnimationFrame(poll);
     };
+    animationFrame = window.requestAnimationFrame(poll);
 
-    const onEnded = () => setIsPlaying(false);
+    const onEnded = controller.ended;
 
     audio.addEventListener("timeupdate", onTimeUpdate);
     audio.addEventListener("ended", onEnded);
     return () => {
+      window.cancelAnimationFrame(animationFrame);
+      controller.dispose();
+      audioTransportRef.current = null;
       audio.pause();
       audio.removeEventListener("timeupdate", onTimeUpdate);
       audio.removeEventListener("ended", onEnded);
