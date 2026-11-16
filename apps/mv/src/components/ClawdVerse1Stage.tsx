@@ -72,48 +72,62 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
 }) => {
   const p = Math.max(0, Math.min(1, progress));
 
-  // 1. 计算 Clawd 本体在不同事件阶段的姿态与耦合道具参数
+  // 1. 计算 Clawd 本体在不同事件阶段的姿态与耦合道具参数（保持固定 width=110，跨句位移平滑衔接）
   let clawdOffsetX = 0;
   let mascotProps: React.ComponentProps<typeof ClawdMascot> = {
-    width: 118,
+    width: 110,
     action: "idle",
     actionProgress: p,
   };
 
   if (stageId === "L006") {
-    // 日历从右侧进入，Clawd 略偏左站立，眼神看向右侧日历并在完成时轻点头
-    clawdOffsetX = -38;
+    // 日历从右侧进入，Clawd 偏左站立，句末平滑向更左过渡以衔接 L007 大气泡
+    clawdOffsetX = interpolate(p, [0, 0.16, 0.84, 1], [-18, -42, -42, -62], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
     const nodEnv = p >= 0.55 && p <= 0.88 ? (p - 0.55) / 0.33 : 0;
     mascotProps = {
-      width: 114,
+      width: 110,
       action: nodEnv > 0 ? "posture-nod" : "idle",
       actionProgress: nodEnv > 0 ? 0.48 + nodEnv * 0.36 : p,
       lookOffset: {
-        x: interpolate(p, [0, 0.15, 0.85, 1], [0.45, 0.5, 0.5, 0]),
-        y: -0.05,
+        x: interpolate(p, [0, 0.15, 0.85, 1], [0.45, 0.5, 0.5, 0.42]),
+        y: interpolate(p, [0, 0.85, 1], [-0.05, -0.05, -0.18]),
       },
     };
   } else if (stageId === "L007") {
-    // 容纳五行的单个大气泡打字显示：Clawd 本体不做张嘴说话，仅偏左站立并以眼神与姿态配合气泡
-    clawdOffsetX = -68;
+    // 容纳五行的单个大气泡打字显示：Clawd 本体不做张嘴说话，偏左站立，句末略向中回移衔接 L008
+    clawdOffsetX = interpolate(p, [0, 0.85, 1], [-62, -62, -46], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
     mascotProps = {
-      width: 98,
+      width: 110,
       action: "weight-shift",
       actionProgress: p,
       mouth: "none",
       lookOffset: { x: 0.42, y: -0.18 },
     };
   } else if (stageId === "L008") {
-    // 两侧极简听众理解回应：Clawd 在后半段开心弯眼点头回应
+    // 承接 L007 偏左位置平滑移回中央 (0~0.24)，两侧极简听众理解回应，Clawd 弯眼点头回应
+    clawdOffsetX = interpolate(p, [0, 0.24, 1], [-46, 0, 0], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
     const replyNod = p >= 0.48 && p <= 0.78;
     mascotProps = {
-      width: 108,
+      width: 110,
       action: replyNod ? "posture-nod" : "idle",
       actionProgress: replyNod ? 0.62 + ((p - 0.48) / 0.3) * 0.22 : p,
       eyes: p >= 0.45 && p <= 0.85 ? "happy" : "normal",
       lookOffset: {
-        x: p < 0.45 ? -0.28 : p < 0.65 ? 0.28 : 0,
-        y: -0.08,
+        x: interpolate(
+          p,
+          [0, 0.18, 0.42, 0.52, 0.68, 0.85, 1],
+          [0.42, -0.28, -0.28, 0.28, 0.28, 0, 0],
+        ),
+        y: interpolate(p, [0, 0.2, 0.85, 1], [-0.18, -0.08, -0.08, 0]),
       },
     };
   } else if (stageId === "L009") {
@@ -127,7 +141,7 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
       extrapolateRight: "clamp",
     });
     mascotProps = {
-      width: 116,
+      width: 110,
       action: "read-look-up",
       actionProgress: interpolate(p, [0, 1], [0, 0.52]),
       prop: "book",
@@ -135,7 +149,11 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
       bookProgress: bookIn,
     };
   } else if (stageId === "L010") {
-    // L010: 承接眼镜与书本，从书后抬头挺身；句尾 (0.72~0.92) 先把书向右下送出、眼镜向左退回
+    // L010: 承接眼镜与书本，从书后抬头挺身；句尾 (0.70~0.92) 先把书向右下送出、眼镜向左退回
+    clawdOffsetX = interpolate(p, [0, 0.82, 1], [0, 0, -16], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
     const bookOut = interpolate(p, [0.7, 0.88], [1, 0], {
       extrapolateLeft: "clamp",
       extrapolateRight: "clamp",
@@ -145,7 +163,7 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
       extrapolateRight: "clamp",
     });
     mascotProps = {
-      width: 116,
+      width: 110,
       action: "read-look-up",
       actionProgress: interpolate(p, [0, 0.75, 1], [0.52, 0.92, 1]),
       prop: "book",
@@ -160,19 +178,25 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
         ? Math.sin(((p - 0.22) / 0.54) * Math.PI) * 0.25
         : 0;
     mascotProps = {
-      width: 116,
+      width: 110,
       action: "idle",
       actionProgress: p,
       prop: "trumpet",
       trumpetProgress: p,
       beatPulse: playBody,
-      lookOffset: { x: 0.28, y: -0.08 },
+      lookOffset: {
+        x: interpolate(p, [0, 0.15, 0.82, 1], [0, 0.28, 0.28, 0]),
+        y: interpolate(p, [0, 0.15, 0.82, 1], [0, -0.08, -0.08, 0]),
+      },
     };
   } else if (stageId === "L065") {
     // L065 (ほら！): 贴地短蓄力 -> 快速伸展回弹 + 微笑弯眼 (^ ^)
-    clawdOffsetX = -18;
+    clawdOffsetX = interpolate(p, [0, 0.7, 1], [-16, -16, 0], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
     mascotProps = {
-      width: 118,
+      width: 110,
       action: "elastic-pop",
       actionProgress: p,
       eyes: p >= 0.15 && p <= 0.88 ? "happy" : "normal",
@@ -465,15 +489,24 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
           const leftGotIt = p >= 0.24 && p <= 0.78;
           const rightGotIt = p >= 0.38 && p <= 0.78;
 
+          const bubbleMove = interpolate(p, [0, 0.22], [0, 1], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          });
+          const bubbleRight = interpolate(bubbleMove, [0, 1], [8, 46]);
+          const bubbleTop = interpolate(bubbleMove, [0, 1], [8, 4]);
+          const bubbleScale =
+            interpolate(bubbleMove, [0, 1], [1, 0.76]) * bubbleExit;
+
           return (
             <>
-              {/* 延续自 L007 的五行多语言气泡（缩略置顶，右侧附带代表传达同一含义的 ★ 徽章） */}
+              {/* 延续自 L007 的五行多语言气泡（从右侧平滑移至中央上方并缩略，右侧附带代表传达同一含义的 ★ 徽章） */}
               <div
                 style={{
                   position: "absolute",
-                  top: 4,
-                  left: "50%",
-                  transform: `translateX(-50%) scale(${0.74 * bubbleExit})`,
+                  top: bubbleTop,
+                  right: bubbleRight,
+                  transform: `scale(${bubbleScale})`,
                   transformOrigin: "top center",
                   opacity: bubbleExit,
                   backgroundColor: "#F8FAFC",
@@ -874,7 +907,11 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
             extrapolateLeft: "clamp",
             extrapolateRight: "clamp",
           });
-          const mergeToMedal = interpolate(p, [0.4, 0.56], [0, 1], {
+          const mergeIcons = interpolate(p, [0.38, 0.5], [0, 1], {
+            extrapolateLeft: "clamp",
+            extrapolateRight: "clamp",
+          });
+          const showMedal = interpolate(p, [0.47, 0.58], [0, 1], {
             extrapolateLeft: "clamp",
             extrapolateRight: "clamp",
           });
@@ -897,7 +934,7 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                 )}px)`,
                 opacity: panelOut,
                 backgroundColor: "#0F172A",
-                border: `1.5px solid ${mergeToMedal > 0.5 ? "#FACC15" : "#38BDF8"}`,
+                border: `1.5px solid ${showMedal > 0.3 ? "#FACC15" : "#38BDF8"}`,
                 borderRadius: 8,
                 padding: "4px 12px",
                 width: 176,
@@ -909,19 +946,19 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
               }}
             >
               {/* 三项抽象能力符号依次完成并向中心汇聚 */}
-              {mergeToMedal < 0.95 &&
+              {mergeIcons < 0.99 &&
                 items.map((it, idx) => {
                   const done = p >= it.start;
-                  const xPos = it.dx * (1 - mergeToMedal);
+                  const xPos = it.dx * (1 - mergeIcons);
                   return (
                     <div
                       key={idx}
                       style={{
                         position: "absolute",
                         transform: `translateX(${xPos}px) scale(${
-                          1 - mergeToMedal * 0.5
+                          1 - mergeIcons * 0.5
                         })`,
-                        opacity: 1 - mergeToMedal,
+                        opacity: Math.max(0, 1 - mergeIcons * 1.15),
                         backgroundColor: done ? it.color : "#1E293B",
                         color: done ? "#0F172A" : "#64748B",
                         fontSize: 9,
@@ -937,18 +974,18 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                 })}
 
               {/* 汇聚合成的金色小奖章 */}
-              {mergeToMedal > 0.1 && (
+              {showMedal > 0.02 && (
                 <div
                   style={{
                     display: "flex",
                     alignItems: "center",
                     gap: 6,
                     transform: `scale(${interpolate(
-                      mergeToMedal,
+                      showMedal,
                       [0, 0.7, 1],
                       [0.4, 1.15, 1],
                     )})`,
-                    opacity: mergeToMedal,
+                    opacity: showMedal,
                   }}
                 >
                   <div

@@ -123,7 +123,9 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
       : (timeSec / 3.0) % 1;
 
   // 1. 整体呼吸 / 蹲起 / 弹跳位移、侧倾与挤压拉伸 (Squash & Stretch)
-  let bodyOffsetY = 0;
+  // 共享连续呼吸基线：使用全局 timeSec 驱动，确保跨句切换 action 时在边界处 (p=0 / p=1) 绝不发生垂直位置跳变
+  const breathY = Math.sin(timeSec * Math.PI * 2) * 0.12;
+  let bodyOffsetY = breathY;
   let bodyOffsetX = 0; // 上半身相对足底的水平重心偏移
   let stageOffsetX = 0; // 整个人物在舞台上的水平侧移
   let torsoTiltDeg = 0; // 上半身绕髋部 (8, 8) 的歪头/侧倾角度
@@ -135,8 +137,10 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
   let rightArmExtend = 0;
   let selfPointOpacity = 0; // L004 朝自己示意时的胸前前足内折提示线
 
-  if (action === "idle") {
-    bodyOffsetY = Math.sin(timeSec * Math.PI * 2) * 0.18;
+  if (action === "static") {
+    bodyOffsetY = 0;
+  } else if (action === "idle") {
+    bodyOffsetY = breathY;
   } else if (action === "crouch") {
     // 间奏小幅度蹲起（周期性下蹲蓄力再回弹）
     const squatWave = Math.max(0, Math.sin(timeSec * Math.PI * 3.5));
@@ -158,29 +162,33 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
     scaleX = phase < 0.12 ? 1.07 : 1 - jumpArc * 0.04;
     scaleY = phase < 0.12 ? 0.93 : 1 + jumpArc * 0.05;
   } else if (action === "weight-shift") {
-    // A1 (L066 前奏): 先轻呼吸眨眼看向观众，逐步加入左右重心转移（足底贴地不动）
+    // A1 (L066 前奏): 先轻呼吸眨眼看向观众，逐步加入左右重心转移（足底贴地不动，首尾 p=0/1 平滑归零）
     const sway = Math.sin(p * Math.PI * 2);
+    const cycleEnv = Math.sin(p * Math.PI);
     bodyOffsetX = sway * 0.48;
-    // 换重心经过中间时微微下沉，落到两侧时立稳
-    bodyOffsetY = (1 - Math.abs(sway)) * 0.24 + Math.sin(timeSec * Math.PI * 2) * 0.08;
+    bodyOffsetY = breathY + cycleEnv * (1 - Math.abs(sway)) * 0.22;
     torsoTiltDeg = sway * 1.8;
     actionLookX = sway * 0.22;
   } else if (action === "wave-step") {
     // A2 (L001): 看向观众短挥手一次 (0~0.38) -> 重心稍向前送走到面试位 (0.38~0.64) -> 自信小幅蹲起 (0.64~1.0)
     if (p < 0.38) {
-      bodyOffsetY = Math.sin((p / 0.38) * Math.PI * 2) * 0.12;
-      actionLookX = 0.08;
+      const waveEnv = Math.sin((p / 0.38) * Math.PI);
+      bodyOffsetY = breathY + Math.sin((p / 0.38) * Math.PI * 2) * 0.1;
+      actionLookX = 0.08 * waveEnv;
     } else if (p < 0.64) {
       const stepT = (p - 0.38) / 0.26;
       const stepArc = Math.sin(stepT * Math.PI);
-      // 向前送重心：先微压再稍放大挺身
-      bodyOffsetY = interpolate(stepT, [0, 0.4, 1], [0.05, 0.32, -0.12]);
+      // 向前送重心：先微压再稍放大挺身，首尾平滑归回 breathY
+      bodyOffsetY =
+        breathY + interpolate(stepT, [0, 0.38, 0.76, 1], [0, 0.32, -0.14, 0]);
       scaleX = 1 + stepArc * 0.045;
       scaleY = 1 + stepArc * 0.045;
     } else {
       const crouchT = (p - 0.64) / 0.36;
-      const squat = Math.max(0, Math.sin(crouchT * Math.PI * 2));
-      bodyOffsetY = squat * 0.48;
+      const squat =
+        Math.max(0, Math.sin(crouchT * Math.PI * 2)) *
+        Math.sin(crouchT * Math.PI);
+      bodyOffsetY = breathY + squat * 0.52;
       scaleX = 1 + squat * 0.05;
       scaleY = 1 - squat * 0.04;
     }
@@ -188,13 +196,13 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
     // A3 (L002): 轻侧身、歪头，眼神朝一侧空白处等待回应，前足小邀请动作；停一下留喜感；留白期视线回正
     const inviteEnv = interpolate(
       p,
-      [0, 0.22, 0.72, 0.94, 1],
+      [0, 0.2, 0.68, 0.92, 1],
       [0, 1, 1, 0, 0],
       { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
     );
     bodyOffsetX = -0.22 * inviteEnv;
     torsoTiltDeg = 4.6 * inviteEnv;
-    bodyOffsetY = Math.sin(timeSec * Math.PI * 2) * 0.12 - 0.08 * inviteEnv;
+    bodyOffsetY = breathY - 0.08 * inviteEnv;
     rightArmExtend = 0.72 * inviteEnv;
     actionLookX = 0.48 * inviteEnv;
     actionLookY = -0.08 * inviteEnv;
@@ -202,57 +210,56 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
     // A4 (L003): 先收拢姿态 (0~0.24) -> 抬头挺身换重心 (0.24~0.46) -> 两次差幅点头 (0.46~0.84) -> 视线回镜头
     if (p < 0.24) {
       const gather = Math.sin((p / 0.24) * Math.PI);
-      bodyOffsetY = gather * 0.32;
+      bodyOffsetY = breathY + gather * 0.32;
       scaleX = 1 - gather * 0.04;
       leftArmExtend = -0.55 * gather;
       rightArmExtend = -0.55 * gather;
       actionLookY = 0.12 * gather;
     } else if (p < 0.46) {
       const tall = Math.sin(((p - 0.24) / 0.22) * Math.PI);
-      bodyOffsetY = -tall * 0.32;
+      bodyOffsetY = breathY - tall * 0.32;
       bodyOffsetX = -tall * 0.24;
       scaleY = 1 + tall * 0.04;
       actionLookY = -0.18 * tall;
     } else if (p < 0.62) {
       // 第 1 次轻点头（小幅度）
       const nod1 = Math.sin(((p - 0.46) / 0.16) * Math.PI);
-      bodyOffsetY = nod1 * 0.26;
+      bodyOffsetY = breathY + nod1 * 0.26;
       bodyOffsetX = 0.18 * nod1;
       actionLookY = nod1 * 0.2;
     } else if (p < 0.84) {
       // 第 2 次肯定点头（较大幅度）
       const nod2 = Math.sin(((p - 0.62) / 0.22) * Math.PI);
-      bodyOffsetY = nod2 * 0.62;
-      bodyOffsetX = 0.24 * (1 - nod2 * 0.5);
+      bodyOffsetY = breathY + nod2 * 0.62;
+      bodyOffsetX = 0.24 * nod2;
       scaleX = 1 + nod2 * 0.05;
       scaleY = 1 - nod2 * 0.04;
       actionLookY = nod2 * 0.36;
     } else {
-      const settle = (p - 0.84) / 0.16;
-      bodyOffsetY = (1 - settle) * 0.08;
+      bodyOffsetY = breathY;
       actionLookX = 0;
       actionLookY = 0;
     }
   } else if (action === "self-present") {
-    // A5 (L004): 前足朝自己示意 (0~0.44) -> 向外展开展示“看看我的本事” (0.44~0.82) -> 微挺身收尾
+    // A5 (L004): 前足朝自己示意 (0~0.44) -> 向外展开展示“看看我的本事” (0.44~0.82) -> 平滑回稳以衔接 L064 蹲起
     if (p < 0.44) {
-      const inward = interpolate(p, [0, 0.14, 0.34, 0.44], [0, 1, 1, 0]);
-      const tap = Math.sin((p / 0.44) * Math.PI * 2) * 0.12;
+      const inward = interpolate(p, [0, 0.14, 0.32, 0.44], [0, 1, 1, 0]);
+      const tap = Math.sin((p / 0.44) * Math.PI * 2) * 0.1 * inward;
       leftArmExtend = -0.75 * inward;
       rightArmExtend = -0.75 * inward;
       selfPointOpacity = inward;
-      bodyOffsetY = 0.14 * inward + tap * 0.5;
+      bodyOffsetY = breathY + 0.14 * inward + tap;
       actionLookY = 0.14 * inward;
     } else {
       const openEnv = interpolate(
         p,
-        [0.44, 0.58, 0.84, 1],
-        [0, 1, 0.85, 0.45],
+        [0.44, 0.58, 0.82, 1],
+        [0, 1, 0.85, 0],
         { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
       );
       leftArmExtend = 0.72 * openEnv;
       rightArmExtend = 0.72 * openEnv;
-      bodyOffsetY = -0.26 * openEnv;
+      bodyOffsetY = breathY - 0.26 * openEnv;
       scaleX = 1 + 0.03 * openEnv;
       scaleY = 1 + 0.035 * openEnv;
       actionLookY = -0.08 * openEnv;
@@ -261,61 +268,109 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
     // A6 (L064 间奏): 一次稍明显的贴地下压—回正 (0~0.42) -> 轻待机 (0.42~0.72) -> 句尾向旁预倾铺垫 L005 (0.72~1.0)
     if (p < 0.42) {
       const squat = Math.sin((p / 0.42) * Math.PI);
-      bodyOffsetY = squat * 0.82;
+      bodyOffsetY = breathY + squat * 0.82;
       scaleX = 1 + squat * 0.075;
       scaleY = 1 - squat * 0.065;
     } else if (p < 0.72) {
-      const idleT = (p - 0.42) / 0.3;
-      bodyOffsetY = Math.sin(idleT * Math.PI * 2) * 0.14;
+      bodyOffsetY = breathY;
     } else {
       const leanT = interpolate(p, [0.72, 0.92, 1], [0, 1, 1]);
       bodyOffsetX = 0.56 * leanT;
       torsoTiltDeg = 3.8 * leanT;
-      bodyOffsetY = 0.22 * leanT;
+      bodyOffsetY = breathY + 0.22 * leanT;
       actionLookX = 0.35 * leanT;
     }
   } else if (action === "peek-present") {
-    // A7 (L005): 从预倾接一次短侧移探身+朝观众张开前足 (0~0.46) -> 落回原位 (0.46~0.74) -> 句尾视线移向日历进入侧 (0.74~1.0)
-    if (p < 0.46) {
-      const peekEnv = interpolate(p, [0, 0.18, 0.36, 0.46], [0.4, 1, 1, 0.2]);
-      stageOffsetX = 1.15 * peekEnv;
-      bodyOffsetX = 0.35 * peekEnv;
-      torsoTiltDeg = 4.2 * peekEnv;
-      bodyOffsetY = -0.22 * peekEnv;
-      leftArmExtend = 0.65 * peekEnv;
-      rightArmExtend = 0.65 * peekEnv;
-    } else if (p < 0.74) {
-      const backT = (p - 0.46) / 0.28;
-      stageOffsetX = (1 - backT) * 0.22;
-      bodyOffsetY = Math.sin(backT * Math.PI) * 0.18;
-    } else {
-      const cueT = interpolate(p, [0.74, 0.9, 1], [0, 1, 1]);
-      bodyOffsetX = 0.24 * cueT;
-      actionLookX = 0.52 * cueT;
-      actionLookY = -0.05 * cueT;
-    }
+    // A7 (L005): 无缝承接 L064 句尾预倾姿态 (p=0)，接一次短侧移探身+张开前足 (0~0.48) -> 落回原位 -> 句尾视线移向日历进入侧 (0.74~1.0)
+    stageOffsetX = interpolate(
+      p,
+      [0, 0.18, 0.34, 0.52, 0.74, 1],
+      [0, 1.15, 1.15, 0.16, 0, 0],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    bodyOffsetX = interpolate(
+      p,
+      [0, 0.18, 0.34, 0.52, 0.74, 0.9, 1],
+      [0.56, 0.35, 0.35, 0, 0, 0.24, 0.24],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    torsoTiltDeg = interpolate(
+      p,
+      [0, 0.18, 0.34, 0.52, 1],
+      [3.8, 4.2, 4.2, 0, 0],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    bodyOffsetY =
+      breathY +
+      interpolate(
+        p,
+        [0, 0.18, 0.34, 0.52, 0.64, 0.74, 1],
+        [0.22, -0.22, -0.22, 0, 0.14, 0, 0],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+      );
+    const armOpen = interpolate(
+      p,
+      [0, 0.18, 0.34, 0.5, 1],
+      [0, 0.65, 0.65, 0, 0],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    leftArmExtend = armOpen;
+    rightArmExtend = armOpen;
+    actionLookX = interpolate(
+      p,
+      [0, 0.18, 0.34, 0.52, 0.74, 0.9, 1],
+      [0.35, 0.12, 0.12, 0, 0, 0.48, 0.48],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    actionLookY = interpolate(p, [0, 0.74, 0.9, 1], [0, 0, -0.05, -0.05], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
   } else if (action === "read-look-up") {
-    // A8 (L009-L010 本体): 低头读书配合微翻页 (0~0.56) -> 从书后抬头挺身 (0.56~1.0)
+    // A8 (L009-L010 本体): 低头读书配合微翻页 (0~0.56) -> 从书后抬头挺身 (0.56~0.88) -> 平滑回正清场 (0.88~1.0)
     if (p < 0.56) {
+      const readEnv = interpolate(p, [0, 0.12], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      });
       const readT = p / 0.56;
-      bodyOffsetY = 0.22 + Math.sin(readT * Math.PI * 2) * 0.06;
-      actionLookX = Math.sin(readT * Math.PI * 3) * 0.32;
-      actionLookY = 0.32;
+      bodyOffsetY =
+        breathY * 0.5 + (0.22 + Math.sin(readT * Math.PI * 2) * 0.05) * readEnv;
+      actionLookX = Math.sin(readT * Math.PI * 3) * 0.32 * readEnv;
+      actionLookY = 0.32 * readEnv;
     } else {
-      const proudEnv = interpolate(p, [0.56, 0.72, 0.92, 1], [0, 1, 1, 0.7]);
-      bodyOffsetY = interpolate(p, [0.56, 0.72, 1], [0.22, -0.28, -0.18]);
+      const proudEnv = interpolate(p, [0.56, 0.7, 0.86, 1], [0, 1, 1, 0], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      });
+      bodyOffsetY =
+        breathY * (1 - proudEnv * 0.5) +
+        interpolate(p, [0.56, 0.7, 0.86, 1], [0.22, -0.26, -0.2, 0], {
+          extrapolateLeft: "clamp",
+          extrapolateRight: "clamp",
+        });
       scaleY = 1 + 0.045 * proudEnv;
       actionLookX = 0;
-      actionLookY = -0.18 * proudEnv;
+      actionLookY = interpolate(
+        p,
+        [0.56, 0.7, 0.86, 1],
+        [0.32, -0.18, -0.14, 0],
+        { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+      );
     }
   } else if (action === "elastic-pop") {
     // A9 (贴地弹性回弹原子动作): 极短下压蓄力 (0~0.14) -> 瞬间弹起伸展 (0.14~0.21) -> 快速微回摆稳住 (0.21~0.42)
-    bodyOffsetY = interpolate(
+    const popBlend = interpolate(p, [0, 0.05, 0.42, 0.55], [0, 1, 1, 0], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
+    const popY = interpolate(
       p,
       [0, 0.11, 0.14, 0.21, 0.3, 0.38, 0.46, 1],
       [0, 0.94, 0.98, -0.48, 0.16, -0.05, 0, 0],
       { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
     );
+    bodyOffsetY = breathY * (1 - popBlend) + popY;
     scaleX = interpolate(
       p,
       [0, 0.14, 0.21, 0.3, 0.4, 1],
@@ -388,13 +443,15 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
       rightArmOffsetY += -0.75 * waveEnv + waveOsc * 0.38 * waveEnv;
       rightArmExtend = 0.25 * waveEnv;
     } else if (p < 0.64) {
-      leftArmOffsetY += -0.18;
-      rightArmOffsetY += -0.18;
+      const stepT = (p - 0.38) / 0.26;
+      const stepArc = Math.sin(stepT * Math.PI);
+      leftArmOffsetY += -0.18 * stepArc;
+      rightArmOffsetY += -0.18 * stepArc;
     }
   } else if (action === "tilt-invite") {
     const inviteEnv = interpolate(
       p,
-      [0, 0.22, 0.72, 0.94, 1],
+      [0, 0.2, 0.68, 0.92, 1],
       [0, 1, 1, 0, 0],
       { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
     );
@@ -406,19 +463,20 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
       leftArmOffsetY += -0.35 * gather;
       rightArmOffsetY += -0.35 * gather;
     } else if (p < 0.46) {
-      leftArmOffsetY += -0.22;
-      rightArmOffsetY += -0.22;
+      const tall = Math.sin(((p - 0.24) / 0.22) * Math.PI);
+      leftArmOffsetY += -0.22 * tall;
+      rightArmOffsetY += -0.22 * tall;
     }
   } else if (action === "self-present") {
     if (p < 0.44) {
-      const inward = interpolate(p, [0, 0.14, 0.34, 0.44], [0, 1, 1, 0]);
+      const inward = interpolate(p, [0, 0.14, 0.32, 0.44], [0, 1, 1, 0]);
       leftArmOffsetY += -0.65 * inward;
       rightArmOffsetY += -0.65 * inward;
     } else {
       const openEnv = interpolate(
         p,
-        [0.44, 0.58, 0.84, 1],
-        [0, 1, 0.85, 0.45],
+        [0.44, 0.58, 0.82, 1],
+        [0, 1, 0.85, 0],
         { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
       );
       leftArmOffsetY += -0.45 * openEnv;
@@ -434,20 +492,34 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
       rightArmOffsetY += -0.25 * leanT;
     }
   } else if (action === "peek-present") {
-    if (p < 0.46) {
-      const peekEnv = interpolate(p, [0, 0.18, 0.36, 0.46], [0.4, 1, 1, 0.2]);
-      leftArmOffsetY += -0.52 * peekEnv;
-      rightArmOffsetY += -0.52 * peekEnv;
-    }
+    leftArmOffsetY += interpolate(
+      p,
+      [0, 0.18, 0.34, 0.5, 1],
+      [0, -0.52, -0.52, 0, 0],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    rightArmOffsetY += interpolate(
+      p,
+      [0, 0.18, 0.34, 0.5, 1],
+      [-0.25, -0.52, -0.52, 0, 0],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
   } else if (action === "read-look-up") {
     if (p < 0.56) {
-      // 轻微翻页手势，不大幅蹲起
+      const readEnv = interpolate(p, [0, 0.12], [0, 1], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      });
       const flipPulse = Math.max(0, Math.sin((p / 0.56) * Math.PI * 3));
-      rightArmOffsetY += -0.2 - flipPulse * 0.28;
-      leftArmOffsetY += -0.15;
+      rightArmOffsetY += (-0.2 - flipPulse * 0.28) * readEnv;
+      leftArmOffsetY += -0.15 * readEnv;
     } else {
-      leftArmOffsetY += -0.25;
-      rightArmOffsetY += -0.25;
+      const proudEnv = interpolate(p, [0.56, 0.7, 0.86, 1], [0.6, 1, 1, 0], {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      });
+      leftArmOffsetY += -0.25 * proudEnv;
+      rightArmOffsetY += -0.25 * proudEnv;
     }
   } else if (action === "elastic-pop") {
     const preload = interpolate(p, [0, 0.14, 0.19], [0, 1, 0], {
@@ -501,8 +573,11 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
   }
 
   const readingLookX =
-    prop === "book" ? Math.sin(timeSec * Math.PI * 2.5) * 0.35 : 0;
-  const readingLookY = prop === "book" ? 0.25 : 0;
+    prop === "book" && action !== "read-look-up"
+      ? Math.sin(timeSec * Math.PI * 2.5) * 0.35
+      : 0;
+  const readingLookY =
+    prop === "book" && action !== "read-look-up" ? 0.25 : 0;
   const nodLookY =
     action === "nod"
       ? Math.abs(Math.sin(timeSec * Math.PI * 3.56)) * 0.22
