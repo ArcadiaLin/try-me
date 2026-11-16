@@ -21,6 +21,139 @@ import {
   type PreviewRegion,
   type SyncPreviewProps,
 } from "@try-me/shared";
+import {
+  ClawdMascot,
+  type ClawdAction,
+  type ClawdMouth,
+  type ClawdOutfit,
+  type ClawdProp,
+} from "./components/ClawdMascot";
+
+function getClawdStateForAudioTime(audioSec: number): {
+  action: ClawdAction;
+  mouth: ClawdMouth;
+  outfit: ClawdOutfit;
+  prop: ClawdProp;
+  stageLabel: string;
+} {
+  // P001 Intro: 保持极简风格，随合成器轻快点头呼吸（不提前堆砌复杂道具）
+  if (audioSec < 9.2) {
+    return {
+      action: "idle",
+      mouth: "none",
+      outfit: "none",
+      prop: "none",
+      stageLabel: "P001 Intro 前半 · [极简] 待机呼吸眨眼",
+    };
+  }
+  if (audioSec < 18.2) {
+    return {
+      action: "nod",
+      mouth: "none",
+      outfit: "none",
+      prop: "none",
+      stageLabel: "P001 Intro 后半 · [极简] 随合成器点头律动",
+    };
+  }
+  // P002 Verse 1 前半: 挥手与小幅蹲起 (L064 间奏 34.03s–36.37s)
+  if (audioSec < 34.02) {
+    return {
+      action: "wave",
+      mouth: "none",
+      outfit: "none",
+      prop: "none",
+      stageLabel: "P002 Verse 1 · [极简] 挥手自我介绍",
+    };
+  }
+  if (audioSec < 36.37) {
+    return {
+      action: "crouch",
+      mouth: "none",
+      outfit: "none",
+      prop: "none",
+      stageLabel: "L064 间奏 · [极简] 小幅度蹲起律动",
+    };
+  }
+  if (audioSec < 45.3) {
+    return {
+      action: "walk",
+      mouth: "talk",
+      outfit: "none",
+      prop: "none",
+      stageLabel: "P002 Verse 1 · [轻互动] 迈步 + 多语言气泡",
+    };
+  }
+  if (audioSec < 54.75) {
+    return {
+      action: "idle",
+      mouth: "smile",
+      outfit: "none",
+      prop: "book",
+      stageLabel: "P002 Verse 1 后段 · [进阶道具] 学霸捧书",
+    };
+  }
+  if (audioSec < 63.03) {
+    return {
+      action: "idle",
+      mouth: "smile",
+      outfit: "swag",
+      prop: "none",
+      stageLabel: "P003 Pre-Chorus · [进阶换装] Superstar 潮人装",
+    };
+  }
+  if (audioSec < 81.15) {
+    return {
+      action: "bounce",
+      mouth: "smile",
+      outfit: "none",
+      prop: "juggle",
+      stageLabel: "P004 Chorus 1 · [高潮道具] 全能杂耍 Try Me!",
+    };
+  }
+  if (audioSec < 90.25) {
+    return {
+      action: "bounce",
+      mouth: "smile",
+      outfit: "party",
+      prop: "dj",
+      stageLabel: "P005 Post-Chorus · [高潮大招] 派对帽 + DJ 打碟",
+    };
+  }
+  if (audioSec >= 144.03 && audioSec < 150.8) {
+    return {
+      action: "walk",
+      mouth: "smile",
+      outfit: "none",
+      prop: "none",
+      stageLabel: "P008 Bridge · [极简] Step by step 四足迈步",
+    };
+  }
+  if (audioSec >= 150.8 && audioSec < 157.0) {
+    return {
+      action: "idle",
+      mouth: "smile",
+      outfit: "none",
+      prop: "coffee",
+      stageLabel: "P008 Bridge · [进阶道具] 休憩タイム喝咖啡",
+    };
+  }
+  if (audioSec >= 188.6) {
+    return {
+      action: "wave",
+      mouth: "talk",
+      outfit: "gentleman",
+      prop: "none",
+      stageLabel: "P011/P012 终局 · [进阶换装] Fine Society 绅士",
+    };
+  }
+  return {
+    action: "bounce",
+    mouth: "smile",
+    outfit: "swag",
+    prop: "none",
+    stageLabel: "Try Me · 音乐拍点联动模式",
+  };
+}
 
 export {
   type AnnotationsPreviewPayload,
@@ -227,6 +360,7 @@ export const MyComponent: React.FC<SyncPreviewProps> = (props) => {
 
   const hashMismatch = Boolean(data.audio_hash_mismatch);
   const shouldPlayAudio = !silentPreview && audioFileAvailable && !hashMismatch;
+  const clawdState = getClawdStateForAudioTime(audioSeconds);
 
   // Scrolling ruler window: [-1.5s, +3.5s] around current audioSeconds
   const rulerStartSec = audioSeconds - 1.5;
@@ -326,16 +460,16 @@ export const MyComponent: React.FC<SyncPreviewProps> = (props) => {
           margin: "24px 0",
         }}
       >
-        {/* Left: Beat Flash Box */}
+        {/* Left: Beat Flash Box + Clawd Mascot */}
         <div
           style={{
-            backgroundColor: "#111827",
+            backgroundColor: "#23212c",
             border: `3px solid ${
               pulseStrength > 0.05
                 ? isDownbeat
                   ? "#f59e0b"
-                  : recentMarker?.color || "#38bdf8"
-                : "#1e293b"
+                  : recentMarker?.color || "#d87757"
+                : "#353244"
             }`,
             borderRadius: 16,
             display: "flex",
@@ -347,28 +481,29 @@ export const MyComponent: React.FC<SyncPreviewProps> = (props) => {
             overflow: "hidden",
           }}
         >
+          <ClawdMascot
+            width={195}
+            action={clawdState.action}
+            mouth={clawdState.mouth}
+            outfit={clawdState.outfit}
+            prop={clawdState.prop}
+            beatPulse={pulseStrength}
+          />
           <div
             style={{
-              width: 136,
-              height: 136,
-              borderRadius: "50%",
-              backgroundColor: isDownbeat ? "#f59e0b" : "#38bdf8",
-              opacity: 0.15 + pulseStrength * 0.85,
-              scale: String(0.82 + pulseStrength * 0.36),
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#090d16",
-              fontWeight: 800,
-              fontSize: 22,
+              marginTop: 10,
+              fontSize: 12,
+              fontWeight: 700,
+              color: "#d87757",
+              textAlign: "center",
             }}
           >
-            {recentMarker ? recentMarker.id : "READY"}
+            {clawdState.stageLabel}
           </div>
           <div
             style={{
-              marginTop: 18,
-              fontSize: 20,
+              marginTop: 6,
+              fontSize: 18,
               fontWeight: 700,
               color: isDownbeat ? "#fbbf24" : "#e2e8f0",
             }}
