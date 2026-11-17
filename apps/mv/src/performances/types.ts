@@ -3,6 +3,7 @@ import type {
   ClawdEyes,
   ClawdProp,
 } from "../components/clawd/types";
+import type { StageKeyboardState } from "../timeline/verse1";
 
 export interface ClawdStagePlacement {
   x: number;
@@ -20,6 +21,7 @@ export interface ClawdActorState {
   glassesProgress: number;
   bookProgress: number;
   trumpetProgress: number;
+  keyboardState?: StageKeyboardState;
   beatPulse: number;
   lookOffset: { x: number; y: number };
 }

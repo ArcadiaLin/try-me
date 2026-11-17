@@ -221,4 +221,14 @@ test("refactored pose & timeline layers keep feet grounded and preserve exact re
   assert.equal(bookFlyStart.handHoldProgress, 0);
   assert.equal(bookHeld.handHoldProgress, 1);
   assert.equal(bookExitDone.handHoldProgress, 0);
+
+  // When playing the compact synth keyboard (prop="keyboard"), Clawd's hands slide inward and actuate left/right key presses
+  const kbHighNote = resolveClawdPose({
+    action: "idle",
+    prop: "keyboard",
+    keyboardState: sampleStageKeyboard(0.86),
+    timeSec: 0.86,
+  });
+  assert.equal(kbHighNote.handKeyboardProgress, 1);
+  assert((kbHighNote.rightKeyPress ?? 0) > 0.8);
 });

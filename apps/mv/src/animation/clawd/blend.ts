@@ -4,7 +4,10 @@ import type {
   ClawdPose,
   ClawdProp,
 } from "../../components/clawd/types.ts";
-import type { ClawdRhythmMotion } from "../../timeline/rhythm-timing.ts";
+import type {
+  ClawdRhythmMotion,
+  StageKeyboardState,
+} from "../../timeline/rhythm-timing.ts";
 import { sampleClawdActionDelta } from "./actions/index.ts";
 import { clamp01, defaultBreathY } from "./motion-style.ts";
 
@@ -13,6 +16,7 @@ export interface ResolveClawdPoseInput {
   actionProgress?: number;
   prop?: ClawdProp;
   bookProgress?: number;
+  keyboardState?: StageKeyboardState;
   beatPulse?: number;
   rhythm?: ClawdRhythmMotion;
   timeSec: number;
@@ -22,7 +26,7 @@ export interface ResolveClawdPoseInput {
  * 动作衔接与局部叠加合成器：
  * 1. 先按 action + actionProgress 采样叙事或循环动作的局部姿态增量；
  * 2. 在非保护期（非 stumble-left / static）叠加连续拍点律动 rhythm（左右重心摆动 + 轻微下压）；
- * 3. 叠加手持道具（dj / juggle / coffee）对手臂与躯干的局部覆盖；
+ * 3. 叠加手持道具（dj / juggle / coffee / book / keyboard）对手臂与躯干的局部覆盖；
  * 4. 叠加外部节拍脉冲 beatPulse，最终输出带足底贴地约束的完整 ClawdPose。
  */
 export function resolveClawdPose({
@@ -30,6 +34,7 @@ export function resolveClawdPose({
   actionProgress,
   prop = "none",
   bookProgress,
+  keyboardState,
   beatPulse = 0,
   rhythm,
   timeSec,
@@ -59,6 +64,22 @@ export function resolveClawdPose({
     const holdEnv =
       rawBp <= 1 ? clamp01(rawBp) : clamp01(2 - rawBp);
     handHoldProgress = holdEnv;
+  }
+
+  // 当弹奏身前紧凑合成器键盘 (prop === "keyboard") 时，左爪负责低音区 (A3 / B♭3)，右爪负责高八度 (B♭4)
+  let handKeyboardProgress = 0;
+  let leftKeyShiftX = 0;
+  let leftKeyPress = 0;
+  let rightKeyPress = 0;
+  if (prop === "keyboard" && keyboardState?.visible) {
+    handKeyboardProgress = clamp01(keyboardState.traySlide);
+    const z0 = keyboardState.zones[0].press; // A3 半音下切
+    const z1 = keyboardState.zones[1].press; // B♭3 基准低音
+    const z2 = keyboardState.zones[2].press; // B♭4 高八度
+    leftKeyPress = Math.max(z0, z1);
+    rightKeyPress = z2;
+    // 左手在按下 A3 下切音时向左微移 (-1)，按 B♭3 基准音时回到 (0)
+    leftKeyShiftX = z0 > 0.05 ? -Math.min(1, z0 * 1.15) : 0;
   }
 
   // 1. 叠加连续节拍律动（仅安静窗口权重 > 0，且排除 stumble-left 与 static）
@@ -127,6 +148,10 @@ export function resolveClawdPose({
     leftArmOffsetY,
     rightArmOffsetY,
     handHoldProgress,
+    handKeyboardProgress,
+    leftKeyShiftX,
+    leftKeyPress,
+    rightKeyPress,
     legLifts,
     isAirborneAction: delta.isAirborneAction ?? false,
     isStumbleHop: delta.isStumbleHop ?? false,

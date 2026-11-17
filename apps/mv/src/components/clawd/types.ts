@@ -1,4 +1,7 @@
-import type { ClawdRhythmMotion } from "../../timeline/rhythm-timing.ts";
+import type {
+  ClawdRhythmMotion,
+  StageKeyboardState,
+} from "../../timeline/rhythm-timing.ts";
 
 export type ClawdAction =
   | "static"
@@ -29,7 +32,8 @@ export type ClawdProp =
   | "book"
   | "juggle"
   | "dj"
-  | "trumpet";
+  | "trumpet"
+  | "keyboard";
 
 /**
  * 角色骨骼与五官的标准化姿态描述（以 16×10 网格单位计）
@@ -60,6 +64,14 @@ export interface ClawdPose {
   rightArmOffsetY: number;
   /** 双手从身体两侧向胸前移动捧书的连续进度 (0 ~ 1)：0 在身体外侧，>0 时远端与躯干重合产生描边并捧住书本 */
   handHoldProgress: number;
+  /** 双手移向身前紧凑小键盘弹奏的连续进度 (0 ~ 1) */
+  handKeyboardProgress?: number;
+  /** 弹键盘时左手在低音区（A3 下切 vs B♭3 基准）的水平微移 (-1 ~ 0) */
+  leftKeyShiftX?: number;
+  /** 弹键盘时左手下按深度 (0 ~ 1) */
+  leftKeyPress?: number;
+  /** 弹键盘时右手（高八度 B♭4）下按深度 (0 ~ 1) */
+  rightKeyPress?: number;
   /** 四条短腿离地抬升量 [leg1(x=3), leg2(x=5), leg3(x=10), leg4(x=12)] */
   legLifts: [number, number, number, number];
   /** 是否处于整体腾空动作（walk / bounce） */
@@ -94,14 +106,16 @@ export interface ClawdProps {
   showTalkBubble?: boolean;
   /** 换装造型（原版 / Superstar 潮人墨镜反戴帽 / 绅士高礼帽单片镜 / 派对尖顶帽） */
   outfit?: ClawdOutfit;
-  /** 手持或场景道具（无 / 端咖啡 / 捧书阅读 / 杂耍抛球 / DJ 打碟台 / 铜管小号） */
+  /** 手持或场景道具（无 / 端咖啡 / 捧书阅读 / 杂耍抛球 / DJ 打碟台 / 铜管小号 / 身前小合成器键盘） */
   prop?: ClawdProp;
-  /** L009–L010 中学生白反光眼镜进出场进度 (0 ~ 1) */
+  /** L009–L010 中学生白反光眼镜进出场进度 (0 ~ 2) */
   glassesProgress?: number;
-  /** L009–L010 书本从右下进出场进度 (0 ~ 1) */
+  /** L009–L010 书本进出场进度 (0 ~ 2) */
   bookProgress?: number;
   /** L011 小号吹奏全流程进度 (0 ~ 1) */
   trumpetProgress?: number;
+  /** 前奏/间奏紧凑合成器键盘状态 */
+  keyboardState?: StageKeyboardState;
   /** 外部节拍脉冲强度 (0 ~ 1)，用于和音乐拍点同步弹跳 */
   beatPulse?: number;
   /** 可选的连续拍点律动；未传时保持现有小样与踮脚跳原表现 */

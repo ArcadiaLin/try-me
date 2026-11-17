@@ -47,36 +47,69 @@ const SWEAT_DROPS = [
  *   下移至胸前书本两侧 (y = 5.05)，远端自然越过躯干边界 x=2 / x=14 与主体重合。
  */
 export function computeHandBoxes(pose: ClawdPose) {
-  const h = pose.handHoldProgress;
+  const hBook = pose.handHoldProgress;
+  const hKey = pose.handKeyboardProgress ?? 0;
+  const h = Math.max(hBook, hKey);
   const handWidth = 2.0;
   const handHeight = interpolate(h, [0, 1], [2.0, 1.85]);
 
+  if (hKey > hBook && hKey > 0) {
+    const keyShiftX = pose.leftKeyShiftX ?? 0;
+    const lPress = pose.leftKeyPress ?? 0;
+    const rPress = pose.rightKeyPress ?? 0;
+
+    // 保持手部外侧近端与躯干边界 (x=2 / x=14) 无缝连通（不脱节成悬浮方块），远端向内伸到琴键上方按动
+    const targetLeftX = 1.55 + keyShiftX * 0.35;
+    const targetLeftW = 2.35 - keyShiftX * 0.2;
+    const targetLeftY = 4.55 + pose.bodyOffsetY + lPress * 0.52;
+
+    const targetRightW = 2.35;
+    const targetRightX = 16 - targetRightW - 1.55; // 12.10，外端 14.45 > 14 与躯干无缝相连
+    const targetRightY = 4.5 + pose.bodyOffsetY + rPress * 0.55;
+
+    return {
+      h: hKey,
+      left: {
+        x: interpolate(hKey, [0, 1], [0, targetLeftX]),
+        y: interpolate(hKey, [0, 1], [4 + pose.leftArmOffsetY, targetLeftY]),
+        width: interpolate(hKey, [0, 1], [handWidth, targetLeftW]),
+        height: handHeight,
+      },
+      right: {
+        x: interpolate(hKey, [0, 1], [14, targetRightX]),
+        y: interpolate(hKey, [0, 1], [4 + pose.rightArmOffsetY, targetRightY]),
+        width: interpolate(hKey, [0, 1], [handWidth, targetRightW]),
+        height: handHeight,
+      },
+    };
+  }
+
   const leftX =
-    h > 0
-      ? interpolate(h, [0, 1], [0, 1.75])
+    hBook > 0
+      ? interpolate(hBook, [0, 1], [0, 1.75])
       : Math.min(1.4, -pose.leftArmExtend);
   const leftOuterWidth =
-    h > 0 ? handWidth : Math.max(0.6, 2 + pose.leftArmExtend);
+    hBook > 0 ? handWidth : Math.max(0.6, 2 + pose.leftArmExtend);
   const leftY = interpolate(
-    h,
+    hBook,
     [0, 1],
     [4 + pose.leftArmOffsetY, 5.05 + pose.bodyOffsetY],
   );
 
   const rightOuterWidth =
-    h > 0 ? handWidth : Math.max(0.6, 2 + pose.rightArmExtend);
+    hBook > 0 ? handWidth : Math.max(0.6, 2 + pose.rightArmExtend);
   const rightX =
-    h > 0
-      ? interpolate(h, [0, 1], [14, 12.25])
+    hBook > 0
+      ? interpolate(hBook, [0, 1], [14, 12.25])
       : 16 - rightOuterWidth;
   const rightY = interpolate(
-    h,
+    hBook,
     [0, 1],
-    [4 + pose.rightArmOffsetY, 5.05 + pose.bodyOffsetY],
+    [4 + pose.rightArmOffsetY, 4.95 + 0.1 + pose.bodyOffsetY],
   );
 
   return {
-    h,
+    h: hBook,
     left: {
       x: leftX,
       y: leftY,
@@ -290,9 +323,15 @@ export const ClawdHandsOverlay: React.FC<ClawdBodyProps> = ({
       />
       {leftOverlapW > 0.02 && (
         <path
-          d={`M ${leftOverlapX0} ${hands.left.y} H ${leftOverlapX1} V ${
-            hands.left.y + hands.left.height
-          } H ${leftOverlapX0}`}
+          d={
+            hands.left.x > 2.02
+              ? `M ${leftOverlapX0} ${hands.left.y} H ${leftOverlapX1} V ${
+                  hands.left.y + hands.left.height
+                } H ${leftOverlapX0} Z`
+              : `M ${leftOverlapX0} ${hands.left.y} H ${leftOverlapX1} V ${
+                  hands.left.y + hands.left.height
+                } H ${leftOverlapX0}`
+          }
           fill="none"
           stroke={outlineColor}
           strokeWidth={strokeW}
@@ -311,9 +350,15 @@ export const ClawdHandsOverlay: React.FC<ClawdBodyProps> = ({
       />
       {rightOverlapW > 0.02 && (
         <path
-          d={`M ${rightOverlapX1} ${hands.right.y} H ${rightOverlapX0} V ${
-            hands.right.y + hands.right.height
-          } H ${rightOverlapX1}`}
+          d={
+            hands.right.x + hands.right.width < 13.98
+              ? `M ${rightOverlapX1} ${hands.right.y} H ${rightOverlapX0} V ${
+                  hands.right.y + hands.right.height
+                } H ${rightOverlapX1} Z`
+              : `M ${rightOverlapX1} ${hands.right.y} H ${rightOverlapX0} V ${
+                  hands.right.y + hands.right.height
+                } H ${rightOverlapX1}`
+          }
           fill="none"
           stroke={outlineColor}
           strokeWidth={strokeW}

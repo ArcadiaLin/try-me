@@ -7,6 +7,7 @@ import {
   CoffeeProp,
   DjBoothProp,
   JuggleProp,
+  KeyboardProp,
   TrumpetProp,
 } from "../props";
 import { ClawdBody, ClawdHandsOverlay } from "./ClawdBody";
@@ -34,6 +35,7 @@ export const Clawd: React.FC<ClawdProps> = ({
   glassesProgress = 0,
   bookProgress,
   trumpetProgress,
+  keyboardState,
   beatPulse = 0,
   rhythm,
   bodyColor = CLAWD_MODEL.colors.body,
@@ -60,6 +62,7 @@ export const Clawd: React.FC<ClawdProps> = ({
       actionProgress,
       prop,
       bookProgress,
+      keyboardState,
       beatPulse,
       rhythm,
       timeSec,
@@ -130,7 +133,14 @@ export const Clawd: React.FC<ClawdProps> = ({
             outlineColor={outlineColor}
           />
         )}
-        {/* 当双手向胸前移动捧书时，远端与主体/书本重合的手部色块与描边层 */}
+        {prop === "keyboard" && (
+          <KeyboardProp
+            pose={pose}
+            keyboardState={keyboardState}
+            outlineColor={outlineColor}
+          />
+        )}
+        {/* 当双手向胸前移动捧书或弹奏键盘时，远端与主体/道具重合的手部色块与描边层 */}
         <ClawdHandsOverlay
           pose={pose}
           bodyColor={bodyColor}

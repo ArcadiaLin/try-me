@@ -15,6 +15,13 @@ export {
   type PretrainFieldProps,
 } from "./PretrainField";
 export {
+  RhythmPopups,
+  VERSE1_RHYTHM_POPUP_EVENTS,
+  type RhythmPopupEvent,
+  type RhythmPopupKind,
+  type RhythmPopupsProps,
+} from "./RhythmPopups";
+export {
   StageAutoKeyboard,
   type StageAutoKeyboardProps,
 } from "./StageAutoKeyboard";

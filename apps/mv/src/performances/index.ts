@@ -1,4 +1,5 @@
 import {
+  sampleStageKeyboard,
   sampleVerse1PlanProgress,
   type ClawdRhythmMotion,
 } from "../timeline/verse1";
@@ -7,6 +8,7 @@ import {
   resolveExitTerminalActor,
   resolveExitTerminalPlacement,
 } from "./ExitTerminal";
+import { resolvePlayKeyboardActor } from "./PlayKeyboard";
 import {
   PlayTrumpetPerformance,
   resolvePlayTrumpetActor,
@@ -27,6 +29,7 @@ export {
   ExitTerminalPerformance,
   PlayTrumpetPerformance,
   ReadBookPerformance,
+  resolvePlayKeyboardActor,
   SpeakLanguagesPerformance,
   type ClawdActorState,
   type ClawdStagePlacement,
@@ -72,12 +75,15 @@ export function resolveVerse1ClawdPerformance(
   let actor = baseActor;
 
   if (sec < 18.525) {
-    actor = baseActor;
+    actor = resolvePlayKeyboardActor(sec, baseActor);
   } else if (sec < 22.721) {
+    const kbTail = sec < 18.95 ? sampleStageKeyboard(sec) : undefined;
     actor = {
       ...baseActor,
       action: "wave-step",
       actionProgress: sampleVerse1PlanProgress(authoredFrame, "wave"),
+      prop: kbTail?.visible ? "keyboard" : "none",
+      keyboardState: kbTail?.visible ? kbTail : undefined,
     };
   } else if (sec < 27.161) {
     actor = {
