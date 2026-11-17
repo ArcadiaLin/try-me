@@ -17,10 +17,12 @@ export type ClawdAction =
   | "crouch-lean"
   | "peek-present"
   | "read-look-up"
-  | "elastic-pop";
+  | "elastic-pop"
+  | "stumble-left"
+  | "snappy-nod";
 
 export type ClawdMouth = "none" | "smile" | "talk" | "yawn" | "blush";
-export type ClawdEyes = "normal" | "happy";
+export type ClawdEyes = "normal" | "happy" | "wince";
 export type ClawdOutfit = "none" | "swag" | "gentleman" | "party";
 export type ClawdProp =
   | "none"
@@ -91,6 +93,76 @@ export interface ClawdMascotProps {
  * - Tier 2 轻表情互动 (mouth):    none / smile(微笑) / talk(说话气泡) / yawn(打哈欠) / blush(弯眼腮红比心)
  * - Tier 3 换装与舞台道具:        outfit(swag/gentleman/party) + prop(book/coffee/juggle/dj)
  */
+/**
+ * 计算 stumble-left（左两足踮脚三小跳 + 右两足悬空）的精确腾空弧度与水平阶梯进度：
+ * - 四个离散落点比例：0 (-105px) -> 0.50 (-150px, 跨度 45px) -> 0.822 (-179px, 跨度 29px) -> 1.0 (-195px, 跨度 16px)
+ * - 三次踮脚跳的高度与滞空时长依次递减（高度比 1.00 -> 0.62 -> 0.32），触地期间 hopArc === 0 且 X 坐标 100% 锁死不滑步！
+ */
+export function getStumbleLeftKinematics(pRaw: number): {
+  hopArc: number;
+  hopHeightRatio: number;
+  plantCompression: number;
+  xSpots: [number, number, number, number];
+  currentXRatio: number;
+} {
+  const p = Math.max(0, Math.min(1, pRaw));
+  // 距离递减的四个离散落点比例：0 -> 0.50 (步幅 50%) -> 0.822 (步幅 32.2%) -> 1.0 (步幅 17.8%)
+  const r0 = 0;
+  const r1 = 0.5;
+  const r2 = 0.822;
+  const r3 = 1.0;
+
+  let hopArc = 0;
+  let hopHeightRatio = 0;
+  let plantCompression = 0;
+  let currentXRatio = r0;
+
+  if (p < 0.06) {
+    // Plant 0: 初次落地缓冲，X 锁定在 r0 (-105px)
+    currentXRatio = r0;
+    plantCompression = Math.sin((p / 0.06) * Math.PI);
+  } else if (p < 0.3) {
+    // Hop 1 腾空 (时长 0.24): 大跨度高弹跳 (r0 -> r1, 高度 100%)
+    const t = (p - 0.06) / 0.24;
+    hopArc = Math.sin(t * Math.PI);
+    hopHeightRatio = 1.0;
+    currentXRatio = r0 + (r1 - r0) * t;
+  } else if (p < 0.37) {
+    // Plant 1: 第 1 跳落地踮脚缓冲，X 完全锁定在 r1 (-150px)
+    currentXRatio = r1;
+    plantCompression = Math.sin(((p - 0.3) / 0.07) * Math.PI) * 0.8;
+  } else if (p < 0.56) {
+    // Hop 2 腾空 (时长 0.19): 中等跨度与高度 (r1 -> r2, 高度 62%)
+    const t = (p - 0.37) / 0.19;
+    hopArc = Math.sin(t * Math.PI);
+    hopHeightRatio = 0.62;
+    currentXRatio = r1 + (r2 - r1) * t;
+  } else if (p < 0.63) {
+    // Plant 2: 第 2 跳落地踮脚缓冲，X 完全锁定在 r2 (-179px)
+    currentXRatio = r2;
+    plantCompression = Math.sin(((p - 0.56) / 0.07) * Math.PI) * 0.55;
+  } else if (p < 0.77) {
+    // Hop 3 腾空 (时长 0.14): 小跨度收尾轻跳 (r2 -> r3, 高度 32%)
+    const t = (p - 0.63) / 0.14;
+    hopArc = Math.sin(t * Math.PI);
+    hopHeightRatio = 0.32;
+    currentXRatio = r2 + (r3 - r2) * t;
+  } else {
+    // Plant 3 & 回正 (0.77~1.0): X 完全锁定在最终站位 r3 (-195px)，以左足为支点回正身体
+    currentXRatio = r3;
+    plantCompression =
+      p < 0.84 ? Math.sin(((p - 0.77) / 0.07) * Math.PI) * 0.35 : 0;
+  }
+
+  return {
+    hopArc,
+    hopHeightRatio,
+    plantCompression,
+    xSpots: [r0, r1, r2, r3],
+    currentXRatio,
+  };
+}
+
 export const ClawdMascot: React.FC<ClawdMascotProps> = ({
   width = 320,
   action = "idle",
@@ -390,6 +462,76 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
     leftArmExtend = 0.48 * popFlare;
     rightArmExtend = 0.48 * popFlare;
     actionLookY = -0.18 * popFlare;
+  } else if (action === "stumble-left") {
+    // 从右侧终端跳落至偏左一点的初始点 (-105px) 后，左两足一踮一踮向左跳三小跳（距离与高度递减）到达最终位置 (-195px)，随后以左足为支点回正：
+    const { hopArc, hopHeightRatio, plantCompression } =
+      getStumbleLeftKinematics(p);
+    const stumbleBlend = interpolate(p, [0, 0.04, 0.86, 1], [0, 1, 1, 0], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
+    const hopBodyY =
+      p < 0.77
+        ? 0.18 * plantCompression - 1.05 * hopArc * hopHeightRatio
+        : interpolate(p, [0.77, 0.84, 1], [0.1, 0, 0]);
+    bodyOffsetY = breathY * (1 - stumbleBlend) + hopBodyY;
+    bodyOffsetX = 0;
+    // 身体左倾角度随三次递减跳跃同步逐级收敛 (-15.5° -> -12.0° -> -8.2° -> 0°)
+    torsoTiltDeg = interpolate(
+      p,
+      [0, 0.05, 0.3, 0.35, 0.56, 0.61, 0.77, 0.93, 1],
+      [-13.5, -15.5, -11.5, -12.2, -8.5, -8.8, -6.5, 1.4, 0],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    scaleX = 1;
+    scaleY = 1;
+    const armFlail = interpolate(p, [0, 0.06, 0.8, 0.93, 1], [0, 1, 1, 0.15, 0], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
+    leftArmExtend = 0.75 * armFlail;
+    rightArmExtend = 0.65 * armFlail;
+    actionLookX = interpolate(p, [0, 0.78, 0.9, 1], [-0.35, -0.25, 0.48, 0.5], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
+  } else if (action === "snappy-nod") {
+    // L006「365日」句尾轻快明显的双拍弹性点头：干脆利落连点两下（咔-哒！）+ 身体轻快弹性配合
+    const nodBlend = interpolate(p, [0, 0.06, 0.9, 1], [0, 1, 1, 0], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
+    const nodY = interpolate(
+      p,
+      [0, 0.18, 0.34, 0.54, 0.74, 0.9, 1],
+      [0, 0.86, -0.32, 0.96, -0.26, 0.08, 0],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    bodyOffsetY = breathY * (1 - nodBlend) + nodY;
+    torsoTiltDeg = interpolate(
+      p,
+      [0, 0.18, 0.34, 0.54, 0.74, 1],
+      [0, 5.2, -2.0, 6.0, -1.6, 0],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    scaleX = interpolate(
+      p,
+      [0, 0.18, 0.34, 0.54, 0.74, 1],
+      [1, 1.09, 0.95, 1.11, 0.96, 1],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    scaleY = interpolate(
+      p,
+      [0, 0.18, 0.34, 0.54, 0.74, 1],
+      [1, 0.89, 1.06, 0.88, 1.05, 1],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    actionLookY = interpolate(
+      p,
+      [0, 0.18, 0.34, 0.54, 0.74, 1],
+      [0, 0.34, -0.14, 0.38, -0.12, 0],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
   }
 
   if (prop === "dj") {
@@ -532,9 +674,27 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
     });
     leftArmOffsetY += preload * 0.34 - popUp * 0.78;
     rightArmOffsetY += preload * 0.34 - popUp * 0.78;
+  } else if (action === "stumble-left") {
+    // 前肢快速上下交替摆动（表示没站稳拼命找平衡）
+    const flailEnv = interpolate(p, [0, 0.08, 0.78, 0.92, 1], [0, 1, 1, 0.15, 0], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
+    const flapWave = Math.sin(p * Math.PI * 10);
+    leftArmOffsetY += -0.42 * flailEnv + flapWave * 0.84 * flailEnv;
+    rightArmOffsetY += -0.52 * flailEnv - flapWave * 0.84 * flailEnv;
+  } else if (action === "snappy-nod") {
+    const snapArm = interpolate(
+      p,
+      [0, 0.18, 0.34, 0.54, 0.74, 1],
+      [0, 0.28, -0.42, 0.32, -0.38, 0],
+      { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+    );
+    leftArmOffsetY += snapArm;
+    rightArmOffsetY += snapArm;
   }
 
-  // 3. 四条小短腿离地抬升量（仅 walk 与 bounce 离地，其余所有动作足底均严格贴地 y = 10）
+  // 3. 四条小短腿离地抬升量（仅 walk、bounce 与 stumble-left 右侧惯性翘脚离地，其余所有动作足底均严格贴地 y = 10）
   let leg1Lift = 0;
   let leg2Lift = 0;
   let leg3Lift = 0;
@@ -552,6 +712,24 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
     leg2Lift = lift;
     leg3Lift = lift;
     leg4Lift = lift;
+  } else if (action === "stumble-left") {
+    // 左侧两足在三小跳腾空期按递减高度 (100% -> 62% -> 32%) 离地跃起、触地期严格钉在地面 y=10；右侧两足全程悬空！
+    const { hopArc, hopHeightRatio } = getStumbleLeftKinematics(p);
+    const rightAirEnv = interpolate(
+      p,
+      [0, 0.03, 0.35, 0.6, 0.77, 0.94, 1],
+      [0.95, 1, 0.82, 0.62, 0.48, 0.1, 0],
+      {
+        extrapolateLeft: "clamp",
+        extrapolateRight: "clamp",
+      },
+    );
+    // 左侧两足 (leg1, leg2)：腾空跳跃高度随 hopHeightRatio 依次递减，触地停顿时 lift === 0 完全贴地
+    leg1Lift = hopArc * hopHeightRatio * 1.05;
+    leg2Lift = hopArc * hopHeightRatio * 0.96;
+    // 右侧两足 (leg3, leg4)：全程直接悬空，且随左倾角度收敛逐跳降低悬空高度，直到 p>0.77 回正时落回地面
+    leg3Lift = 1.35 * rightAirEnv + hopArc * hopHeightRatio * 0.9;
+    leg4Lift = 1.85 * rightAirEnv + hopArc * hopHeightRatio * 1.0;
   }
 
   // 4. 自动眨眼与阅读视线控制
@@ -626,7 +804,8 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
   const leftArmW = Math.max(0.6, 2 + leftArmExtend) + armInset;
   const rightArmX = 14 - armInset;
   const rightArmW = Math.max(0.6, 2 + rightArmExtend) + armInset;
-  const upperBodyTransform = `translate(${bodyOffsetX}, 0) rotate(${torsoTiltDeg}, 8, 8)`;
+  const rotPivotX = action === "stumble-left" ? 4.5 : 8;
+  const upperBodyTransform = `translate(${bodyOffsetX}, 0) rotate(${torsoTiltDeg}, ${rotPivotX}, 8)`;
   const tiltRad = (torsoTiltDeg * Math.PI) / 180;
   const isAirborneAction = action === "walk" || action === "bounce";
 
@@ -667,21 +846,31 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
       <g>
         {legConfigs.map(({ baseX, lift }) => {
           const cx = baseX + 0.5;
-          // 计算该腿所在 X 处躯干倾斜后的下沿高度，并将髋部锚点向躯干内部上移 hipInset
+          // 计算该腿所在 X 处躯干绕 rotPivotX 倾斜后的下沿高度，并将髋部锚点向躯干内部上移 hipInset
           const torsoBottomAtLeg =
-            8 + bodyOffsetY + (cx - 8) * Math.tan(tiltRad);
+            8 + bodyOffsetY + (cx - rotPivotX) * Math.tan(tiltRad);
           const hipY = torsoBottomAtLeg - hipInset;
           const footY = isAirborneAction
             ? 10 + Math.min(0, bodyOffsetY) - lift
-            : 10;
-          // 髋部水平位置跟随躯干移动，足底保持贴地稳定（轻微跟随以保证自然过渡）
-          const hipX = baseX + (isAirborneAction ? bodyOffsetX : bodyOffsetX * 0.78);
-          const footX = baseX + (isAirborneAction ? bodyOffsetX : bodyOffsetX * 0.22);
+            : 10 - lift;
+          // stumble-left 时左两足水平坐标严格等于 baseX（触地绝不滑动），右两足随左倾悬空微向外撇
+          const isStumbleHop = action === "stumble-left" && p < 0.95;
+          const isRightLeg = baseX >= 10;
+          const hipX = isStumbleHop
+            ? baseX
+            : baseX + (isAirborneAction ? bodyOffsetX : bodyOffsetX * 0.78);
+          const footX = isStumbleHop
+            ? isRightLeg
+              ? baseX + 0.35
+              : baseX
+            : baseX + (isAirborneAction ? bodyOffsetX : bodyOffsetX * 0.22);
+          // 左侧两足在踮脚跳时足尖略收窄，强化“踮脚”视觉感
+          const tiptoeInset = isStumbleHop && !isRightLeg ? 0.16 : 0;
 
           return (
             <polygon
               key={baseX}
-              points={`${hipX},${hipY} ${hipX + 1},${hipY} ${footX + 1},${footY} ${footX},${footY}`}
+              points={`${hipX},${hipY} ${hipX + 1},${hipY} ${footX + 1 - tiptoeInset},${footY} ${footX + tiptoeInset},${footY}`}
             />
           );
         })}
@@ -762,8 +951,23 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
               </>
             )}
           </g>
+        ) : eyes === "wince" ? (
+          /* Clawd 紧闭/踉跄眼符号 > < */
+          <g
+            transform={`translate(${bodyOffsetX}, ${bodyOffsetY}) rotate(${torsoTiltDeg}, ${rotPivotX}, 8)`}
+            fill="none"
+            stroke={eyeColor}
+            strokeWidth={0.58}
+            strokeLinecap="square"
+            strokeLinejoin="miter"
+          >
+            {/* 左眼 > */}
+            <polyline points="3.15,1.75 4.75,2.6 3.15,3.45" />
+            {/* 右眼 < */}
+            <polyline points="12.85,1.75 11.25,2.6 12.85,3.45" />
+          </g>
         ) : (
-          <g transform={`rotate(${torsoTiltDeg}, ${8 + bodyOffsetX}, 8)`} fill={eyeColor}>
+          <g transform={`rotate(${torsoTiltDeg}, ${rotPivotX + bodyOffsetX}, 8)`} fill={eyeColor}>
             <rect
               x={leftEyeX}
               y={eyeY}
@@ -782,6 +986,41 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
             />
           </g>
         )}
+
+        {/* 踉跄慌乱时的汗滴特效 (action === "stumble-left")：伴随三步垫步从头顶两侧飞落几滴汗 */}
+        {action === "stumble-left" && p < 0.88 && (() => {
+          const drops = [
+            { start: 0.04, end: 0.48, baseX: 1.0, baseY: 0.4, dx: -1.6, dy: 2.3, scale: 1.0 },
+            { start: 0.22, end: 0.68, baseX: 14.8, baseY: 0.2, dx: 1.7, dy: 2.4, scale: 0.95 },
+            { start: 0.42, end: 0.86, baseX: 0.6, baseY: 1.6, dx: -1.5, dy: 2.2, scale: 0.88 },
+          ];
+          return (
+            <g>
+              {drops.map((d, i) => {
+                const dp = Math.max(0, Math.min(1, (p - d.start) / (d.end - d.start)));
+                if (dp <= 0 || dp >= 1) return null;
+                const x = d.baseX + bodyOffsetX + d.dx * dp;
+                const y = d.baseY + bodyOffsetY + d.dy * dp * dp;
+                const op = dp < 0.2 ? dp / 0.2 : dp > 0.75 ? (1 - dp) / 0.25 : 1;
+                return (
+                  <g
+                    key={i}
+                    transform={`translate(${x}, ${y}) scale(${d.scale})`}
+                    opacity={op}
+                  >
+                    <path
+                      d="M 0 -0.7 C 0.42 -0.1 0.52 0.35 0.52 0.62 A 0.52 0.52 0 1 1 -0.52 0.62 C -0.52 0.35 -0.42 -0.1 0 -0.7 Z"
+                      fill="#38BDF8"
+                      stroke="#11131F"
+                      strokeWidth={0.18}
+                    />
+                    <circle cx={-0.16} cy={0.55} r={0.14} fill="#E0F2FE" />
+                  </g>
+                );
+              })}
+            </g>
+          );
+        })()}
 
         {/* 第 4 层：嘴部表情与胡须 */}
         {outfit === "gentleman" && (

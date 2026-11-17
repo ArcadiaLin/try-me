@@ -1,6 +1,9 @@
 import React from "react";
 import { interpolate } from "remotion";
-import { ClawdMascot } from "./ClawdMascot";
+import {
+  ClawdMascot,
+  getStumbleLeftKinematics,
+} from "./ClawdMascot";
 
 export type Verse1PropStageId =
   | "L006"
@@ -18,6 +21,21 @@ export interface ClawdVerse1StageProps {
   progress: number;
   /** 舞台缩放比例（默认 1.0，基准舞台尺寸为 280×156） */
   scale?: number;
+}
+
+const GITHUB_HEAT_COLORS = [
+  "#0E4429",
+  "#006D32",
+  "#26A641",
+  "#39D353",
+] as const;
+
+function getContributionLevel(cellIndex: number): 0 | 1 | 2 | 3 {
+  const hash = (((cellIndex + 1) * 2654435761) >>> 0) % 100;
+  if (hash < 20) return 0;
+  if (hash < 52) return 1;
+  if (hash < 80) return 2;
+  return 3;
 }
 
 const MULTILANG_LINES = [
@@ -81,18 +99,23 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
   };
 
   if (stageId === "L006") {
-    // 日历从右侧进入，Clawd 偏左站立，句末平滑向更左过渡以衔接 L007 大气泡
-    clawdOffsetX = interpolate(p, [0, 0.16, 0.84, 1], [-18, -42, -42, -62], {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-    });
-    const nodEnv = p >= 0.55 && p <= 0.88 ? (p - 0.55) / 0.33 : 0;
+    // 承接 L005 从偏右落点 (-24) 靠左两足一踮一踮向左连续三小跳到达最终位置 (-62)，落点触地瞬间完全锁定不滑步！
+    const isStumble = p < 0.34;
+    const isSnappyNod = p >= 0.64 && p <= 0.9;
+    const stumbleP = isStumble ? p / 0.34 : 1;
+    const { currentXRatio } = getStumbleLeftKinematics(stumbleP);
+    clawdOffsetX = -24 + (-62 - -24) * currentXRatio;
     mascotProps = {
       width: 110,
-      action: nodEnv > 0 ? "posture-nod" : "idle",
-      actionProgress: nodEnv > 0 ? 0.48 + nodEnv * 0.36 : p,
+      action: isStumble ? "stumble-left" : isSnappyNod ? "snappy-nod" : "idle",
+      actionProgress: isStumble
+        ? stumbleP
+        : isSnappyNod
+          ? (p - 0.64) / 0.26
+          : p,
+      eyes: p < 0.29 ? "wince" : isSnappyNod ? "happy" : "normal",
       lookOffset: {
-        x: interpolate(p, [0, 0.15, 0.85, 1], [0.45, 0.5, 0.5, 0.42]),
+        x: interpolate(p, [0, 0.34, 0.85, 1], [-0.25, 0.5, 0.5, 0.42]),
         y: interpolate(p, [0, 0.85, 1], [-0.05, -0.05, -0.18]),
       },
     };
@@ -236,7 +259,7 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
           }}
         />
 
-        {/* ==================== L006: 单页 365 全勤日历（右进右出） ==================== */}
+        {/* ==================== L006: GitHub Contribution Graph 风格 365 全勤热力图（右进右出） ==================== */}
         {stageId === "L006" && (() => {
           const slideEnv = interpolate(
             p,
@@ -244,9 +267,12 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
             [0, 1, 1, 0],
             { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
           );
-          const calX = interpolate(slideEnv, [0, 1], [110, 0]);
-          // 0.16 ~ 0.62 期间按行从左到右、从上到下快速扫过 20 个代表格
-          const scanProgress = interpolate(p, [0.16, 0.62], [0, 20], {
+          const calX = interpolate(slideEnv, [0, 1], [130, 0]);
+          const totalCols = 18;
+          const totalRows = 7;
+          const totalCells = totalCols * totalRows;
+          // 0.16 ~ 0.62 期间按周列从左到右、从上到下快速扫过全部热力格
+          const scanProgress = interpolate(p, [0.16, 0.62], [0, totalCells], {
             extrapolateLeft: "clamp",
             extrapolateRight: "clamp",
           });
@@ -263,81 +289,129 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
             <div
               style={{
                 position: "absolute",
-                right: 22,
-                top: 18,
-                width: 112,
-                backgroundColor: "#1E293B",
-                border: `2px solid ${isAllDone ? "#4ADE80" : "#475569"}`,
+                right: 12,
+                top: 14,
+                width: 142,
+                backgroundColor: "#0D1117",
+                border: `2px solid ${isAllDone ? "#39D353" : "#30363D"}`,
                 borderRadius: 8,
-                padding: 6,
+                padding: "6px 8px",
                 transform: `translateX(${calX}px)`,
                 opacity: interpolate(slideEnv, [0, 0.2, 1], [0, 1, 1]),
                 boxShadow: isAllDone
-                  ? "0 0 12px rgba(74, 222, 128, 0.35)"
+                  ? "0 0 12px rgba(57, 211, 83, 0.32)"
                   : "none",
+                fontFamily: "monospace",
               }}
             >
-              {/* 日历页眉 + 清晰的 365 辅助数字 */}
+              {/* 页眉：365 贡献数字 + 全勤状态 */}
               <div
                 style={{
-                  backgroundColor: isAllDone ? "#16A34A" : "#D87757",
-                  borderRadius: 4,
-                  padding: "2px 6px",
                   display: "flex",
                   justifyContent: "space-between",
                   alignItems: "center",
-                  marginBottom: 6,
+                  marginBottom: 5,
+                  paddingBottom: 3,
+                  borderBottom: "1px solid #21262D",
                 }}
               >
                 <span
                   style={{
-                    fontSize: 13,
-                    fontWeight: 800,
-                    color: "#FFFFFF",
+                    fontSize: 12,
+                    fontWeight: 900,
+                    color: isAllDone ? "#39D353" : "#F0F6FC",
+                    lineHeight: 1,
                   }}
                 >
-                  {displayDays}
+                  {displayDays}d
                 </span>
                 <span
                   style={{
-                    fontSize: 8.5,
-                    fontWeight: 700,
-                    color: "#FFF7ED",
+                    fontSize: 7.5,
+                    fontWeight: 800,
+                    color: isAllDone ? "#0D1117" : "#8B949E",
+                    backgroundColor: isAllDone ? "#39D353" : "#21262D",
+                    padding: "1px 4px",
+                    borderRadius: 999,
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {isAllDone ? "ALL DONE ✓" : "DAYS"}
+                  {isAllDone ? "STREAK ✓" : "CONTRIBUTIONS"}
                 </span>
               </div>
-              {/* 5×4 单页网格（左→右、上→下逐格扫描） */}
+
+              {/* 7 行 × 18 列 GitHub 风格贡献热力矩阵（每天有随机深浅区分） */}
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(5, 1fr)",
-                  gap: 3,
+                  gridTemplateRows: `repeat(${totalRows}, 5px)`,
+                  gridAutoFlow: "column",
+                  gridAutoColumns: "5px",
+                  gap: 1.8,
+                  justifyContent: "center",
                 }}
               >
-                {Array.from({ length: 20 }).map((_, idx) => {
+                {Array.from({ length: totalCells }).map((_, idx) => {
                   const isScanned = idx < activeCell || isAllDone;
-                  const isCursor = !isAllDone && idx === activeCell && p >= 0.16;
+                  const isFrontier =
+                    !isAllDone &&
+                    p >= 0.16 &&
+                    idx >= activeCell - 1 &&
+                    idx <= activeCell;
+                  const level = getContributionLevel(idx);
                   return (
                     <div
                       key={idx}
                       style={{
-                        height: 11,
-                        borderRadius: 2,
-                        backgroundColor: isCursor
-                          ? "#FACC15"
+                        width: 5,
+                        height: 5,
+                        borderRadius: 1.2,
+                        backgroundColor: isFrontier
+                          ? "#86EFAC"
                           : isScanned
-                            ? isAllDone
-                              ? "#4ADE80"
-                              : "#D87757"
-                            : "#334155",
-                        transform: isCursor ? "scale(1.18)" : "scale(1)",
+                            ? GITHUB_HEAT_COLORS[level]
+                            : "#161B22",
+                        transform: isFrontier ? "scale(1.2)" : "scale(1)",
                       }}
                     />
                   );
                 })}
+              </div>
+
+              {/* 底部 Less / More 迷你图例 */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  alignItems: "center",
+                  gap: 2,
+                  marginTop: 5,
+                  fontSize: 6.5,
+                  fontWeight: 700,
+                  color: "#8B949E",
+                }}
+              >
+                <span>Less</span>
+                <span
+                  style={{
+                    width: 4.5,
+                    height: 4.5,
+                    borderRadius: 1,
+                    backgroundColor: "#161B22",
+                  }}
+                />
+                {GITHUB_HEAT_COLORS.map((c) => (
+                  <span
+                    key={c}
+                    style={{
+                      width: 4.5,
+                      height: 4.5,
+                      borderRadius: 1,
+                      backgroundColor: c,
+                    }}
+                  />
+                ))}
+                <span>More</span>
               </div>
             </div>
           );

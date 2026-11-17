@@ -11,6 +11,7 @@ import {
 } from "remotion";
 import {
   ClawdMascot,
+  getStumbleLeftKinematics,
   type ClawdAction,
   type ClawdEyes,
   type ClawdProp,
@@ -78,22 +79,22 @@ const VERSE1_EVENTS: Verse1EventMeta[] = [
     id: "L064",
     startSec: 34.026,
     endSec: 36.371,
-    lyric: "(间奏 — 贴地蹲起与侧向预倾)",
-    summary: "贴地单次下压回正 → 句尾向右侧预倾蓄力",
+    lyric: "(间奏 — 蹲下缩入后台待命)",
+    summary: "贴地蹲起 → 缩小钻入地面命令行待命框 [ > _ ]",
   },
   {
     id: "L005",
     startSec: 36.371,
     endSec: 38.429,
     lyric: "I can appear as and when you need",
-    summary: "承接预倾侧移探身张手 → 落回并移向左侧引出日历",
+    summary: "Web / Desktop / CLI 三端依次唤出 → 从终端跃出至左侧落地左倾踉跄 (> <)",
   },
   {
     id: "L006",
     startSec: 38.429,
     endSec: 40.828,
     lyric: "365日",
-    summary: "右侧滑入单页日历扫格 1→365 ALL DONE ✓ → 向右退场",
+    summary: "稳住重心看向右侧 GitHub 热力图 (1→365) → 句尾「日」字轻快双拍明显点头",
   },
   {
     id: "L007",
@@ -162,6 +163,37 @@ const MULTILANG_LINES = [
   },
 ];
 
+const GITHUB_HEAT_COLORS = [
+  "#0E4429", // Level 1: 深林绿
+  "#006D32", // Level 2: 祖母绿
+  "#26A641", // Level 3: 鲜亮绿
+  "#39D353", // Level 4: 荧光高光绿
+] as const;
+
+const GITHUB_MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+] as const;
+
+/** 确定性伪随机每天热力等级 (0~3)，保证 Remotion 逐帧渲染无闪烁且每天深浅自然错落 */
+function getContributionLevel(cellIndex: number): 0 | 1 | 2 | 3 {
+  const hash = (((cellIndex + 1) * 2654435761) >>> 0) % 100;
+  if (hash < 20) return 0;
+  if (hash < 52) return 1;
+  if (hash < 80) return 2;
+  return 3;
+}
+
 const PARAM_TOKENS = [
   "∇W₁",
   "attn",
@@ -210,14 +242,53 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
 
   const canPlayAudio = !silentPreview && hasPrivateAudio();
 
-  // ==================== 1. 连续舞台水平位置 (clawdStageX) 与视线/动作平滑编排 ====================
-  // 通过 Hermite smoothStep 驱动 Clawd 在 1280×720 舞台上的水平走位，保证所有句间切换零跳变
+  // ==================== 1. 连续舞台位置 (clawdStageX / Y / Scale / Opacity) 与视线动作平滑编排 ====================
+  // 通过连续数学插值驱动唯一 Clawd 实例：含 L064 缩入后台待命 -> L005 终端内唤出 -> 跃出至左侧落地左倾踉跄 (> <) -> L006 365日
   let clawdStageX = 0;
-  if (sec >= 37.8 && sec < 45.2) {
-    const toL006 = smoothStep(sec, 37.8, 38.75); // L005 句尾让出右侧日历空间 (0 -> -155)
-    const toL007 = smoothStep(sec, 40.35, 41.05); // L006 退场后继续左移让出五行大气泡 (-155 -> -215)
+  let clawdStageY = 0;
+  let clawdStageScale = 1;
+  let clawdStageOpacity = 1;
+  let clawdZIndex = 3;
+
+  if (sec >= 35.34 && sec < 37.54) {
+    // L064 强拍 (35.341s C_BEAT_0063): 蹲下并缩小钻进地面中央的 [ > _ ] 待命框，等待 L005 三端卡拍召唤
+    const shrinkT = smoothStep(sec, 35.341, 35.82);
+    clawdStageX = 0;
+    clawdStageY = shrinkT * 36;
+    clawdStageScale = interpolate(shrinkT, [0, 0.4, 1], [1, 1.06, 0.08]);
+    clawdStageOpacity = interpolate(shrinkT, [0, 0.72, 1], [1, 1, 0]);
+  } else if (sec >= 37.54 && sec < 37.837) {
+    // L005 第三端 (37.581s C_BEAT_0067): Clawd 出现在 Claude Code 终端窗口内部左侧（还原真实 CLI 欢迎界面布局）
+    const popInTerm = smoothStep(sec, 37.54, 37.66);
+    clawdStageX = 42;
+    clawdStageY = -263;
+    clawdStageScale = interpolate(popInTerm, [0, 0.75, 1], [0.1, 0.3, 0.28]);
+    clawdStageOpacity = interpolate(popInTerm, [0, 0.35, 1], [0, 1, 1]);
+    clawdZIndex = 6;
+  } else if (sec >= 37.837 && sec < 38.139) {
+    // L005 句尾跳跃 (37.837s C_ONSET_0190 -> 38.139s C_BEAT_0068): 从终端内部左侧 (+42, -263) 跳落至偏左一点的初始落点 (-105, 0)
+    const jumpT = linearProg(sec, 37.837, 38.139);
+    clawdStageX = interpolate(jumpT, [0, 1], [42, -105]);
+    const startY = -263;
+    const linearY = startY * (1 - jumpT);
+    const arcLift = -115 * 4 * jumpT * (1 - jumpT);
+    clawdStageY = linearY + arcLift;
+    clawdStageScale = interpolate(jumpT, [0, 0.65, 1], [0.28, 0.86, 1.0]);
+    clawdZIndex = 6;
+  } else if (sec >= 38.139 && sec < 45.2) {
+    // 38.139s (C_BEAT_0068) ~ 39.20s: 从初始落点 (-105px) 靠左两足一踮一踮向左连续跳三小跳 (-105 -> -150 -> -179 -> -195)，
+    // 三跳步幅 (45px / 29px / 16px) 与弹跳高度 (100% / 62% / 32%) 依次递减，触地瞬间 X 坐标 100% 锁死不滑步！
+    let baseX = -195;
+    if (sec < 39.2) {
+      const stumbleP = linearProg(sec, 38.139, 39.2);
+      const { hopArc, hopHeightRatio, currentXRatio } =
+        getStumbleLeftKinematics(stumbleP);
+      baseX = -105 + (-195 - -105) * currentXRatio;
+      clawdStageY = -34 * hopArc * hopHeightRatio;
+    }
+    const toL007 = smoothStep(sec, 40.35, 41.05); // L006 退场后微调让出五行大气泡 (-195 -> -215)
     const toL008 = smoothStep(sec, 42.75, 43.38); // L008 气泡升至头顶，Clawd 回到舞台正中 (-215 -> 0)
-    clawdStageX = -155 * toL006 - 60 * toL007 + 215 * toL008;
+    clawdStageX = baseX - 20 * toL007 + 215 * toL008;
   } else if (sec >= 49.82 && sec < 55.0) {
     const toL011 = smoothStep(sec, 49.82, 50.38); // L011 略偏左迎接右侧滑入的小号 (0 -> -44)
     const toL065 = smoothStep(sec, 52.1, 52.56); // L065 ほら！略微回中 (-44 -> -24)
@@ -261,31 +332,42 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
     action = "self-present";
     actionProgress = linearProg(sec, 31.695, 34.026);
   } else if (sec < 36.371) {
-    // L064 间奏: 贴地单次下压回正 -> 句尾向右侧预倾铺垫 L005
+    // L064 间奏: 先做一次贴地蹲起 (34.026~35.341s)，随后在强拍下蹲缩入地面待命框
     action = "crouch-lean";
-    actionProgress = linearProg(sec, 34.026, 36.371);
-  } else if (sec < 38.429) {
-    // L005: 无缝承接 L064 预倾，侧移探身张手 -> 落回并看向右侧日历方向
-    action = "peek-present";
-    actionProgress = linearProg(sec, 36.371, 38.429);
+    actionProgress = linearProg(sec, 34.026, 35.82) * 0.65;
+  } else if (sec < 37.837) {
+    // L005 终端内亮相阶段 (37.54~37.837s): 还原真实 Claude Code 终端左侧静止像素形象
+    action = "idle";
+    actionProgress = linearProg(sec, 37.54, 37.837);
+    eyes = "normal";
+  } else if (sec < 38.139) {
+    // L005 句尾跳跃腾空阶段 (37.837~38.139s): 从终端左侧跃向舞台左侧地面
+    action = "bounce";
+    actionProgress = linearProg(sec, 37.837, 38.139);
+    lookOffset = { x: -0.35, y: 0.15 };
+  } else if (sec < 39.2) {
+    // 落地单侧踮脚跳三下阶段 (38.139~39.20s): 左侧两足踮脚跳三下 + 右侧两足直接悬空 + 前肢快速上下摆动 + > < 眼 + 掉汗滴
+    action = "stumble-left";
+    actionProgress = linearProg(sec, 38.139, 39.2);
+    eyes = sec < 39.1 ? "wince" : "normal";
   } else if (sec < 40.8) {
-    // L006 (365日): 看向右侧日历，在全页完成 (39.75~40.55s) 时做一次肯定点头
-    const p6 = linearProg(sec, 38.429, 40.8);
-    const nodWindow = sec >= 39.72 && sec <= 40.52;
-    action = nodWindow ? "posture-nod" : "idle";
+    // L006 (365日): 39.20s 完全站稳看向右侧 GitHub 热力图，在「日」字拍点 (39.776~40.356s) 做明显的双拍弹性点头！
+    const nodWindow = sec >= 39.74 && sec <= 40.42;
+    action = nodWindow ? "snappy-nod" : "idle";
     actionProgress = nodWindow
-      ? 0.62 + linearProg(sec, 39.72, 40.52) * 0.22
-      : p6;
+      ? linearProg(sec, 39.74, 40.42)
+      : linearProg(sec, 39.2, 40.8);
+    eyes = sec >= 39.76 && sec <= 40.4 ? "happy" : "normal";
     lookOffset = {
       x: interpolate(
         sec,
-        [38.429, 38.75, 40.35, 40.8],
+        [39.2, 39.32, 40.35, 40.8],
         [0.48, 0.52, 0.52, 0.42],
         { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
       ),
       y: interpolate(
         sec,
-        [38.429, 40.35, 40.8],
+        [39.2, 40.35, 40.8],
         [-0.05, -0.05, -0.18],
         { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
       ),
@@ -592,104 +674,704 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
         );
       })()}
 
-      {/* ==================== L006: 单页 365 全勤日历（右进右出，与 L007 平滑交接） ==================== */}
-      {sec >= 38.35 && sec <= 40.95 && (() => {
-        const enter = smoothStep(sec, 38.429, 38.82);
-        const exit = smoothStep(sec, 40.38, 40.9);
+      {/* ==================== L064 尾 – L005: 地面待命框 + Web / Desktop / Claude Code 终端严格卡拍唤出 ==================== */}
+      {sec >= 35.3 && sec <= 38.52 && (() => {
+        // 1) L064 地面中央待命终端槽 [ > _ ] (35.341s C_BEAT_0063 ~ 37.58s)
+        const dockIn = smoothStep(sec, 35.341, 35.62);
+        const dockOut = smoothStep(sec, 37.3, 37.58);
+        const dockOpacity = dockIn * (1 - dockOut);
+
+        // 2) L005 第一端：Claude Web 网页版窗口 (严格对齐 Beat 1: 36.455s C_BEAT_0065)
+        const webIn = smoothStep(sec, 36.42, 36.56);
+        const webClawdPop = smoothStep(sec, 36.48, 36.64);
+        const allCardsOut = smoothStep(sec, 38.08, 38.38);
+        const webOpacity = webIn * (1 - allCardsOut);
+
+        // 3) L005 第二端：Claude Desktop 桌面端悬浮窗 (严格对齐 Beat 2: 37.013s C_BEAT_0066)
+        const deskIn = smoothStep(sec, 36.98, 37.12);
+        const deskClawdPop = smoothStep(sec, 37.04, 37.2);
+        const deskOpacity = deskIn * (1 - allCardsOut);
+
+        // 4) L005 第三端：Claude Code 终端窗口 (对齐 37.303s C_ONSET_0187 弹出窗口，37.581s C_BEAT_0067 亮起欢迎界面)
+        const termIn = smoothStep(sec, 37.28, 37.42);
+        const termWelcomeIn = smoothStep(sec, 37.54, 37.66);
+        const termOut = smoothStep(sec, 38.12, 38.42);
+        const termOpacity = termIn * (1 - termOut);
+
+        return (
+          <>
+            {/* 地面中央后台待命槽 [ > _ ] */}
+            {dockOpacity > 0.01 && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  bottom: 148,
+                  transform: `translateX(-50%) scale(${interpolate(
+                    dockIn,
+                    [0, 1],
+                    [0.7, 1],
+                  )})`,
+                  opacity: dockOpacity,
+                  backgroundColor: "#0D1117",
+                  border: "2px solid #D87757",
+                  borderRadius: 999,
+                  padding: "6px 18px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  boxShadow: "0 0 22px rgba(216, 119, 87, 0.38)",
+                  fontFamily: "monospace",
+                  zIndex: 4,
+                }}
+              >
+                <span
+                  style={{
+                    width: 9,
+                    height: 9,
+                    borderRadius: "50%",
+                    backgroundColor: "#4ADE80",
+                  }}
+                />
+                <span
+                  style={{
+                    fontSize: 14,
+                    fontWeight: 800,
+                    color: "#F8FAFC",
+                    letterSpacing: 0.6,
+                  }}
+                >
+                  {"[ > _ STANDBY ]"}
+                </span>
+              </div>
+            )}
+
+            {/* ① Claude Web 网页版卡片 (左上，卡拍 36.455s) */}
+            {webOpacity > 0.01 && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: "calc(50% - 315px)",
+                  top: 214,
+                  width: 248,
+                  backgroundColor: "#1E293B",
+                  border: "2.5px solid #475569",
+                  borderRadius: 14,
+                  overflow: "hidden",
+                  transform: `translate(-50%, -50%) scale(${interpolate(
+                    webIn,
+                    [0, 1],
+                    [0.82, 1],
+                  )})`,
+                  opacity: webOpacity,
+                  boxShadow: "0 12px 28px rgba(0, 0, 0, 0.42)",
+                  zIndex: 4,
+                  fontFamily: "monospace",
+                }}
+              >
+                <div
+                  style={{
+                    backgroundColor: "#0F172A",
+                    padding: "6px 10px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 6,
+                    borderBottom: "1px solid #334155",
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: "50%",
+                      backgroundColor: "#EF4444",
+                    }}
+                  />
+                  <span
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: "50%",
+                      backgroundColor: "#F59E0B",
+                    }}
+                  />
+                  <span
+                    style={{
+                      width: 7,
+                      height: 7,
+                      borderRadius: "50%",
+                      backgroundColor: "#22C55E",
+                    }}
+                  />
+                  <span
+                    style={{
+                      marginLeft: 4,
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      color: "#94A3B8",
+                      backgroundColor: "#1E293B",
+                      padding: "1px 8px",
+                      borderRadius: 4,
+                    }}
+                  >
+                    claude.ai/chat
+                  </span>
+                </div>
+                <div
+                  style={{
+                    padding: "10px 12px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                  }}
+                >
+                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: "#94A3B8",
+                      }}
+                    >
+                      Claude Web
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 12.5,
+                        fontWeight: 800,
+                        color: "#F8FAFC",
+                      }}
+                    >
+                      Ready to help ✦
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      transform: `scale(${interpolate(
+                        webClawdPop,
+                        [0, 0.7, 1],
+                        [0, 1.18, 1],
+                      )})`,
+                      opacity: webClawdPop,
+                    }}
+                  >
+                    <ClawdMascot
+                      width={52}
+                      action="static"
+                      eyes="happy"
+                      autoBlink={false}
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ② Claude Desktop 桌面端快捷悬浮窗 (中上，卡拍 37.013s) */}
+            {deskOpacity > 0.01 && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: "calc(50% - 35px)",
+                  top: 132,
+                  width: 266,
+                  backgroundColor: "#1E1B2E",
+                  border: "2.5px solid #D87757",
+                  borderRadius: 14,
+                  padding: "9px 14px",
+                  transform: `translate(-50%, -50%) scale(${interpolate(
+                    deskIn,
+                    [0, 1],
+                    [0.82, 1],
+                  )})`,
+                  opacity: deskOpacity,
+                  boxShadow: "0 12px 28px rgba(0, 0, 0, 0.45)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  zIndex: 4,
+                  fontFamily: "monospace",
+                }}
+              >
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <span
+                      style={{
+                        fontSize: 9.5,
+                        fontWeight: 800,
+                        color: "#0F172A",
+                        backgroundColor: "#FDBA74",
+                        padding: "1px 6px",
+                        borderRadius: 4,
+                      }}
+                    >
+                      Alt+Space
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        color: "#CBD5E1",
+                      }}
+                    >
+                      Claude Desktop
+                    </span>
+                  </div>
+                  <span
+                    style={{
+                      fontSize: 12.5,
+                      fontWeight: 800,
+                      color: "#FFF7ED",
+                    }}
+                  >
+                    Ask anything...
+                  </span>
+                </div>
+                <div
+                  style={{
+                    transform: `scale(${interpolate(
+                      deskClawdPop,
+                      [0, 0.7, 1],
+                      [0, 1.18, 1],
+                    )})`,
+                    opacity: deskClawdPop,
+                  }}
+                >
+                  <ClawdMascot
+                    width={50}
+                    action="static"
+                    eyes="happy"
+                    autoBlink={false}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* ③ 真实 Windows Terminal 布局的 Claude Code 终端窗口 (右侧，左侧留给 Clawd 真身，无跳跃轨迹线) */}
+            {termOpacity > 0.01 && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: "calc(50% + 198px)",
+                  top: 276,
+                  width: 446,
+                  height: 214,
+                  backgroundColor: "#000000",
+                  border: "2px solid #2D2D2D",
+                  borderRadius: 12,
+                  overflow: "hidden",
+                  transform: `translate(-50%, -50%) scale(${interpolate(
+                    termIn,
+                    [0, 1],
+                    [0.86, 1],
+                  )})`,
+                  opacity: termOpacity,
+                  boxShadow: "0 18px 40px rgba(0, 0, 0, 0.65)",
+                  zIndex: 4,
+                  fontFamily: '"Cascadia Mono", "Consolas", monospace',
+                }}
+              >
+                {/* Windows Terminal 标签栏 (#1F1F1F 底 + 激活态黑色圆角标签页) */}
+                <div
+                  style={{
+                    backgroundColor: "#1F1F1F",
+                    height: 36,
+                    padding: "6px 10px 0 8px",
+                    display: "flex",
+                    alignItems: "flex-end",
+                    gap: 8,
+                  }}
+                >
+                  {/* 激活的 Claude Code 标签 */}
+                  <div
+                    style={{
+                      backgroundColor: "#000000",
+                      height: 30,
+                      padding: "0 12px",
+                      borderTopLeftRadius: 8,
+                      borderTopRightRadius: 8,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 7,
+                      minWidth: 196,
+                    }}
+                  >
+                    {/* PowerShell 蓝底图标 >_ */}
+                    <span
+                      style={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: 3,
+                        backgroundColor: "#2563EB",
+                        color: "#FFFFFF",
+                        fontSize: 8.5,
+                        fontWeight: 900,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      {">_"}
+                    </span>
+                    {/* 绿底星号图标 ✳ */}
+                    <span
+                      style={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: 2.5,
+                        backgroundColor: "#16A34A",
+                        color: "#FFFFFF",
+                        fontSize: 10,
+                        fontWeight: 900,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        lineHeight: 1,
+                      }}
+                    >
+                      ✳
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 11.5,
+                        fontWeight: 700,
+                        color: "#FFFFFF",
+                        flex: 1,
+                      }}
+                    >
+                      Claude Code
+                    </span>
+                    <span
+                      style={{
+                        fontSize: 12,
+                        color: "#9CA3AF",
+                        fontWeight: 600,
+                      }}
+                    >
+                      ×
+                    </span>
+                  </div>
+                  {/* 标签栏右侧 + 与 ∨ */}
+                  <div
+                    style={{
+                      height: 30,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      paddingLeft: 4,
+                      color: "#9CA3AF",
+                      fontSize: 13,
+                    }}
+                  >
+                    <span>+</span>
+                    <span style={{ fontSize: 10 }}>∨</span>
+                  </div>
+                </div>
+
+                {/* 终端纯黑内容区：左侧为 Clawd 真身站位，右侧为三行版本/模型/路径信息，下方为 Using Opus 状态行 */}
+                <div
+                  style={{
+                    padding: "20px 18px 18px 20px",
+                    opacity: termWelcomeIn,
+                  }}
+                >
+                  {/* 上半部分：左侧预留 96px 宽度给主舞台 Clawd 真身，右侧显示三行信息 */}
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      paddingLeft: 96,
+                      minHeight: 68,
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                        lineHeight: 1.25,
+                      }}
+                    >
+                      <div style={{ fontSize: 15.5 }}>
+                        <span style={{ color: "#FFFFFF", fontWeight: 800 }}>
+                          Claude Code
+                        </span>{" "}
+                        <span style={{ color: "#8E8E93", fontWeight: 500 }}>
+                          v2.1.304
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 14.5,
+                          color: "#8E8E93",
+                          fontWeight: 500,
+                        }}
+                      >
+                        Opus 5.5 · Claude Pro
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 14.5,
+                          color: "#8E8E93",
+                          fontWeight: 500,
+                        }}
+                      >
+                        {"E:\\workspace\\try-me"}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 下方状态行：│ Using Opus 5.5 (from .claude\settings.json) · /model */}
+                  <div
+                    style={{
+                      marginTop: 22,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 7,
+                      fontSize: 12.2,
+                      color: "#8E8E93",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    <span style={{ color: "#8E8E93", fontWeight: 700 }}>│</span>
+                    <span>
+                      {"Using Opus 5.5 (from .claude\\settings.json) · /model"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
+
+      {/* ==================== L006: GitHub Contribution Graph 风格 365 天全勤热力图（在 Clawd 39.20s 站稳前一点点提前滑入！） ==================== */}
+      {sec >= 38.66 && sec <= 40.95 && (() => {
+        // 在 Clawd 单侧踮脚跳快要站稳 (39.20s) 前一点点 (38.70s ~ 39.06s) 提前从右侧滑入！
+        const enter = smoothStep(sec, 38.7, 39.06);
+        const exit = smoothStep(sec, 40.42, 40.9);
         const presence = enter * (1 - exit);
-        const calX = interpolate(presence, [0, 1], [320, 0]);
-        const scanProgress = interpolate(sec, [38.82, 39.88], [0, 20], {
+        const calX = interpolate(presence, [0, 1], [340, 0]);
+
+        const totalCols = 28;
+        const totalRows = 7;
+        const totalCells = totalCols * totalRows; // 196 个热力格代表全年 52 周×7 天浓缩视图
+
+        const scanProgress = interpolate(sec, [39.0, 39.74], [0, totalCells], {
           extrapolateLeft: "clamp",
           extrapolateRight: "clamp",
         });
         const activeCell = Math.floor(scanProgress);
-        const isAllDone = sec >= 39.88;
+        const isAllDone = sec >= 39.74;
         const displayDays = Math.round(
-          interpolate(sec, [38.82, 39.88], [1, 365], {
+          interpolate(sec, [39.0, 39.74], [1, 365], {
             extrapolateLeft: "clamp",
             extrapolateRight: "clamp",
           }),
         );
+        // 与 Clawd 在「365日」句尾拍点处的双拍轻快点头 (39.74~40.42s) 同频弹跳共振
+        const nodCardPulse =
+          sec >= 39.74 && sec <= 40.42
+            ? interpolate(
+                linearProg(sec, 39.74, 40.42),
+                [0, 0.18, 0.34, 0.54, 0.74, 1],
+                [1, 1.045, 0.99, 1.05, 0.995, 1],
+                { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+              )
+            : 1;
 
         return (
           <div
             style={{
               position: "absolute",
-              left: "calc(50% + 175px)",
-              top: 280,
-              width: 310,
-              backgroundColor: "#1E293B",
-              border: `4px solid ${isAllDone ? "#4ADE80" : "#475569"}`,
-              borderRadius: 18,
-              padding: 18,
-              transform: `translate(-50%, -50%) translateX(${calX}px)`,
+              left: "calc(50% + 198px)",
+              top: 276,
+              width: 446,
+              backgroundColor: "#0D1117",
+              border: `3px solid ${isAllDone ? "#39D353" : "#30363D"}`,
+              borderRadius: 16,
+              padding: "14px 18px",
+              transform: `translate(-50%, -50%) translateX(${calX}px) scale(${nodCardPulse})`,
               opacity: interpolate(presence, [0, 0.2, 1], [0, 1, 1]),
               boxShadow: isAllDone
-                ? "0 0 32px rgba(74, 222, 128, 0.35)"
-                : "0 14px 32px rgba(0, 0, 0, 0.45)",
+                ? "0 0 34px rgba(57, 211, 83, 0.32), 0 14px 32px rgba(0, 0, 0, 0.55)"
+                : "0 14px 32px rgba(0, 0, 0, 0.5)",
               zIndex: 5,
+              fontFamily: "monospace",
             }}
           >
+            {/* 顶部状态栏：365 贡献计数 + 全勤徽章（单行不换行，避免高度跳动） */}
             <div
               style={{
-                backgroundColor: isAllDone ? "#16A34A" : "#D87757",
-                borderRadius: 10,
-                padding: "8px 16px",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: 14,
+                marginBottom: 10,
+                paddingBottom: 8,
+                borderBottom: "1px solid #21262D",
               }}
             >
-              <span
+              <div
                 style={{
-                  fontSize: 34,
-                  fontWeight: 900,
-                  color: "#FFFFFF",
-                  fontFamily: "monospace",
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: 8,
+                  whiteSpace: "nowrap",
                 }}
               >
-                {displayDays}
-              </span>
+                <span
+                  style={{
+                    fontSize: 28,
+                    fontWeight: 900,
+                    color: isAllDone ? "#39D353" : "#F0F6FC",
+                    lineHeight: 1,
+                  }}
+                >
+                  {displayDays}
+                </span>
+                <span
+                  style={{
+                    fontSize: 12,
+                    fontWeight: 700,
+                    color: "#8B949E",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  contributions in the last year
+                </span>
+              </div>
               <span
                 style={{
-                  fontSize: 18,
+                  fontSize: 11,
                   fontWeight: 800,
-                  color: "#FFF7ED",
-                  letterSpacing: 0.5,
+                  color: isAllDone ? "#0D1117" : "#C9D1D9",
+                  backgroundColor: isAllDone ? "#39D353" : "#21262D",
+                  padding: "3px 8px",
+                  borderRadius: 999,
+                  letterSpacing: 0.3,
+                  whiteSpace: "nowrap",
                 }}
               >
-                {isAllDone ? "ALL DONE ✓" : "DAYS ONLINE"}
+                {isAllDone ? "365 STREAK ✓" : "365 DAYS"}
               </span>
             </div>
+
+            {/* 月份坐标行 (Jan ~ Dec) */}
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(5, 1fr)",
-                gap: 8,
+                gridTemplateColumns: "repeat(12, 1fr)",
+                paddingLeft: 30,
+                marginBottom: 5,
+                fontSize: 10,
+                fontWeight: 700,
+                color: "#8B949E",
               }}
             >
-              {Array.from({ length: 20 }).map((_, idx) => {
-                const isScanned = idx < activeCell || isAllDone;
-                const isCursor = !isAllDone && idx === activeCell && sec >= 38.82;
-                return (
-                  <div
-                    key={idx}
+              {GITHUB_MONTHS.map((m) => (
+                <span key={m}>{m}</span>
+              ))}
+            </div>
+
+            {/* 主体：左侧星期标签 + 7×28 按列扫描随机深浅热力网格 */}
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <div
+                style={{
+                  width: 24,
+                  height: 88,
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  padding: "11px 0",
+                  fontSize: 9.5,
+                  fontWeight: 700,
+                  color: "#8B949E",
+                  lineHeight: 1,
+                }}
+              >
+                <span>Mon</span>
+                <span>Wed</span>
+                <span>Fri</span>
+              </div>
+
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateRows: `repeat(${totalRows}, 10px)`,
+                  gridAutoFlow: "column",
+                  gridAutoColumns: "10px",
+                  gap: 3,
+                }}
+              >
+                {Array.from({ length: totalCells }).map((_, idx) => {
+                  const isScanned = idx < activeCell || isAllDone;
+                  const isFrontier =
+                    !isAllDone &&
+                    sec >= 38.8 &&
+                    idx >= activeCell - 2 &&
+                    idx <= activeCell;
+                  const level = getContributionLevel(idx);
+                  const shadeColor = GITHUB_HEAT_COLORS[level];
+
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        width: 10,
+                        height: 10,
+                        borderRadius: 2.5,
+                        backgroundColor: isFrontier
+                          ? "#86EFAC"
+                          : isScanned
+                            ? shadeColor
+                            : "#161B22",
+                        border: isScanned
+                          ? "1px solid rgba(255, 255, 255, 0.07)"
+                          : "1px solid rgba(240, 246, 252, 0.04)",
+                        transform: isFrontier ? "scale(1.22)" : "scale(1)",
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 底部图例：Less [▪▪▪▪▪] More */}
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginTop: 10,
+                fontSize: 10.5,
+                fontWeight: 700,
+                color: "#8B949E",
+              }}
+            >
+              <span>100% uptime · 365/365 days</span>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ marginRight: 2 }}>Less</span>
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 2,
+                    backgroundColor: "#161B22",
+                    border: "1px solid rgba(240, 246, 252, 0.05)",
+                  }}
+                />
+                {GITHUB_HEAT_COLORS.map((color) => (
+                  <span
+                    key={color}
                     style={{
-                      height: 28,
-                      borderRadius: 6,
-                      backgroundColor: isCursor
-                        ? "#FACC15"
-                        : isScanned
-                          ? isAllDone
-                            ? "#4ADE80"
-                            : "#D87757"
-                          : "#334155",
-                      transform: isCursor ? "scale(1.16)" : "scale(1)",
+                      width: 10,
+                      height: 10,
+                      borderRadius: 2,
+                      backgroundColor: color,
                     }}
                   />
-                );
-              })}
+                ))}
+                <span style={{ marginLeft: 2 }}>More</span>
+              </div>
             </div>
           </div>
         );
@@ -1212,8 +1894,10 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
           position: "absolute",
           left: "50%",
           bottom: 162,
-          transform: `translateX(-50%) translateX(${clawdStageX}px)`,
-          zIndex: 3,
+          transform: `translateX(-50%) translateX(${clawdStageX}px) translateY(${clawdStageY}px) scale(${clawdStageScale})`,
+          transformOrigin: "bottom center",
+          opacity: clawdStageOpacity,
+          zIndex: clawdZIndex,
         }}
       >
         <ClawdMascot
