@@ -38,6 +38,13 @@ export function connectAudioTransport(audio: AudioPort, store: Store) {
     }
   });
   return {
+    // Manual positioning changes only the playback clock, not selection or loop bounds.
+    seekTo: (sec: number) => {
+      if (!Number.isFinite(sec)) return;
+      auditionEnd = null;
+      store.getState().setCurrentTimeSec(sec);
+      audio.currentTime = store.getState().transport.currentTimeSec;
+    },
     setAuditionEnd: (end: number | null) => { auditionEnd = end; },
     tick: () => {
       if (audio.paused) return;

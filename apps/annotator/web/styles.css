@@ -419,6 +419,45 @@ button {
   background: #131924;
   border-top: 1px solid #263145;
   overflow: hidden;
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.tracker-waveform__playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 14px;
+  transform: translateX(-50%);
+  z-index: 12;
+  cursor: ew-resize;
+  touch-action: none;
+  outline: none;
+}
+
+.tracker-waveform__playhead::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #f43f5e;
+}
+
+.tracker-waveform__playhead::after {
+  content: "";
+  position: absolute;
+  left: 1px;
+  top: 0;
+  width: 12px;
+  height: 10px;
+  background: #f43f5e;
+  clip-path: polygon(0 0, 100% 0, 100% 55%, 50% 100%, 0 55%);
+}
+
+.tracker-waveform__playhead:focus-visible::after {
+  background: #fff;
 }
 
 .tracker-waveform__guides {

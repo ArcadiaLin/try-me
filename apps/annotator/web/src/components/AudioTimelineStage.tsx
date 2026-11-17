@@ -90,6 +90,9 @@ export const AudioTimelineStage: React.FC<AudioTimelineStageProps> = ({
   const waveformErrorRef = useRef<HTMLDivElement | null>(null);
   const waveformWrapRef = useRef<HTMLDivElement | null>(null);
   const overviewRef = useRef<HTMLDivElement | null>(null);
+  const playheadDragRef = useRef<{
+    pointerId: number; left: number; width: number; start: number; span: number;
+  } | null>(null);
 
   const durationSec =
     analysis?.summary?.audio_file?.duration_sec ??
@@ -331,6 +334,40 @@ export const AudioTimelineStage: React.FC<AudioTimelineStageProps> = ({
 
   const playheadRatio = (transport.currentTimeSec - visibleStart) / visibleSpan;
   const playheadVisible = playheadRatio >= 0 && playheadRatio <= 1;
+
+  const seekDragPosition = (clientX: number) => {
+    const drag = playheadDragRef.current;
+    if (!drag) return;
+    const ratio = Math.max(0, Math.min(1, (clientX - drag.left) / drag.width));
+    onSeek(Math.min(durationSec, Number((drag.start + ratio * drag.span).toFixed(3))));
+  };
+  const beginPlayheadDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!e.isPrimary || e.button !== 0) return;
+    const rect = waveformWrapRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.focus();
+    playheadDragRef.current = {
+      pointerId: e.pointerId, left: rect.left, width: Math.max(1, rect.width),
+      start: visibleStart, span: visibleSpan,
+    };
+    e.currentTarget.setPointerCapture(e.pointerId);
+    seekDragPosition(e.clientX);
+  };
+  const movePlayhead = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (playheadDragRef.current?.pointerId !== e.pointerId) return;
+    e.stopPropagation();
+    seekDragPosition(e.clientX);
+  };
+  const endPlayheadDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (playheadDragRef.current?.pointerId !== e.pointerId) return;
+    e.stopPropagation();
+    seekDragPosition(e.clientX);
+    playheadDragRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+  };
+  const cancelPlayheadDrag = () => { playheadDragRef.current = null; };
 
   const handleJumpToSelection = () => {
     const primary = findEventByRef(project, view.selection.primary);
@@ -591,7 +628,48 @@ export const AudioTimelineStage: React.FC<AudioTimelineStageProps> = ({
           ref={waveformContainerRef}
           className="tracker-waveform__renderer"
         />
-        <div ref={timelineContainerRef} className="tracker-waveform__ruler" />
+        <div
+          ref={timelineContainerRef}
+          className="tracker-waveform__ruler"
+          title="点击或拖动时间刻度定位播放，不移动标注"
+          onPointerDown={beginPlayheadDrag}
+          onPointerMove={movePlayhead}
+          onPointerUp={endPlayheadDrag}
+          onPointerCancel={cancelPlayheadDrag}
+          onLostPointerCapture={cancelPlayheadDrag}
+          onClick={(e) => e.stopPropagation()}
+          onDoubleClick={(e) => e.stopPropagation()}
+        />
+        {playheadVisible && (
+          <div
+            className="tracker-waveform__playhead"
+            style={{ left: `${playheadRatio * 100}%` }}
+            role="slider"
+            tabIndex={0}
+            aria-label="播放位置"
+            aria-orientation="horizontal"
+            aria-valuemin={0}
+            aria-valuemax={durationSec}
+            aria-valuenow={transport.currentTimeSec}
+            aria-valuetext={formatSeconds(transport.currentTimeSec)}
+            title="拖动播放头定位；左右键微调0.1秒，Shift加速；暂停时按空格从此处播放"
+            onPointerDown={beginPlayheadDrag}
+            onPointerMove={movePlayhead}
+            onPointerUp={endPlayheadDrag}
+            onPointerCancel={cancelPlayheadDrag}
+            onLostPointerCapture={cancelPlayheadDrag}
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(e.key)) return;
+              e.preventDefault();
+              e.stopPropagation();
+              const next = e.key === "Home" ? visibleStart : e.key === "End" ? visibleEnd
+                : transport.currentTimeSec + (e.key === "ArrowLeft" ? -1 : 1) * (e.shiftKey ? 1 : 0.1);
+              onSeek(Math.max(0, Math.min(durationSec, next)));
+            }}
+          />
+        )}
         <div ref={waveformErrorRef} className="tracker-waveform__empty" hidden>
           波形加载失败，请检查分析数据。
         </div>

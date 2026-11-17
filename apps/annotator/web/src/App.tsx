@@ -149,7 +149,11 @@ export const App: React.FC = () => {
   // Audio playback controls
   const handleSeek = useCallback(
     (sec: number) => {
-      audioTransportRef.current?.setAuditionEnd(null);
+      const controller = audioTransportRef.current;
+      if (controller) {
+        try { controller.seekTo(sec); } catch { /* Audio metadata may not be ready yet. */ }
+        return;
+      }
       const clamped = Math.max(0, sec);
       setCurrentTimeSec(clamped);
       const audio = audioRef.current;

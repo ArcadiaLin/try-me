@@ -7,6 +7,47 @@ import { findEventByRef, generateAgentBriefMarkdown, validateAndNormalizeProject
 
 const a = { trackId: "track", eventId: "A" };
 const b = { trackId: "track", eventId: "B" };
+
+test("manual playhead seek preserves sentence loop, selection, annotations and paused/playing state", () => {
+  const { audio, controller, state } = setup();
+  try {
+    state().selectEvent(a);
+    state().loopCurrentEvent();
+    const project = JSON.stringify(state().project);
+    const selected = structuredClone(state().view.selection);
+    controller.seekTo(2.2);
+    assert.equal(audio.currentTime, 2.2);
+    controller.tick();
+    assert.equal(audio.currentTime, 2.2);
+    assert.deepEqual(state().transport.loopRange, [1, 3]);
+    assert.equal(audio.paused, false);
+    audio.currentTime = 3.1; controller.tick();
+    assert.equal(audio.currentTime, 1);
+    state().setIsPlaying(false);
+    controller.seekTo(2.6);
+    assert.equal(audio.currentTime, 2.6);
+    assert.equal(audio.paused, true);
+    assert.deepEqual(state().view.selection, selected);
+    assert.equal(JSON.stringify(state().project), project);
+    assert.deepEqual(state().transport.loopRange, [1, 3]);
+  } finally { controller.dispose(); }
+});
+
+test("manual seek cancels an old short audition and clamps media/store to the same position", () => {
+  const { audio, controller, state } = setup();
+  try {
+    state().selectEvent(a); state().loopCurrentEvent();
+    controller.setAuditionEnd(1.5);
+    controller.seekTo(2);
+    audio.currentTime = 2.1; controller.tick();
+    assert.equal(audio.paused, false);
+    assert.equal(state().transport.currentTimeSec, 2.1);
+    controller.seekTo(-2); assert.equal(audio.currentTime, 0);
+    controller.seekTo(1e6); assert.equal(audio.currentTime, state().transport.currentTimeSec);
+    const position = audio.currentTime;
+    controller.seekTo(Number.NaN); assert.equal(audio.currentTime, position);
+  } finally { controller.dispose(); }
+});
 function setup() {
   const project: TimelineProject = { version: 1, name: "isolated", nodes: [
     { kind: "timeline", id: "track", name: "Track", items: [
