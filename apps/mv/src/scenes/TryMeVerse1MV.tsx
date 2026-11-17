@@ -16,6 +16,14 @@ import {
   type ClawdEyes,
   type ClawdProp,
 } from "../components/ClawdMascot";
+import {
+  beatPosition,
+  rhythmMotion,
+  sampleRhythmPlan,
+  sampleStageKeyboard,
+  sampleStageRhythm,
+} from "../timeline/rhythm-timing";
+import { VERSE1_RHYTHM } from "../timeline/verse1-rhythm";
 
 export interface TryMeVerse1MVProps {
   /** 是否强制静音预览（未放置私有 FLAC 音源时也会自动降级为静音预览） */
@@ -239,6 +247,16 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const sec = frame / fps;
+  const authoredFrame = frame * VERSE1_RHYTHM.fps / fps;
+  const rhythm = rhythmMotion(sec, beatPosition(authoredFrame, VERSE1_RHYTHM.beatFrames));
+  const stageRhythm = sampleStageRhythm(
+    authoredFrame,
+    VERSE1_RHYTHM.stageBeats,
+    VERSE1_RHYTHM.stagePulses,
+  );
+  const stageKeyboard = sampleStageKeyboard(sec);
+  const timedProgress = (id: typeof VERSE1_RHYTHM.plans[number]["id"]) =>
+    sampleRhythmPlan(authoredFrame, VERSE1_RHYTHM.plans.find((plan) => plan.id === id)!);
 
   const canPlayAudio = !silentPreview && hasPrivateAudio();
 
@@ -307,34 +325,29 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
   let beatPulse = 0;
   let lookOffset = { x: 0, y: 0 };
 
-  if (sec < 5.2) {
-    // L066 前奏初段：纯呼吸与眨眼看向观众
+  if (sec < 18.525) {
+    // 连续拍点控制轻微左右重心；在人工 bass 分界 9.512s 附近平滑增强。
     action = "idle";
-  } else if (sec < 18.525) {
-    // L066 前奏中后段：4 个完整周期的贴地左右重心转移，并在 18.525s 整周期平滑归零
-    action = "weight-shift";
-    const shiftRaw = linearProg(sec, 5.2, 18.525);
-    actionProgress = (shiftRaw * 4) % 1;
   } else if (sec < 22.721) {
     // L001: 短挥手 -> 重心前送 -> 自信小幅蹲起
     action = "wave-step";
-    actionProgress = linearProg(sec, 18.525, 22.721);
+    actionProgress = timedProgress("wave");
   } else if (sec < 27.161) {
     // L002 (含 25.221~27.161s 留白): 侧身歪头邀请提问 -> 停顿 -> 视线与身体回正
     action = "tilt-invite";
-    actionProgress = linearProg(sec, 22.721, 27.161);
+    actionProgress = timedProgress("invite");
   } else if (sec < 31.695) {
     // L003: 收拢姿态 -> 抬头挺身 -> 两次差幅点头 -> 回正
     action = "posture-nod";
-    actionProgress = linearProg(sec, 27.161, 31.695);
+    actionProgress = timedProgress("posture");
   } else if (sec < 34.026) {
     // L004: 前足朝自己示意 -> 向外展开 -> 平滑回正
     action = "self-present";
-    actionProgress = linearProg(sec, 31.695, 34.026);
+    actionProgress = timedProgress("present");
   } else if (sec < 36.371) {
     // L064 间奏: 先做一次贴地蹲起 (34.026~35.341s)，随后在强拍下蹲缩入地面待命框
     action = "crouch-lean";
-    actionProgress = linearProg(sec, 34.026, 35.82) * 0.65;
+    actionProgress = sec < 35.34 ? timedProgress("crouch") : linearProg(sec, 34.026, 35.82) * 0.65;
   } else if (sec < 37.837) {
     // L005 终端内亮相阶段 (37.54~37.837s): 还原真实 Claude Code 终端左侧静止像素形象
     action = "idle";
@@ -375,14 +388,14 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
   } else if (sec < 42.91) {
     // L007 (I speak different languages): 不张嘴，温和换重心并以眼神配合右上方五行气泡
     action = "weight-shift";
-    actionProgress = linearProg(sec, 40.8, 42.91);
+    actionProgress = timedProgress("sway");
     lookOffset = { x: 0.42, y: -0.18 };
   } else if (sec < 45.36) {
     // L008 (And people get what I mean): 眼神先后看向左右听众，随后弯眼 (^ ^) 点头回应
     const replyWindow = sec >= 43.95 && sec <= 44.72;
     action = replyWindow ? "posture-nod" : "idle";
     actionProgress = replyWindow
-      ? 0.62 + linearProg(sec, 43.95, 44.72) * 0.22
+      ? timedProgress("reply")
       : linearProg(sec, 42.91, 45.36);
     eyes = sec >= 43.88 && sec <= 44.92 ? "happy" : "normal";
     lookOffset = {
@@ -402,10 +415,7 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
   } else if (sec < 49.892) {
     // L009 (45.360~47.580s) 与 L010 (47.580~49.892s) 跨句连续读书 -> 抬头挺身 -> 原向清场
     action = "read-look-up";
-    actionProgress =
-      sec < 47.58
-        ? linearProg(sec, 45.36, 47.58) * 0.56
-        : 0.56 + linearProg(sec, 47.58, 49.892) * 0.44;
+    actionProgress = timedProgress("read");
     prop = "book";
     glassesProgress =
       sec < 47.58
@@ -417,14 +427,14 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
         : 1 - smoothStep(sec, 49.08, 49.72);
   } else if (sec < 52.576) {
     // L011 (ブラバン部で楽器も吹けるよ): 小号从右滑入接住 -> 抬起吹奏 -> 放低向右送出
-    const p11 = linearProg(sec, 49.892, 52.576);
+    const p11 = timedProgress("trumpet");
     action = "idle";
     actionProgress = p11;
     prop = "trumpet";
     trumpetProgress = p11;
     if (p11 >= 0.22 && p11 <= 0.76) {
       const playT = (p11 - 0.22) / 0.54;
-      beatPulse = Math.sin(playT * Math.PI) * 0.24;
+      beatPulse = rhythm ? rhythm.pulse * Math.sin(playT * Math.PI) * 0.12 : 0;
     }
     lookOffset = {
       x:
@@ -439,7 +449,7 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
   } else {
     // L065 (52.576~55.168s, 含句后留白): 贴地极速回弹 + ^ ^ 微笑弯眼 -> 留白期平滑恢复待机
     // 以 1.90s 为弹性动作基准窗口，使 0.14~0.21 的快速弹起恰好落在 52.84~52.97s 的『ほら！』重音处
-    const popProg = linearProg(sec, 52.576, 54.476);
+    const popProg = timedProgress("pop");
     action = "elastic-pop";
     actionProgress = popProg;
     eyes = sec >= 52.83 && sec <= 54.68 ? "happy" : "normal";
@@ -488,7 +498,7 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
         }}
       />
 
-      {/* 舞台地面平台与像素刻度线（Clawd 四足严格锚定于 bottom: 195px 地面线） */}
+      {/* 舞台地面平台与下方两层悬浮薄底板（Clawd 四足接触的 bottom: 195px 舞台上沿保持 0 位移稳定） */}
       <div
         style={{
           position: "absolute",
@@ -497,19 +507,480 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
           bottom: 0,
           height: 195,
           background:
-            "linear-gradient(180deg, rgba(24, 24, 38, 0.55) 0%, rgba(12, 13, 21, 0.92) 100%)",
-          borderTop: "2px solid rgba(148, 163, 184, 0.22)",
+            "linear-gradient(180deg, rgba(20, 21, 34, 0.58) 0%, rgba(10, 11, 18, 0.94) 100%)",
+          borderTop: "2px solid rgba(148, 163, 184, 0.20)",
+          pointerEvents: "none",
         }}
       >
+        {/* 0. 固定主舞台台面上沿（top: 0 严格对应 bottom: 195px，绝不上下跳动，防止角色脚滑） */}
         <div
           style={{
             position: "absolute",
-            top: 8,
-            left: 140,
-            right: 140,
-            borderTop: "1px dashed rgba(148, 163, 184, 0.16)",
+            left: "50%",
+            top: 0,
+            width: 1000,
+            height: 13,
+            transform: "translateX(-50%)",
+            backgroundColor: "#23263A",
+            borderTop: "2px solid rgba(203, 213, 225, 0.42)",
+            borderLeft: "1.5px solid rgba(148, 163, 184, 0.28)",
+            borderRight: "1.5px solid rgba(148, 163, 184, 0.28)",
+            borderBottom: "1.5px solid rgba(15, 23, 42, 0.85)",
+            borderRadius: "2px 2px 6px 6px",
+            boxShadow: "0 4px 10px rgba(0, 0, 0, 0.42)",
+            zIndex: 3,
+          }}
+        >
+          <div
+            style={{
+              position: "absolute",
+              top: 5,
+              left: 40,
+              right: 40,
+              borderTop: "1px dashed rgba(148, 163, 184, 0.22)",
+            }}
+          />
+          {/* 舞台前侧抽出键盘的窄缝舱口（橙色段开始前打开，18.48s 转青绿收回后关闭） */}
+          {stageKeyboard.visible && (
+            <div
+              style={{
+                position: "absolute",
+                left: "50%",
+                bottom: -1,
+                width: 628 * stageKeyboard.slotOpen,
+                height: 4 * stageKeyboard.slotOpen,
+                transform: "translateX(-50%)",
+                backgroundColor: "#090A10",
+                borderTop: "1px solid rgba(71, 85, 105, 0.55)",
+                borderRadius: 1,
+              }}
+            />
+          )}
+        </div>
+
+        {/* 0.5 舞台前侧抽出的自动演奏键盘（橙色段 0.254s–18.477s 专属装置；青绿段完整收回离开） */}
+        {stageKeyboard.visible && (() => {
+          const whiteKeyCount = 10; // F3, G3, A3, B3, C4, D4, E4, F4, G4, A4 (横跨一个八度加三度，键位关系严格正确)
+          const whiteKeyWidth = 54;
+          const whiteKeyGap = 2;
+          const keybedInnerWidth =
+            whiteKeyCount * whiteKeyWidth + (whiteKeyCount - 1) * whiteKeyGap; // 558px
+          const chassisWidth = keybedInnerWidth + 52; // 610px (比 1000px 舞台窄，两端留出清楚的舞台结构)
+          const deckTopHeight = Math.round(5 + 16 * stageKeyboard.trayUnfold); // 展开时键面高 21px，收平时压回 5px
+          const blackKeyHeight = Math.round(3 + 10 * stageKeyboard.trayUnfold);
+          // 标准钢琴黑键位置：F#3(0), G#3(1), Bb3(2), [3 为 B3-C4 无黑键], C#4(4), Eb4(5), F#4(6), G#4(7), Bb4(8)
+          const blackKeyAfterIndices = [0, 1, 2, 4, 5, 7, 8];
+
+          // 三个固定演奏键位映射在横跨一个八度的位置：
+          // keyIdx 1 (左低半音下切音) -> zones[0], keyIdx 2 (左基准低音) -> zones[1], keyIdx 9 (右高八度音) -> zones[2]
+          const activeZoneByKey: Record<number, 0 | 1 | 2> = {
+            1: 0,
+            2: 1,
+            9: 2,
+          };
+
+          return (
+            <div
+              style={{
+                position: "absolute",
+                left: "50%",
+                top: 12,
+                width: chassisWidth + 16,
+                height: 68,
+                transform: "translateX(-50%)",
+                overflow: "hidden",
+                zIndex: 2,
+              }}
+            >
+              {/* 抽出的键盘托盘主体（向下滑出 + 略向观众展开；收平后向上退回舞台遮挡范围） */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: "50%",
+                  top: 0,
+                  width: chassisWidth,
+                  transform: `translate(-50%, ${(1 - stageKeyboard.traySlide) * -58}px)`,
+                  backgroundColor: "#181B2B",
+                  borderLeft: "2px solid rgba(148, 163, 184, 0.32)",
+                  borderRight: "2px solid rgba(148, 163, 184, 0.32)",
+                  borderBottom: "2px solid #0B0D16",
+                  borderRadius: "0 0 7px 7px",
+                  boxShadow: "0 6px 14px rgba(0, 0, 0, 0.48)",
+                  padding: "3px 24px 5px 24px",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                }}
+              >
+                {/* 两侧深色机械护翼刻度 */}
+                <div
+                  style={{
+                    position: "absolute",
+                    left: 6,
+                    top: 6,
+                    bottom: 6,
+                    width: 10,
+                    borderRadius: 2,
+                    backgroundColor: "#111320",
+                    border: "1px solid rgba(100, 116, 139, 0.22)",
+                  }}
+                />
+                <div
+                  style={{
+                    position: "absolute",
+                    right: 6,
+                    top: 6,
+                    bottom: 6,
+                    width: 10,
+                    borderRadius: 2,
+                    backgroundColor: "#111320",
+                    border: "1px solid rgba(100, 116, 139, 0.22)",
+                  }}
+                />
+
+                {/* 琴键槽区域（后端为支点，前端朝向观众，压下时露出内部橙色内衬） */}
+                <div
+                  style={{
+                    position: "relative",
+                    width: keybedInnerWidth,
+                    height: deckTopHeight + 13,
+                    backgroundColor: "#0D0F18",
+                    borderRadius: "2px 2px 3px 3px",
+                    paddingTop: 1,
+                  }}
+                >
+                  {/* 10 枚浅色白键（含键面 + 前端厚度 + 压下时的橙色内衬） */}
+                  {Array.from({ length: whiteKeyCount }).map((_, kIdx) => {
+                    const zIdx = activeZoneByKey[kIdx];
+                    const zoneState =
+                      zIdx !== undefined
+                        ? stageKeyboard.zones[zIdx]
+                        : { press: 0, velocity: 0 };
+                    const press = zoneState.press * stageKeyboard.trayUnfold;
+                    const vel = zoneState.velocity;
+                    // 以后端为支点，前端快速压下：键前沿下沉 dropPx，键面倾斜，前端厚度随之压缩变化
+                    const dropPx = press * 6.0;
+                    const frontLipThickness = Math.max(
+                      3.2,
+                      7.2 * stageKeyboard.trayUnfold - press * 2.2,
+                    );
+                    const orangeLiningHeight = press * 5.6;
+                    const orangeAlpha = Math.min(
+                      1,
+                      press * (0.72 + 0.28 * vel),
+                    );
+                    const keyLeft = kIdx * (whiteKeyWidth + whiteKeyGap);
+
+                    return (
+                      <div
+                        key={`wk-${kIdx}`}
+                        style={{
+                          position: "absolute",
+                          left: keyLeft,
+                          top: 0,
+                          width: whiteKeyWidth,
+                          height: deckTopHeight + 12,
+                        }}
+                      >
+                        {/* 压下时在键槽内侧与前沿露出的橙色内衬（不按时不显露，松开即灭无长尾） */}
+                        {orangeAlpha > 0.02 && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: 0,
+                              right: 0,
+                              top: Math.max(0, deckTopHeight - 2),
+                              height: orangeLiningHeight + 4,
+                              background:
+                                "linear-gradient(90deg, #D87757 0%, #FB923C 50%, #D87757 100%)",
+                              opacity: orangeAlpha,
+                              borderRadius: 1.5,
+                            }}
+                          />
+                        )}
+                        {/* 压下时两侧槽壁露出的细橙色内衬边 */}
+                        {orangeAlpha > 0.02 && (
+                          <>
+                            <div
+                              style={{
+                                position: "absolute",
+                                left: 0,
+                                top: 2,
+                                width: 2.5,
+                                height: deckTopHeight + dropPx,
+                                backgroundColor: "#D87757",
+                                opacity: orangeAlpha * 0.85,
+                              }}
+                            />
+                            <div
+                              style={{
+                                position: "absolute",
+                                right: 0,
+                                top: 2,
+                                width: 2.5,
+                                height: deckTopHeight + dropPx,
+                                backgroundColor: "#D87757",
+                                opacity: orangeAlpha * 0.85,
+                              }}
+                            />
+                          </>
+                        )}
+
+                        {/* 琴键上表面（后端 top:0 为固定支点，前端随按压下倾） */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: press > 0.05 ? 1.5 : 0,
+                            right: press > 0.05 ? 1.5 : 0,
+                            top: 0,
+                            height: deckTopHeight + dropPx * 0.55,
+                            background:
+                              press > 0.05
+                                ? `linear-gradient(180deg, #CBD5E1 0%, #94A3B8 68%, #78879B 100%)`
+                                : `linear-gradient(180deg, #E2E8F0 0%, #CBD5E1 100%)`,
+                            borderTop: "1px solid #F8FAFC",
+                            borderBottom:
+                              press > 0.05
+                                ? `2px solid rgba(251, 146, 60, ${orangeAlpha.toFixed(3)})`
+                                : "1px solid #94A3B8",
+                            borderRadius: "1.5px 1.5px 0 0",
+                          }}
+                        />
+
+                        {/* 琴键朝向观众的前端厚度面（随按压下移并产生透视厚度变化） */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: press > 0.05 ? 1.5 : 0,
+                            right: press > 0.05 ? 1.5 : 0,
+                            top: deckTopHeight + dropPx * 0.55,
+                            height: frontLipThickness,
+                            backgroundColor:
+                              press > 0.05 ? "#64748B" : "#94A3B8",
+                            borderBottom: "1.5px solid #334155",
+                            borderRadius: "0 0 2px 2px",
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+
+                  {/* 7 枚深色黑键（按真实八度 3+2+2 排布，参与构成完整键盘造型并保持安静） */}
+                  {blackKeyAfterIndices.map((afterIdx) => {
+                    const bkWidth = 28;
+                    const bkLeft =
+                      (afterIdx + 1) * (whiteKeyWidth + whiteKeyGap) -
+                      whiteKeyGap / 2 -
+                      bkWidth / 2;
+                    return (
+                      <div
+                        key={`bk-${afterIdx}`}
+                        style={{
+                          position: "absolute",
+                          left: bkLeft,
+                          top: 0,
+                          width: bkWidth,
+                          height: blackKeyHeight + 3,
+                          backgroundColor: "#171A29",
+                          borderLeft: "1px solid #334155",
+                          borderRight: "1px solid #0B0D16",
+                          borderBottom: "3px solid #0B0D16",
+                          borderRadius: "0 0 2px 2px",
+                          zIndex: 2,
+                        }}
+                      />
+                    );
+                  })}
+                </div>
+
+                {/* 键盘前侧下沿与三个短短的机械指示窗（与对应演奏键同一次动作，连杆带动向下翻出橙色小面） */}
+                <div
+                  style={{
+                    position: "relative",
+                    width: keybedInnerWidth,
+                    height: 13,
+                    marginTop: 2,
+                    backgroundColor: "#121522",
+                    borderTop: "1px solid rgba(100, 116, 139, 0.25)",
+                    borderRadius: "0 0 4px 4px",
+                  }}
+                >
+                  {([1, 2, 9] as const).map((kIdx, winOrder) => {
+                    const zIdx = activeZoneByKey[kIdx]!;
+                    const zoneState = stageKeyboard.zones[zIdx];
+                    const press = zoneState.press * stageKeyboard.trayUnfold;
+                    const vel = zoneState.velocity;
+                    const winWidth = 44;
+                    const winLeft =
+                      kIdx * (whiteKeyWidth + whiteKeyGap) +
+                      (whiteKeyWidth - winWidth) / 2;
+
+                    return (
+                      <div
+                        key={`ind-win-${winOrder}`}
+                        style={{
+                          position: "absolute",
+                          left: winLeft,
+                          top: 2,
+                          width: winWidth,
+                          height: 8,
+                          backgroundColor: "#08090F",
+                          border: "1px solid rgba(100, 116, 139, 0.38)",
+                          borderRadius: 2,
+                          overflow: "hidden",
+                        }}
+                      >
+                        {/* 内部连杆舌片 */}
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: "50%",
+                            top: 0,
+                            width: 6,
+                            height: Math.max(1.5, press * 3.5),
+                            transform: "translateX(-50%)",
+                            backgroundColor: "#94A3B8",
+                          }}
+                        />
+                        {/* 被连杆带动向下翻出的橙色小面（与琴键按压严格同相，松开即收回） */}
+                        {press > 0.02 && (
+                          <div
+                            style={{
+                              position: "absolute",
+                              left: 1,
+                              right: 1,
+                              top: 0,
+                              height: "100%",
+                              transformOrigin: "top center",
+                              transform: `scaleY(${Math.min(1, press).toFixed(3)})`,
+                              background:
+                                vel >= 0.9
+                                  ? "linear-gradient(180deg, #D87757 0%, #FB923C 75%, #FDBA74 100%)"
+                                  : "linear-gradient(180deg, #B85D3D 0%, #D87757 80%, #FDBA74 100%)",
+                              borderRadius: "0 0 1.5px 1.5px",
+                            }}
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {/* 1. 上层悬浮薄底板（橙色键盘展开期间下移让位并压低律动幅度；键盘收回后恢复为主舞台底座律动） */}
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: 28 + stageKeyboard.traySlide * 44,
+            width: 840 + stageRhythm.upperWidthDeltaPx,
+            height: 11,
+            transform: `translate(-50%, ${-stageRhythm.upperLiftPx}px)`,
+            backgroundColor: `rgba(${Math.round(42 + 16 * stageRhythm.upperHighlight)}, ${Math.round(46 + 18 * stageRhythm.upperHighlight)}, ${Math.round(71 + 24 * stageRhythm.upperHighlight)}, ${0.95 - 0.35 * stageKeyboard.traySlide})`,
+            borderTop: `1.5px solid rgba(203, 213, 225, ${((0.30 + 0.32 * stageRhythm.upperHighlight) * (1 - 0.4 * stageKeyboard.traySlide)).toFixed(3)})`,
+            borderLeft: `1.5px solid rgba(148, 163, 184, ${(0.24 + 0.22 * stageRhythm.upperHighlight).toFixed(3)})`,
+            borderRight: `1.5px solid rgba(148, 163, 184, ${(0.24 + 0.22 * stageRhythm.upperHighlight).toFixed(3)})`,
+            borderBottom: "1.5px solid rgba(12, 14, 24, 0.9)",
+            borderRadius: 5,
+            boxShadow: "0 4px 10px rgba(0, 0, 0, 0.36)",
           }}
         />
+
+        {/* 2. 下层悬浮薄底板（比上层更窄、明度略深，滞后 2 帧跟随收紧回落；橙色键盘段暂停内部短槽脉冲） */}
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: 54 + stageKeyboard.traySlide * 40,
+            width: 680 + stageRhythm.lowerWidthDeltaPx,
+            height: 14,
+            transform: `translate(-50%, ${-stageRhythm.lowerLiftPx}px)`,
+            backgroundColor: `rgba(${Math.round(28 + 12 * stageRhythm.lowerHighlight)}, ${Math.round(31 + 14 * stageRhythm.lowerHighlight)}, ${Math.round(50 + 20 * stageRhythm.lowerHighlight)}, ${0.96 - 0.38 * stageKeyboard.traySlide})`,
+            borderTop: `1.5px solid rgba(148, 163, 184, ${(0.22 + 0.24 * stageRhythm.lowerHighlight).toFixed(3)})`,
+            borderLeft: `1.5px solid rgba(100, 116, 139, ${(0.20 + 0.20 * stageRhythm.lowerHighlight).toFixed(3)})`,
+            borderRight: `1.5px solid rgba(100, 116, 139, ${(0.20 + 0.20 * stageRhythm.lowerHighlight).toFixed(3)})`,
+            borderBottom: "1.5px solid rgba(9, 10, 18, 0.92)",
+            borderRadius: 5,
+            boxShadow: "0 4px 12px rgba(0, 0, 0, 0.42)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {/* 最下层底板内部短槽（仅在筛选出的重点节奏处由中央向两端传递短亮块并消退） */}
+          <div
+            style={{
+              position: "relative",
+              width: 480,
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: "#0B0C14",
+              border: "1px solid rgba(71, 85, 105, 0.26)",
+              overflow: "hidden",
+            }}
+          >
+            {stageRhythm.pulse.active && (() => {
+              const halfSpan = 216;
+              const offsetPx = stageRhythm.pulse.progress * halfSpan;
+              const blockWidth = 48 * (1 - 0.22 * stageRhythm.pulse.progress);
+              const centerFlash = Math.max(0, 1 - stageRhythm.pulse.progress * 3.2);
+
+              return (
+                <>
+                  {/* 中央起始短亮核 */}
+                  {centerFlash > 0.02 && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        left: "50%",
+                        top: 0,
+                        bottom: 0,
+                        width: 28,
+                        transform: "translateX(-50%)",
+                        borderRadius: 2,
+                        backgroundColor: "#FDBA74",
+                        opacity: centerFlash * stageRhythm.pulse.opacity,
+                      }}
+                    />
+                  )}
+                  {/* 向左传递的短亮块（单一强调色 #D87757） */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: `calc(50% - ${offsetPx}px)`,
+                      top: 0,
+                      bottom: 0,
+                      width: blockWidth,
+                      transform: "translateX(-50%)",
+                      borderRadius: 2,
+                      background:
+                        "linear-gradient(90deg, rgba(216, 119, 87, 0.25) 0%, #D87757 38%, #FDBA74 72%, rgba(216, 119, 87, 0.35) 100%)",
+                      opacity: stageRhythm.pulse.opacity,
+                    }}
+                  />
+                  {/* 向右传递的短亮块（单一强调色 #D87757） */}
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: `calc(50% + ${offsetPx}px)`,
+                      top: 0,
+                      bottom: 0,
+                      width: blockWidth,
+                      transform: "translateX(-50%)",
+                      borderRadius: 2,
+                      background:
+                        "linear-gradient(270deg, rgba(216, 119, 87, 0.25) 0%, #D87757 38%, #FDBA74 72%, rgba(216, 119, 87, 0.35) 100%)",
+                      opacity: stageRhythm.pulse.opacity,
+                    }}
+                  />
+                </>
+              );
+            })()}
+          </div>
+        </div>
       </div>
 
       {/* ==================== L009–L010: Clawd 背后中心区域无边框、四周渐淡的深绿色半透明预训练参数矩阵背景 ==================== */}
@@ -1912,6 +2383,7 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
           bookProgress={bookProgress}
           trumpetProgress={trumpetProgress}
           beatPulse={beatPulse}
+          rhythm={rhythm}
           lookOffset={lookOffset}
         />
       </div>

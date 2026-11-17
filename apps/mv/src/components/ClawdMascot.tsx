@@ -1,4 +1,5 @@
 import React from "react";
+import type { ClawdRhythmMotion } from "../timeline/rhythm-timing";
 import { interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 
 export type ClawdAction =
@@ -69,6 +70,8 @@ export interface ClawdMascotProps {
   trumpetProgress?: number;
   /** 外部节拍脉冲强度 (0 ~ 1)，用于和音乐拍点同步弹跳 */
   beatPulse?: number;
+  /** 可选的连续拍点律动；未传时保持现有小样与踮脚跳原表现。 */
+  rhythm?: ClawdRhythmMotion;
   /** 身体主色（默认取自参考图 #D87757 陶土橙） */
   bodyColor?: string;
   /** 眼睛颜色（默认纯黑 #000000） */
@@ -176,6 +179,7 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
   bookProgress,
   trumpetProgress,
   beatPulse = 0,
+  rhythm,
   bodyColor = "#D87757",
   eyeColor = "#000000",
   outlineColor = "#11131F",
@@ -196,7 +200,7 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
 
   // 1. 整体呼吸 / 蹲起 / 弹跳位移、侧倾与挤压拉伸 (Squash & Stretch)
   // 共享连续呼吸基线：使用全局 timeSec 驱动，确保跨句切换 action 时在边界处 (p=0 / p=1) 绝不发生垂直位置跳变
-  const breathY = Math.sin(timeSec * Math.PI * 2) * 0.12;
+  const breathY = rhythm?.breathY ?? Math.sin(timeSec * Math.PI * 2) * 0.12;
   let bodyOffsetY = breathY;
   let bodyOffsetX = 0; // 上半身相对足底的水平重心偏移
   let stageOffsetX = 0; // 整个人物在舞台上的水平侧移
@@ -532,6 +536,16 @@ export const ClawdMascot: React.FC<ClawdMascotProps> = ({
       [0, 0.34, -0.14, 0.38, -0.12, 0],
       { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
     );
+  }
+
+  // Only quiet scene windows carry the shared sway. Feet stay on their existing anchors.
+  if (rhythm && action !== "stumble-left" && action !== "static") {
+    const weight = rhythm.idleWeight;
+    bodyOffsetX += rhythm.sway * weight * 0.24;
+    torsoTiltDeg += rhythm.sway * weight * 1.1;
+    bodyOffsetY += rhythm.pulse * weight * 0.10;
+    scaleX *= 1 + rhythm.pulse * weight * 0.012;
+    scaleY *= 1 - rhythm.pulse * weight * 0.012;
   }
 
   if (prop === "dj") {
