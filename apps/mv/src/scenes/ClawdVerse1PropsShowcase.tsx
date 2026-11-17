@@ -82,11 +82,11 @@ const VERSE1_PROP_ITEMS: PropShowcaseItem[] = [
     title: "左旋入白反光眼镜 + 右下书 + 深绿预训练场",
     cycleSec: 2.8,
     stages: [
-      { label: "1.左旋入白反光眼镜", end: 0.28 },
-      { label: "2.右下升起书本打开", end: 0.48 },
+      { label: "1.眼镜与3D立体书同时入场", end: 0.24 },
+      { label: "2.双手滑入胸前捧书阅读", end: 0.56 },
       { label: "3.背后无框渐淡深绿参数矩阵", end: 1.0 },
     ],
-    note: "背后中心展开无边框四周渐淡的深绿半透明预训练参数矩阵",
+    note: "棕色凹沿3D书封+白页厚块灰线；双手向内滑入胸前，远端重合自然显露边框",
   },
   {
     code: "B5",
@@ -96,10 +96,10 @@ const VERSE1_PROP_ITEMS: PropShowcaseItem[] = [
     cycleSec: 2.8,
     stages: [
       { label: "Aa / </> / ◇ 依次点亮", end: 0.4 },
-      { label: "汇成小奖章 + 抬头挺身", end: 0.7 },
-      { label: "书右下退·镜左退·框上收", end: 1.0 },
+      { label: "汇成小奖章 + 抬头挺身", end: 0.72 },
+      { label: "眼镜向右·书本向左同时退场", end: 1.0 },
     ],
-    note: "抽象能力合成奖章，句尾按原方向退回道具为小号腾出画面",
+    note: "抽象能力合成奖章，句尾眼镜与书本同时向各自另一侧退场离开",
   },
   {
     code: "B6",

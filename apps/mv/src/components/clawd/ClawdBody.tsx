@@ -1,0 +1,326 @@
+import React from "react";
+import { interpolate } from "remotion";
+import { CLAWD_MODEL } from "./model";
+import type { ClawdPose } from "./types";
+
+export interface ClawdBodyProps {
+  pose: ClawdPose;
+  bodyColor: string;
+  outlineColor: string;
+  outlineWidth: number;
+}
+
+const SWEAT_DROPS = [
+  {
+    start: 0.04,
+    end: 0.48,
+    baseX: 1.0,
+    baseY: 0.4,
+    dx: -1.6,
+    dy: 2.3,
+    scale: 1.0,
+  },
+  {
+    start: 0.22,
+    end: 0.68,
+    baseX: 14.8,
+    baseY: 0.2,
+    dx: 1.7,
+    dy: 2.4,
+    scale: 0.95,
+  },
+  {
+    start: 0.42,
+    end: 0.86,
+    baseX: 0.6,
+    baseY: 1.6,
+    dx: -1.5,
+    dy: 2.2,
+    scale: 0.88,
+  },
+] as const;
+
+/**
+ * 根据 pose 计算左右手方块（宽 2.0）在网格中的实时坐标：
+ * - handHoldProgress = 0 时：左手位于 [0, 2]，右手位于 [14, 16]，完全在躯干 [2, 14] 外侧；
+ * - handHoldProgress = 0 -> 1 时：左右手方块连续向躯干内侧平移至 [1.75, 3.75] 与 [12.25, 14.25]，
+ *   下移至胸前书本两侧 (y = 5.05)，远端自然越过躯干边界 x=2 / x=14 与主体重合。
+ */
+export function computeHandBoxes(pose: ClawdPose) {
+  const h = pose.handHoldProgress;
+  const handWidth = 2.0;
+  const handHeight = interpolate(h, [0, 1], [2.0, 1.85]);
+
+  const leftX =
+    h > 0
+      ? interpolate(h, [0, 1], [0, 1.75])
+      : Math.min(1.4, -pose.leftArmExtend);
+  const leftOuterWidth =
+    h > 0 ? handWidth : Math.max(0.6, 2 + pose.leftArmExtend);
+  const leftY = interpolate(
+    h,
+    [0, 1],
+    [4 + pose.leftArmOffsetY, 5.05 + pose.bodyOffsetY],
+  );
+
+  const rightOuterWidth =
+    h > 0 ? handWidth : Math.max(0.6, 2 + pose.rightArmExtend);
+  const rightX =
+    h > 0
+      ? interpolate(h, [0, 1], [14, 12.25])
+      : 16 - rightOuterWidth;
+  const rightY = interpolate(
+    h,
+    [0, 1],
+    [4 + pose.rightArmOffsetY, 5.05 + pose.bodyOffsetY],
+  );
+
+  return {
+    h,
+    left: {
+      x: leftX,
+      y: leftY,
+      width: leftOuterWidth,
+      height: handHeight,
+    },
+    right: {
+      x: rightX,
+      y: rightY,
+      width: rightOuterWidth,
+      height: handHeight,
+    },
+  };
+}
+
+export const ClawdBody: React.FC<ClawdBodyProps> = ({
+  pose,
+  bodyColor,
+  outlineColor,
+  outlineWidth,
+}) => {
+  const {
+    bodyOffsetX,
+    bodyOffsetY,
+    torsoTiltDeg,
+    rotPivotX,
+    legLifts,
+    isAirborneAction,
+    isStumbleHop,
+    selfPointOpacity,
+    sweatDropsProgress,
+  } = pose;
+
+  const { armInset, hipInset, legBaseX } = CLAWD_MODEL.joints;
+  const hands = computeHandBoxes(pose);
+
+  // 位于躯干外侧 (x < 2 或 x > 14) 的手臂部分与躯干无缝融合，共享外轮廓
+  const leftProtrudeX = Math.min(2, hands.left.x);
+  const leftProtrudeW = Math.max(0, 2 - leftProtrudeX) + armInset;
+  const rightProtrudeRight = Math.max(14, hands.right.x + hands.right.width);
+  const rightProtrudeX = 14 - armInset;
+  const rightProtrudeW = Math.max(0, rightProtrudeRight - 14) + armInset;
+
+  const upperBodyTransform = `translate(${bodyOffsetX}, 0) rotate(${torsoTiltDeg}, ${rotPivotX}, 8)`;
+  const tiltRad = (torsoTiltDeg * Math.PI) / 180;
+
+  const legConfigs = legBaseX.map((baseX, idx) => ({
+    baseX,
+    lift: legLifts[idx],
+  }));
+
+  const renderBodyParts = (fill: string, stroke?: string, strokeWidth = 0) => (
+    <g
+      fill={fill}
+      stroke={stroke}
+      strokeWidth={strokeWidth}
+      strokeLinejoin="round"
+    >
+      {/* 上半身（躯干 + 伸出躯干外侧的手臂部分） */}
+      <g transform={upperBodyTransform}>
+        <rect x={2} y={bodyOffsetY} width={12} height={8} />
+        {leftProtrudeW > armInset && (
+          <rect
+            x={leftProtrudeX}
+            y={hands.left.y}
+            width={leftProtrudeW}
+            height={hands.left.height}
+          />
+        )}
+        {rightProtrudeW > armInset && (
+          <rect
+            x={rightProtrudeX}
+            y={hands.right.y}
+            width={rightProtrudeW}
+            height={hands.right.height}
+          />
+        )}
+      </g>
+
+      {/* 四条腿: 顶部髋锚点内嵌于倾斜躯干内部并随身体拉伸，底端足尖锚定地面 y=10 */}
+      <g>
+        {legConfigs.map(({ baseX, lift }) => {
+          const cx = baseX + 0.5;
+          const torsoBottomAtLeg =
+            8 + bodyOffsetY + (cx - rotPivotX) * Math.tan(tiltRad);
+          const hipY = torsoBottomAtLeg - hipInset;
+          const footY = isAirborneAction
+            ? 10 + Math.min(0, bodyOffsetY) - lift
+            : 10 - lift;
+          const isRightLeg = baseX >= 10;
+          const hipX = isStumbleHop
+            ? baseX
+            : baseX + (isAirborneAction ? bodyOffsetX : bodyOffsetX * 0.78);
+          const footX = isStumbleHop
+            ? isRightLeg
+              ? baseX + 0.35
+              : baseX
+            : baseX + (isAirborneAction ? bodyOffsetX : bodyOffsetX * 0.22);
+          const tiptoeInset = isStumbleHop && !isRightLeg ? 0.16 : 0;
+
+          return (
+            <polygon
+              key={baseX}
+              points={`${hipX},${hipY} ${hipX + 1},${hipY} ${footX + 1 - tiptoeInset},${footY} ${footX + tiptoeInset},${footY}`}
+            />
+          );
+        })}
+      </g>
+    </g>
+  );
+
+  return (
+    <>
+      {/* 第 1 层：无缝外轮廓层 */}
+      {outlineWidth > 0 &&
+        renderBodyParts(outlineColor, outlineColor, outlineWidth * 2)}
+
+      {/* 第 2 层：实体填充层 */}
+      {renderBodyParts(bodyColor)}
+
+      {/* L004 朝自己示意时的胸前前足内折像素折线 */}
+      {selfPointOpacity > 0.05 && (
+        <g
+          transform={upperBodyTransform}
+          fill={outlineColor}
+          opacity={selfPointOpacity * 0.85}
+        >
+          <rect x={4.2} y={5.15 + bodyOffsetY} width={1.35} height={0.34} />
+          <rect x={5.2} y={4.55 + bodyOffsetY} width={0.34} height={0.94} />
+          <rect x={10.45} y={5.15 + bodyOffsetY} width={1.35} height={0.34} />
+          <rect x={10.45} y={4.55 + bodyOffsetY} width={0.34} height={0.94} />
+        </g>
+      )}
+
+      {/* 踉跄慌乱时的汗滴特效 (stumble-left) */}
+      {sweatDropsProgress !== null && (
+        <g>
+          {SWEAT_DROPS.map((d, i) => {
+            const dp = Math.max(
+              0,
+              Math.min(1, (sweatDropsProgress - d.start) / (d.end - d.start)),
+            );
+            if (dp <= 0 || dp >= 1) return null;
+            const x = d.baseX + bodyOffsetX + d.dx * dp;
+            const y = d.baseY + bodyOffsetY + d.dy * dp * dp;
+            const op = dp < 0.2 ? dp / 0.2 : dp > 0.75 ? (1 - dp) / 0.25 : 1;
+            return (
+              <g
+                key={i}
+                transform={`translate(${x}, ${y}) scale(${d.scale})`}
+                opacity={op}
+              >
+                <path
+                  d="M 0 -0.7 C 0.42 -0.1 0.52 0.35 0.52 0.62 A 0.52 0.52 0 1 1 -0.52 0.62 C -0.52 0.35 -0.42 -0.1 0 -0.7 Z"
+                  fill={CLAWD_MODEL.colors.sweatFill}
+                  stroke={outlineColor}
+                  strokeWidth={0.18}
+                />
+                <circle
+                  cx={-0.16}
+                  cy={0.55}
+                  r={0.14}
+                  fill={CLAWD_MODEL.colors.sweatHighlight}
+                />
+              </g>
+            );
+          })}
+        </g>
+      )}
+    </>
+  );
+};
+
+/**
+ * 当双手向胸前移动 (handHoldProgress > 0)、手部方块的远端越过躯干边界 (x=2 / x=14) 与主体/道具重合时：
+ * - 重合区域保持 100% 实体橙色填充（绝不做透明度淡入）；
+ * - 仅在与主体/书本重合的三条远端边（上、内侧远端、下）自然浮现轮廓边框，近端与躯干外侧突出部无缝连通！
+ */
+export const ClawdHandsOverlay: React.FC<ClawdBodyProps> = ({
+  pose,
+  bodyColor,
+  outlineColor,
+  outlineWidth,
+}) => {
+  const hands = computeHandBoxes(pose);
+  if (hands.h <= 0.001) return null;
+
+  const { bodyOffsetX, torsoTiltDeg, rotPivotX } = pose;
+  const upperBodyTransform = `translate(${bodyOffsetX}, 0) rotate(${torsoTiltDeg}, ${rotPivotX}, 8)`;
+  const strokeW = Math.max(0.24, outlineWidth * 1.5);
+
+  // 左手与主体 (x >= 2) 重合的远端区间 [leftOverlapX0, leftOverlapX1]
+  const leftOverlapX0 = Math.max(2, hands.left.x);
+  const leftOverlapX1 = hands.left.x + hands.left.width;
+  const leftOverlapW = Math.max(0, leftOverlapX1 - leftOverlapX0);
+
+  // 右手与主体 (x <= 14) 重合的远端区间 [rightOverlapX0, rightOverlapX1]
+  const rightOverlapX0 = hands.right.x;
+  const rightOverlapX1 = Math.min(14, hands.right.x + hands.right.width);
+  const rightOverlapW = Math.max(0, rightOverlapX1 - rightOverlapX0);
+
+  return (
+    <g transform={upperBodyTransform}>
+      {/* 左手：身体外侧无缝衔接段 + 躯干内侧重合描边段 */}
+      <rect
+        x={hands.left.x}
+        y={hands.left.y}
+        width={hands.left.width}
+        height={hands.left.height}
+        fill={bodyColor}
+      />
+      {leftOverlapW > 0.02 && (
+        <path
+          d={`M ${leftOverlapX0} ${hands.left.y} H ${leftOverlapX1} V ${
+            hands.left.y + hands.left.height
+          } H ${leftOverlapX0}`}
+          fill="none"
+          stroke={outlineColor}
+          strokeWidth={strokeW}
+          strokeLinecap="square"
+          strokeLinejoin="round"
+        />
+      )}
+
+      {/* 右手：身体外侧无缝衔接段 + 躯干内侧重合描边段 */}
+      <rect
+        x={hands.right.x}
+        y={hands.right.y}
+        width={hands.right.width}
+        height={hands.right.height}
+        fill={bodyColor}
+      />
+      {rightOverlapW > 0.02 && (
+        <path
+          d={`M ${rightOverlapX1} ${hands.right.y} H ${rightOverlapX0} V ${
+            hands.right.y + hands.right.height
+          } H ${rightOverlapX1}`}
+          fill="none"
+          stroke={outlineColor}
+          strokeWidth={strokeW}
+          strokeLinecap="square"
+          strokeLinejoin="round"
+        />
+      )}
+    </g>
+  );
+};

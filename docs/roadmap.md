@@ -1,5 +1,22 @@
 # 推进计划
 
+### L009–L010 胸前双前肢捧书造型与眼镜/书本卡拍进退场优化（2026-11-17）
+
+- 按用户反馈在新模块化架构（`BookProp.tsx`、`Glasses.tsx`、`ClawdBody.tsx`、`blend.ts`、`ReadBook.tsx`）上优化 `L009–L010`（「中学生の頃は / I was the best in every class」）的手部运动、3D 书本立体造型与进退场编排：
+  - **手部真实位移与主体重合边框交互**：移除额外短横线与透明度渐显方案，改为由 `ClawdBody.tsx`（`computeHandBoxes` + `ClawdHandsOverlay`）驱动左右两个 `2×2` 手部方块从身体外侧（`[0,2]` / `[14,16]`）连续平移至胸前书本两侧（`[1.75,3.75]` / `[12.25,14.25]`）；位于躯干外侧的部分继续与身体无缝连通，越过躯干边界（`x=2` / `x=14`）与主体及书本重合的远端部分自然显露三边轮廓边框。
+  - **二维视角下的 3D 捧书造型**：重绘 `BookProp.tsx`，朝向观众展示棕色立体书封面与中央书脊暗面，书封上沿与下沿均向中央书脊向下凹陷；书封上沿上方露出一层具有一定厚度的白色书页块，并在白块上绘制跟随凹陷弧度的灰色书页层线。
+  - **眼镜与书本同时进退场、适中速度与异侧离开**：入场（`45.36s–45.76s`，`0.40s / 12帧`）眼镜从左侧旋入、书本同时从右下侧入场；退场（`49.26s–49.66s`，`0.40s / 12帧`）眼镜向右侧离开、书本同时向另一侧（左下侧）离开，双手同步滑回身体两侧。
+- 已验证：8 项节奏与姿态单测（含 `handHoldProgress` 往返断言）、`npm run lint`、`npm run check:repo` 及 3 张关键帧静帧（`F1364`、`F1382`、`F1483`）渲染目视检查通过。
+
+### MV 动画代码结构模块化重组（2026-11-17）
+
+- 按用户确认的分层架构重组 `apps/mv/src/` 下截至 `00:55.168` 的全部角色、动作、道具、环境与协同表演代码，消除巨石组件与跨文件重复实现：
+  - **`components/clawd/`（造型与骨骼渲染层）**：拆分为 `model.ts`（`16×10` 网格、配色、关节内嵌锚点与挂点）、`types.ts`（`ClawdPose` 及外观类型）、`Clawd.tsx`（组合容器）、`ClawdBody.tsx`（双层无缝描边躯干四肢、内折线与汗滴）、`ClawdFace.tsx`（五官、视线与自动眨眼）与 `outfits/`（`Glasses.tsx`、`Outfits.tsx`）；原 `ClawdMascot.tsx` 精简为兼容重导出入口。
+  - **`animation/clawd/`（纯函数姿态与动作合成引擎）**：拆分为 `poses.ts`、`motion-style.ts`、`blend.ts`（`resolveClawdPose` 局部叠加与足底 `y=10` 贴地约束）及 `actions/`（`loop-actions.ts`、`verse1-intro.ts`、`stumble-left.ts`、`snappy-nod.ts`、`read-look-up.ts`）。
+  - **`components/props/` 与 `components/environment/`（道具与舞台环境积木）**：将手持道具（`BookProp`、`TrumpetProp`、`ShowcaseProps`、`HoraCallout`）与舞台环境组件（`StageDeck`、`StageAutoKeyboard`、`TerminalSummon`、`GithubHeatmapCard`、`MultilangBubble`、`PretrainField`、`Verse1Hud`）独立封装。
+  - **`performances/`、`timeline/verse1.ts` 与 `scenes/TryMeVerse1MV.tsx`（协同表演与时间轴编排层）**：新增 `ExitTerminal`、`SpeakLanguages`、`ReadBook`、`PlayTrumpet` 四个协同表演模块及 `timeline/verse1.ts` 统一时间轴入口，将 `TryMeVerse1MV.tsx` 从 `2517` 行精简至 `158` 行，同时保持全场唯一 `<Clawd />` 实例不卸载。
+- 已验证：`npm run lint`（ESLint + TypeScript 类型检查）、`npm run check:repo`、8 项节奏、键盘与姿态架构单测通过，且重构前后 5 个代表性关键帧（`F20`、`F600`、`F1135`、`F1420`、`F1550`）渲染 PNG 的 SHA-256 哈希 100% 字节级一致。
+
 ### 舞台前沿自动演奏键盘试作（2026-11-17）
 
 - 按用户提供的另一 Agent 设计方案，在 `TryMeVerse1MV` 实现橙色段（`0.254s–18.477s`）专属的**舞台前沿抽出式自动演奏键盘**试作版供审看：

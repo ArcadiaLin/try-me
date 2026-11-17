@@ -1,9 +1,12 @@
 import React from "react";
 import { interpolate } from "remotion";
+import { getStumbleLeftKinematics } from "../animation/clawd/actions";
+import { Clawd as ClawdMascot } from "./clawd/Clawd";
 import {
-  ClawdMascot,
-  getStumbleLeftKinematics,
-} from "./ClawdMascot";
+  getContributionLevel,
+  GITHUB_HEAT_COLORS,
+  PARAM_TOKENS,
+} from "./environment";
 
 export type Verse1PropStageId =
   | "L006"
@@ -21,21 +24,6 @@ export interface ClawdVerse1StageProps {
   progress: number;
   /** 舞台缩放比例（默认 1.0，基准舞台尺寸为 280×156） */
   scale?: number;
-}
-
-const GITHUB_HEAT_COLORS = [
-  "#0E4429",
-  "#006D32",
-  "#26A641",
-  "#39D353",
-] as const;
-
-function getContributionLevel(cellIndex: number): 0 | 1 | 2 | 3 {
-  const hash = (((cellIndex + 1) * 2654435761) >>> 0) % 100;
-  if (hash < 20) return 0;
-  if (hash < 52) return 1;
-  if (hash < 80) return 2;
-  return 3;
 }
 
 const MULTILANG_LINES = [
@@ -154,12 +142,8 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
       },
     };
   } else if (stageId === "L009") {
-    // L009: 眼镜从左侧旋入 (0~0.28) -> 书从右下升起 (0.22~0.48) -> 低头微翻页阅读
-    const glassesIn = interpolate(p, [0.02, 0.28], [0, 1], {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-    });
-    const bookIn = interpolate(p, [0.22, 0.48], [0, 1], {
+    // L009: 眼镜与 3D 书本同时入场 (0.04~0.24，适中速度)，双手从身体两侧滑向胸前捧书阅读
+    const simultaneousIn = interpolate(p, [0.04, 0.24], [0, 1], {
       extrapolateLeft: "clamp",
       extrapolateRight: "clamp",
     });
@@ -168,20 +152,16 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
       action: "read-look-up",
       actionProgress: interpolate(p, [0, 1], [0, 0.52]),
       prop: "book",
-      glassesProgress: glassesIn,
-      bookProgress: bookIn,
+      glassesProgress: simultaneousIn,
+      bookProgress: simultaneousIn,
     };
   } else if (stageId === "L010") {
-    // L010: 承接眼镜与书本，从书后抬头挺身；句尾 (0.70~0.92) 先把书向右下送出、眼镜向左退回
+    // L010: 承接眼镜与书本，从书后抬头挺身；句尾 (0.72~0.92) 眼镜与书本同时向另一侧退场离开 (1 -> 2)
     clawdOffsetX = interpolate(p, [0, 0.82, 1], [0, 0, -16], {
       extrapolateLeft: "clamp",
       extrapolateRight: "clamp",
     });
-    const bookOut = interpolate(p, [0.7, 0.88], [1, 0], {
-      extrapolateLeft: "clamp",
-      extrapolateRight: "clamp",
-    });
-    const glassesOut = interpolate(p, [0.74, 0.92], [1, 0], {
+    const simultaneousOutOpposite = interpolate(p, [0.72, 0.92], [1, 2], {
       extrapolateLeft: "clamp",
       extrapolateRight: "clamp",
     });
@@ -190,8 +170,8 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
       action: "read-look-up",
       actionProgress: interpolate(p, [0, 0.75, 1], [0.52, 0.92, 1]),
       prop: "book",
-      glassesProgress: glassesOut,
-      bookProgress: bookOut,
+      glassesProgress: simultaneousOutOpposite,
+      bookProgress: simultaneousOutOpposite,
     };
   } else if (stageId === "L011") {
     // L011: 小号从右侧滑入、接住吹奏、放低送出
@@ -803,21 +783,6 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
           const globalTrainPhase = stageId === "L009" ? p : 1 + p;
           const wavePos = (globalTrainPhase * 2.6) % 1;
           const stepTick = Math.floor(globalTrainPhase * 24);
-
-          const PARAM_TOKENS = [
-            "∇W₁",
-            "attn",
-            "0.04",
-            "qkv",
-            "mlp",
-            "-0.12",
-            "norm",
-            "0.87",
-            "ffn",
-            "loss↓",
-            "emb",
-            "0.01",
-          ];
 
           return (
             <div

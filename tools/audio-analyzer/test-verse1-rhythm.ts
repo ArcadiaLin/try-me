@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { test } from "node:test";
+import { resolveClawdPose } from "../../apps/mv/src/animation/clawd/blend.ts";
 import {
   beatPosition,
   rhythmMotion,
   sampleRhythmPlan,
   sampleStageKeyboard,
   sampleStageRhythm,
-} from "../../apps/mv/src/timeline/rhythm-timing.ts";
-import { VERSE1_RHYTHM as data } from "../../apps/mv/src/timeline/verse1-rhythm.ts";
+  VERSE1_RHYTHM as data,
+} from "../../apps/mv/src/timeline/verse1.ts";
 
 test("key poses land exactly on authored integer frames and keep their original order", () => {
   for (const plan of data.plans) {
@@ -164,4 +165,60 @@ test("stage-front auto-playing keyboard deploys before first note, overlaps fast
 
   const goneInTeal = sampleStageKeyboard(19.0);
   assert(!goneInTeal.visible && goneInTeal.traySlide === 0 && goneInTeal.slotOpen === 0);
+});
+
+test("refactored pose & timeline layers keep feet grounded and preserve exact rendered PNG frames", () => {
+  const groundedActions = [
+    "idle",
+    "crouch",
+    "nod",
+    "wave",
+    "weight-shift",
+    "wave-step",
+    "tilt-invite",
+    "posture-nod",
+    "self-present",
+    "crouch-lean",
+    "peek-present",
+    "read-look-up",
+    "elastic-pop",
+    "snappy-nod",
+  ] as const;
+
+  for (const action of groundedActions) {
+    for (const p of [0, 0.2, 0.5, 0.8, 1]) {
+      const pose = resolveClawdPose({
+        action,
+        actionProgress: p,
+        timeSec: p * 3,
+      });
+      assert.deepEqual(pose.legLifts, [0, 0, 0, 0], `${action} lifted feet at p=${p}`);
+    }
+  }
+
+  // When holding a book (prop="book"), Clawd slides its two hands inward (handHoldProgress: 0 -> 1 -> 0) across bookProgress 0 -> 1 -> 2
+  const bookFlyStart = resolveClawdPose({
+    action: "read-look-up",
+    actionProgress: 0.05,
+    prop: "book",
+    bookProgress: 0,
+    timeSec: 45.36,
+  });
+  const bookHeld = resolveClawdPose({
+    action: "read-look-up",
+    actionProgress: 0.25,
+    prop: "book",
+    bookProgress: 1,
+    timeSec: 46.1,
+  });
+  const bookExitDone = resolveClawdPose({
+    action: "read-look-up",
+    actionProgress: 0.95,
+    prop: "book",
+    bookProgress: 2,
+    timeSec: 49.66,
+  });
+  assert.equal(bookFlyStart.handHoldProgress, 0);
+  assert.equal(bookHeld.handHoldProgress, 1);
+  assert.equal(bookExitDone.handHoldProgress, 0);
 });
