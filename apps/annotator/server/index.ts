@@ -14,6 +14,7 @@ import {
   type TimelineProject,
 } from "../web/model.ts";
 import { exportEventsToAss, exportEventsToLrc } from "../web/src/utils/ass-lrc.ts";
+import { executeAgentOperations, OperationError, readAgentProject, withProjectWriteLock } from "./agent-operations.ts";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,10 +25,6 @@ const SUMMARY_FILE_PATH = path.join(REPO_ROOT, "local/analysis/summary.json");
 const BEATS_FILE_PATH = path.join(REPO_ROOT, "local/analysis/beats.json");
 const SECTIONS_FILE_PATH = path.join(REPO_ROOT, "local/analysis/try-me.sections.json");
 const WAVEFORM_FILE_PATH = path.join(REPO_ROOT, "local/analysis/waveform.json");
-
-// Git-tracked unified timeline & brief
-const UNIFIED_TIMELINE_PATH = path.join(REPO_ROOT, "annotations/try-me.timeline.json");
-const UNIFIED_BRIEF_PATH = path.join(REPO_ROOT, "annotations/agent-brief.md");
 
 const WEB_STATIC_DIR = path.join(__dirname, "../web");
 const DIST_WEB_DIR = path.join(__dirname, "../dist/web");
@@ -233,10 +230,23 @@ function getMimeType(filePath: string): string {
   }
 }
 
-export function createAnnotatorServer(): http.Server {
+export function createAnnotatorServer(options: { repoRoot?: string } = {}): http.Server {
+  const projectRoot = options.repoRoot ?? REPO_ROOT;
   return http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://127.0.0.1");
+
+      if (req.method === "GET" && url.pathname === "/api/agent/project") {
+        sendJson(res, 200, readAgentProject(projectRoot));
+        return;
+      }
+      if (req.method === "POST" && url.pathname === "/api/agent/operations") {
+        let request: unknown;
+        try { request = JSON.parse(await readRequestBody(req)); }
+        catch { throw new OperationError("Invalid JSON body"); }
+        sendJson(res, 200, executeAgentOperations(projectRoot, request, persistProjectArtifacts));
+        return;
+      }
 
       if (req.method === "GET" && url.pathname === "/api/analysis") {
         const summary = readJsonIfExists<Record<string, unknown>>(SUMMARY_FILE_PATH);
@@ -270,15 +280,21 @@ export function createAnnotatorServer(): http.Server {
       }
 
       if (req.method === "GET" && url.pathname === "/api/annotations") {
-        const { project, agentBriefMarkdown } = loadOrInitializeProject();
-        if (!fs.existsSync(UNIFIED_TIMELINE_PATH) || !fs.existsSync(UNIFIED_BRIEF_PATH)) {
-          persistProjectArtifacts(project);
+        if (!fs.existsSync(path.join(projectRoot, "annotations/try-me.timeline.json")) || !fs.existsSync(path.join(projectRoot, "annotations/agent-brief.md"))) {
+          withProjectWriteLock(projectRoot, () => {
+            const { project } = loadOrInitializeProject(projectRoot);
+            persistProjectArtifacts(project, projectRoot);
+          });
         }
+        const snapshot = readAgentProject(projectRoot);
+        const project = normalizeTimelineProjectInput(snapshot.project);
+        const agentBriefMarkdown = generateAgentBriefMarkdown(project);
         sendJson(res, 200, {
           project,
           annotations: project,
           agentBriefMarkdown,
           savedAt: new Date().toISOString(),
+          revision: snapshot.revision,
         });
         return;
       }
@@ -310,13 +326,20 @@ export function createAnnotatorServer(): http.Server {
           return;
         }
 
-        const saved = persistProjectArtifacts(validatedProject);
+        const { saved, revision } = withProjectWriteLock(projectRoot, () => {
+          if (parsed.baseRevision !== undefined && parsed.baseRevision !== readAgentProject(projectRoot).revision) {
+            throw new OperationError("磁盘标注已更新，请先保留当前草稿并重载，再合并修改。", 409);
+          }
+          const saved = persistProjectArtifacts(validatedProject, projectRoot);
+          return { saved, revision: readAgentProject(projectRoot).revision };
+        });
         sendJson(res, 200, {
           ok: true,
           project: saved.project,
           annotations: saved.project,
           agentBriefMarkdown: saved.agentBriefMarkdown,
           savedAt: saved.savedAt,
+          revision,
         });
         return;
       }
@@ -377,7 +400,7 @@ export function createAnnotatorServer(): http.Server {
       sendError(res, 404, `Not found: ${url.pathname}`);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      sendError(res, 500, message);
+      sendError(res, error instanceof OperationError ? error.status : 500, message);
     }
   });
 }

@@ -36,6 +36,8 @@
     "check:repo": "node tools/repo-guard/check-repo.ts",
     "analyze:audio": "uv run python tools/audio-analyzer/analyze-audio.py",
     "annotate": "npm --workspace @try-me/annotator run start",
+    "annotate:project": "node tools/annotator/project-cli.ts",
+    "test:agent-operations": "node --test apps/annotator/test/agent-operations.test.ts",
     "test:annotations": "npm --workspace @try-me/annotator run test"
   },
   "allowScripts": {

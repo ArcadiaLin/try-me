@@ -1,0 +1,4 @@
+interface:
+  display_name: "Try Me 标注协作"
+  short_description: "通过项目批量接口编辑声音轨迹与脚本备注，保留人工标注并同步工作台派生文件"
+  default_prompt: "使用 $try-me-annotator 将本次标注或脚本修改写入工作台，先预览计划再按授权范围应用。"

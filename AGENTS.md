@@ -2,6 +2,7 @@
 
 - 当用户在项目外进行交流和提问时，无需考虑用户近期在具体项目中的问答，可以将这些谈话当作独立的知识问答。
 - 本项目使用 Remotion 制作 Kero Kero Bonito《Try Me》的 MV。当前只建立规范，创意和音乐结构尚未确定。
+- 新增或编辑工作台时间轴、点/区间及脚本备注时，优先使用项目 skill `.agents/skills/try-me-annotator/SKILL.md` 和 `docs/annotator/agent-api.md` 中的批量接口；音频分析脚本与通用写入流程分开，不为每次导入重复实现保存和备份。
 - 歌曲和不可公开的运行时素材放 `public/private/`；非运行时参考、源工程、私人笔记放 `local/`；渲染产物放 `out/`。不得强制加入 Git、上传或部署这些材料。
 - 可公开的运行时素材放 `public/assets/`，先在 `docs/assets.md` 登记来源和公开状态。无法确认的素材先放私有目录。
 - 歌曲路径为 `public/private/audio/try-me.flac`，使用 `staticFile()` 引用，不硬编码本机绝对路径。不自动转码或修改原音轨。

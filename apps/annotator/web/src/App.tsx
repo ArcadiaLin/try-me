@@ -43,6 +43,7 @@ export const App: React.FC = () => {
   const redo = useWorkbenchStore((s) => s.redo);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const serverRevisionRef = useRef<string | undefined>(undefined);
   const audioTransportRef = useRef<ReturnType<typeof connectAudioTransport> | null>(null);
   const [resizingSplitter, setResizingSplitter] = useState<
     "tracker" | "explorer" | "list" | null
@@ -70,6 +71,7 @@ export const App: React.FC = () => {
         annotations?: unknown;
         agentBriefMarkdown?: string;
         savedAt?: string;
+        revision?: string;
       };
 
       const rawProject = payload.project ?? payload.annotations ?? payload;
@@ -88,6 +90,7 @@ export const App: React.FC = () => {
         savedAt: payload.savedAt ?? null,
         hasLocalDraft: Boolean(draft),
       });
+      serverRevisionRef.current = payload.revision;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       setPersistence({
@@ -113,17 +116,19 @@ export const App: React.FC = () => {
       const res = await fetch("/api/annotations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project: currentProject }),
+        body: JSON.stringify({ project: currentProject, baseRevision: serverRevisionRef.current }),
       });
       const body = (await res.json()) as {
         error?: string;
         project?: TimelineProject;
         agentBriefMarkdown?: string;
         savedAt?: string;
+        revision?: string;
       };
       if (!res.ok) {
         throw new Error(body.error ?? `HTTP ${res.status}`);
       }
+      serverRevisionRef.current = body.revision;
       await clearLocalDraft().catch(() => undefined);
       if (body.project) {
         replaceProject(body.project, "已保存到磁盘", false);

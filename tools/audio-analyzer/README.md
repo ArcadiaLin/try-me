@@ -1,5 +1,50 @@
 # 本地声音分析
 
+## 全曲鼓组与鼓掌对照
+
+```powershell
+npm run annotate:project -- read --out out/full-rhythm-snapshot-日期.json
+.venv\Scripts\python.exe tools/audio-analyzer/analyze-full-rhythm.py --snapshot out/full-rhythm-snapshot-日期.json --output local/analysis/full-rhythm-日期
+npm run annotate:project -- preview --input local/analysis/full-rhythm-日期/plan.json
+npm run annotate:project -- apply --input local/analysis/full-rhythm-日期/plan.json
+```
+
+全曲HPSS中/高频瞬态结合已有共同网格，分别输出主节奏、弱拍/加花、鼓掌、重合/紧邻四条点轴。所有鼓组候选必须有实际起音证据，40ms内才吸附；原混合轴只读，鼓掌复制时保留确认、排除人类鼓组/Bass及高度匹配反例，再从旧原音波形分数补检少量常规鼓掌。分析依赖现有 `claps-v1` 参数/分数和当前 `trk_claps_v1`，不是通用乐器转录器。
+
+首次结果为 `local/analysis/full-rhythm-v1/`：主节奏201、弱拍388、鼓掌205、配对64。配对中23处差≤40ms用红色，41处40–160ms用暖色；这表示起音接近，不证明两个已分离乐器同时演奏。HPSS打击成分可能含鼓掌本身，其他声源也可能误入弱拍；所有新增推断待试听。`analysis.json`保存音源哈希/版本/参数/全部证据，`curves.npz`保存完整曲线，`plan.json`交给统一接口预览与写入。
+
+输出目录不可覆盖；已导入固定v1组时拒绝重跑覆盖用户修订。如需新一轮分析，先确定新版本组ID与新的输出目录，不能用旧计划重复导入。
+
+## 鼓掌参考驱动的点轴
+
+```powershell
+.venv\Scripts\python.exe tools/audio-analyzer/analyze-claps.py
+node tools/audio-analyzer/import-claps.ts
+node tools/audio-analyzer/import-claps.ts --apply
+```
+
+分析读取当前七个「鼓掌音一声」和一个「鼓掌音两声」区间，各取最强的一次/两次起音。使用现有依赖，原音只在内存重采样。120ms mel 瞬态残差与3–10kHz波形互相关必须对同一个参考同时通过阈值；低音双声的第一下另设模板。鼓组重合参考不用于检索模板。节拍由参考和全曲强匹配拟合，细分到约140ms网格，只有距离网格35ms以内的音频匹配才吸附，不机械补点。
+
+首次结果为 `local/analysis/claps-v1/analysis.json`（来源、哈希、参数、版本、原始起音及吸附记录）、`scores.npz`（完整分数）与 `candidate-track.json`（纯点轴，省略 `endSec`）。230个点中33个为低音变体候选。七个单声与双声共九次起音全部覆盖；排除同区间模板后八个常规实例仍检出。低音变体只有一个已标实例，尚无法独立验证，混音共享采样、人声遮挡等仍可能误检或漏检，需试听。
+
+后续人工复核证明首次结果混入鼓组和Bass，不能再把旧「低音变体」作为统一鼓掌类别。2026-11-17的修订以14处人类备注为依据，范围截至71.461s，三频段/频谱对比及统一接口计划保存在 `local/analysis/claps-human-review-v2/`；原轴改为鼓掌/鼓组/Bass分色混合点轴，保留人工否定例与原ID，补回有音频证据的68.377s候选，合计231点。该范围后未重新分类，原始分析仍保留用于追溯；不要重跑v1覆盖已复核结果。
+
+分析与导入都不覆盖已有结果：分析的 `--output` 必须指向 `local/analysis/` 内新目录；v1导入器固定读取 `claps-v1`，校验分析时主时间线/音源哈希、拒绝重复轨道或ID冲突，先隔离保存、备份再添加独立「鼓掌 · 全曲点轴」并同步七份工件。复跑不能直接替换用户已复核的轨道；当前人工参考变更或增加时需要相应调整分析入口。导入后在工作台点「重载」。
+
+## 按参考区间检索音色
+
+```powershell
+.venv\Scripts\python.exe tools/audio-analyzer/find-timbre.py --output local/analysis/timbre-review-日期
+```
+
+读取当前 `trk_01` 的 `E001` / `E002` 人工参考，使用原混音及 HPSS 谐波成分的 mel / MFCC 窗口特征、全曲白化和附近背景对比检索全曲。只使用现有依赖；不安装模型、不上传、不改原音频或主时间线。输出目录必须是 `local/analysis/` 内的新目录，已有目录拒绝覆盖。
+
+输出 `analysis.json`（参数、版本、音源与标注哈希、两个样本互检和24个候选）、`scores.npz`（全曲分数）、`report.md`、`review.html`（直接试听原 FLAC，候选前后各加0.5秒）。试听页保持原目录位置；浏览器本地文件播放限制见下文。
+
+首次完整结果在 `local/analysis/timbre-v1-review/`。互检显示仍有约12.5% / 29.5%的全曲窗口比另一个已知样本得分更高，可靠性有限。候选分数只用于排序，不是识别概率；窗口长度沿用参考，不代表检测到了起止边界。HPSS 不是乐器分轨，混音中的相同人声、音高、和弦或背景均可能误检；需要人工试听，不应按此直接扩充已确认轨迹，也不能据未检出断言音色缺席。
+
+## 节奏分析
+
 基础分析入口仍为 `npm run analyze:audio`。新增节奏分析使用项目现有 `.venv`，不安装模型、不转码或修改原 FLAC。
 
 ```powershell
