@@ -16,6 +16,7 @@ import {
 } from "../components/environment";
 import {
   ExitTerminalPerformance,
+  HeyBubblePerformance,
   PlayTrumpetPerformance,
   ReadBookPerformance,
   resolveVerse1ClawdPerformance,
@@ -95,6 +96,7 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
       <RhythmPopups sec={sec} />
 
       {/* 协同表演层：按时间区间安排背景、画外道具与多元素交互 */}
+      <HeyBubblePerformance sec={sec} />
       <ReadBookPerformance sec={sec} />
       <ExitTerminalPerformance sec={sec} />
       <SpeakLanguagesPerformance sec={sec} />

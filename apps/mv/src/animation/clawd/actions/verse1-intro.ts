@@ -31,19 +31,40 @@ export function sampleVerse1IntroAction(
   }
 
   if (action === "wave-step") {
-    // A2 (L001): 短挥手一次 (0~0.38) -> 重心稍向前送走到面试位 (0.38~0.64) -> 自信小幅蹲起 (0.64~1.0)
-    if (p < 0.38) {
-      const waveEnv = Math.sin((p / 0.38) * Math.PI);
-      const waveOsc = Math.sin((p / 0.38) * Math.PI * 4);
+    // A2 (L001): "Hey!" 奋力抬高右侧身体、右侧足部拉伸、右前爪高举快速挥动三次 (0~0.36)
+    // -> 重心向前送走到面试位 (0.36~0.64) -> 自信小幅蹲起 (0.64~1.0)
+    if (p < 0.36) {
+      const liftEnv = clampedInterpolate(
+        p,
+        [0, 0.075, 0.285, 0.36],
+        [0, 1, 1, 0],
+      );
+      // 挥舞速度加快 1.25 倍（在 Δp = 0.264 内完成 3 个完整正弦周期 = 6π）
+      const wavePhase = clampedInterpolate(p, [0.035, 0.299], [0, 1]);
+      const waveOscY = Math.sin(wavePhase * Math.PI * 6);
+      const waveOscX = Math.cos(wavePhase * Math.PI * 6);
+
       return {
-        bodyOffsetY: breathY + Math.sin((p / 0.38) * Math.PI * 2) * 0.1,
-        actionLookX: 0.08 * waveEnv,
-        rightArmExtend: 0.25 * waveEnv,
-        rightArmDeltaY: -0.75 * waveEnv + waveOsc * 0.38 * waveEnv,
+        // 以左侧足部 (rotPivotX = 4.2) 为支点向左上昂起躯干，幅度适中偏低但保持右腿拉伸感
+        rotPivotX: 4.2,
+        torsoTiltDeg: -6.8 * liftEnv,
+        bodyOffsetX: -0.26 * liftEnv + waveOscX * 0.08 * liftEnv,
+        bodyOffsetY:
+          breathY - 0.28 * liftEnv - Math.abs(waveOscY) * 0.1 * liftEnv,
+        scaleX: 1 - 0.02 * liftEnv,
+        scaleY: 1 + 0.035 * liftEnv,
+        actionLookX: 0.24 * liftEnv,
+        actionLookY: -0.16 * liftEnv,
+        // 左爪向下微压借力
+        leftArmExtend: -0.18 * liftEnv,
+        leftArmDeltaY: 0.35 * liftEnv,
+        // 右侧前爪举至躯干右上侧（比之前略低）并快速挥动三次
+        rightArmExtend: (0.72 + waveOscX * 0.34) * liftEnv,
+        rightArmDeltaY: (-2.25 + waveOscY * 0.62) * liftEnv,
       };
     }
     if (p < 0.64) {
-      const stepT = (p - 0.38) / 0.26;
+      const stepT = (p - 0.36) / 0.28;
       const stepArc = Math.sin(stepT * Math.PI);
       return {
         bodyOffsetY:

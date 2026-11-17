@@ -1,17 +1,45 @@
+import React from "react";
+import { interpolate } from "remotion";
+import { clampedInterpolate } from "../animation/clawd/motion-style";
 import { sampleStageKeyboard } from "../timeline/verse1";
 import type { ClawdActorState } from "./types";
 
 /**
- * 编排 L066 前奏 (00:00.000 → 00:18.477) Clawd 亲自弹奏紧凑小合成器键盘的表演：
+ * 编排 L066 前奏 (00:00.000 → 00:18.463) Clawd 亲自弹奏紧凑小合成器键盘的表演：
  * - 0.02s–0.24s：小合成器从左侧滑入 Clawd 身前，双爪移向琴键就位；
- * - 0.254s–18.465s：左爪弹奏低音区 (A3 下切与 B♭3 基准音)，右爪弹奏高八度 (B♭4)，视线随左右手弹奏自然追随；
- * - 18.465s–18.88s：末音收束后双爪收回，小键盘向右侧轻巧退场，无缝衔接 L001 挥手入场。
+ * - 0.254s–18.14s：左爪弹奏低音区 (A3 下切与 B♭3 基准音)，右爪弹奏高八度 (B♭4)，视线随左右手弹奏自然追随；
+ * - 18.14s–18.46s：在 L001 "Hey" 开口前收手并将小键盘向右侧轻巧滑出退场，为 L001 大幅高举右爪挥手腾出空间。
  */
 export function resolvePlayKeyboardActor(
   sec: number,
   baseActor: ClawdActorState,
 ): ClawdActorState {
-  const keyboardState = sampleStageKeyboard(sec);
+  if (sec >= 18.46) {
+    return baseActor;
+  }
+
+  const rawKeyboard = sampleStageKeyboard(sec);
+  if (!rawKeyboard.visible) {
+    return baseActor;
+  }
+
+  // 在 18.14s -> 18.45s 提前完成小合成器向右侧滑出与收手，确保 18.463s "Hey" 起拍时右爪完全解放
+  const earlyExitSlide =
+    sec > 18.12
+      ? clampedInterpolate(sec, [18.12, 18.45], [1, 0])
+      : rawKeyboard.traySlide;
+  const earlyExitUnfold =
+    sec > 18.08
+      ? clampedInterpolate(sec, [18.08, 18.22], [1, 0])
+      : rawKeyboard.trayUnfold;
+
+  const keyboardState = {
+    ...rawKeyboard,
+    visible: earlyExitSlide > 0.005,
+    traySlide: earlyExitSlide,
+    trayUnfold: earlyExitUnfold,
+  };
+
   if (!keyboardState.visible) {
     return baseActor;
   }
@@ -49,3 +77,97 @@ export function resolvePlayKeyboardActor(
     lookOffset: { x: lookX, y: lookY },
   };
 }
+
+export interface HeyBubblePerformanceProps {
+  sec: number;
+}
+
+/**
+ * L001 ("Hey, let's go, I can take it", 18.463s–20.15s) 开头配合 Clawd 奋力抬高右侧身体、
+ * 高举右爪快速挥动三次时同步弹出的 "hey" 对话气泡。
+ */
+export const HeyBubblePerformance: React.FC<HeyBubblePerformanceProps> = ({
+  sec,
+}) => {
+  if (sec < 18.45 || sec > 19.95) return null;
+
+  const enterP = clampedInterpolate(sec, [18.46, 18.57], [0, 1]);
+  const exitP = clampedInterpolate(sec, [19.62, 19.9], [0, 1]);
+  const activeEnv = enterP * (1 - exitP);
+
+  // 随 1.25 倍加速后的三次快速挥手轻微同频弹跳
+  const wavePhase = clampedInterpolate(sec, [18.55, 19.51], [0, 1]);
+  const waveBob = Math.sin(wavePhase * Math.PI * 6) * 4.5 * activeEnv;
+
+  const scale =
+    interpolate(enterP, [0, 0.7, 1], [0.25, 1.14, 1.0]) *
+    interpolate(exitP, [0, 1], [1.0, 0.65]);
+  const opacity =
+    interpolate(enterP, [0, 0.35, 1], [0, 1, 1]) * (1 - exitP);
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: "calc(50% + 172px)",
+        bottom: 374 - waveBob,
+        transform: `translate(-50%, 0) scale(${scale}) rotate(${-4 + waveBob * 0.45}deg)`,
+        transformOrigin: "bottom left",
+        opacity,
+        zIndex: 5,
+        pointerEvents: "none",
+      }}
+    >
+      {/* 像素感对话气泡主体 */}
+      <div
+        style={{
+          position: "relative",
+          backgroundColor: "#F8FAFC",
+          color: "#11131F",
+          border: "3.5px solid #11131F",
+          borderRadius: 12,
+          padding: "8px 20px 10px 20px",
+          boxShadow: "5px 5px 0px #D87757",
+          fontFamily:
+            '"JetBrains Mono", "Fira Code", "Inter", monospace, sans-serif',
+          fontSize: 30,
+          fontWeight: 800,
+          letterSpacing: "0.03em",
+          lineHeight: 1,
+          userSelect: "none",
+        }}
+      >
+        hey
+        {/* 指向左下 Clawd 头部/举起右爪侧的气泡尾巴 */}
+        <svg
+          width={22}
+          height={18}
+          viewBox="0 0 22 18"
+          style={{
+            position: "absolute",
+            left: 14,
+            bottom: -16,
+            overflow: "visible",
+          }}
+        >
+          <polygon
+            points="4,0 18,0 2,15"
+            fill="#F8FAFC"
+            stroke="#11131F"
+            strokeWidth={3.5}
+            strokeLinejoin="round"
+          />
+          {/* 遮住气泡底边与尾巴交界处的描边 */}
+          <line
+            x1={5}
+            y1={-1}
+            x2={17}
+            y2={-1}
+            stroke="#F8FAFC"
+            strokeWidth={4.5}
+          />
+        </svg>
+      </div>
+    </div>
+  );
+};

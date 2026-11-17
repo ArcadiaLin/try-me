@@ -1,5 +1,4 @@
 import {
-  sampleStageKeyboard,
   sampleVerse1PlanProgress,
   type ClawdRhythmMotion,
 } from "../timeline/verse1";
@@ -8,7 +7,10 @@ import {
   resolveExitTerminalActor,
   resolveExitTerminalPlacement,
 } from "./ExitTerminal";
-import { resolvePlayKeyboardActor } from "./PlayKeyboard";
+import {
+  HeyBubblePerformance,
+  resolvePlayKeyboardActor,
+} from "./PlayKeyboard";
 import {
   PlayTrumpetPerformance,
   resolvePlayTrumpetActor,
@@ -27,6 +29,7 @@ import type {
 
 export {
   ExitTerminalPerformance,
+  HeyBubblePerformance,
   PlayTrumpetPerformance,
   ReadBookPerformance,
   resolvePlayKeyboardActor,
@@ -74,16 +77,17 @@ export function resolveVerse1ClawdPerformance(
 
   let actor = baseActor;
 
-  if (sec < 18.525) {
+  if (sec < 18.463) {
     actor = resolvePlayKeyboardActor(sec, baseActor);
   } else if (sec < 22.721) {
-    const kbTail = sec < 18.95 ? sampleStageKeyboard(sec) : undefined;
+    const waveProgress = sampleVerse1PlanProgress(authoredFrame, "wave");
+    // 在奋力抬高右侧身体高举挥手阶段 (waveProgress < 0.34) 采用 "> <" (wince) 使劲表情
+    const isHeyStraining = waveProgress > 0.02 && waveProgress < 0.34;
     actor = {
       ...baseActor,
       action: "wave-step",
-      actionProgress: sampleVerse1PlanProgress(authoredFrame, "wave"),
-      prop: kbTail?.visible ? "keyboard" : "none",
-      keyboardState: kbTail?.visible ? kbTail : undefined,
+      actionProgress: waveProgress,
+      eyes: isHeyStraining ? "wince" : "normal",
     };
   } else if (sec < 27.161) {
     actor = {
