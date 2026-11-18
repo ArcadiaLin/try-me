@@ -1,5 +1,32 @@
 # 本地声音分析
 
+2026-11-19：AudioSep、SAM Audio及其GPU环境/模型/专用缓存已按用户要求移除。当前基础分析仅需根`.venv`中的librosa/soundfile等CPU依赖；本文件中的波形、节奏和已确认鼓谱导出流程保留，不依赖已移除模型。
+
+## 导出已确认的全曲鼓谱
+
+`export-percussion-score.py` 只读工作台快照，输出3页A4 PDF、MusicXML、分页PNG及逐事件来源清单；不写工作台或转码音源。使用独立排谱环境中的 `verovio`、`svglib`、`reportlab`、`pypdf`、`pypdfium2`、`Pillow`，不改变根音频分析`.venv`。本次使用Codex PDF运行时及 `out/score-tooling/` 临时依赖目录；依赖版本见 `score-requirements.txt`。
+
+```powershell
+npm run annotate:project -- read --out out/full-score-before.json
+# 在含PDF依赖的独立Python环境中运行：
+python tools/audio-analyzer/export-percussion-score.py --snapshot out/full-score-before.json --tooling out/score-tooling --output out/percussion-score
+```
+
+读取已确认v2四声部，加上当前两个具有人类镲片说明的 `TC_029/TC_019`；重合轴不重复计数。按既有网格量化，输出清单保留原始秒数、网格与偏移。每小节时值求和、MusicXML事件ID/网格读回、952个排谱来源ID及主时间线哈希均自动检查。工具针对当前已确认版本，来源数量变化时拒绝静默导出；参考图的1/4引子、4/4拍号及107速度是本次排谱约定。PDF中文嵌入本机宋体，正文字体使用Arial。排谱XML须在目标编辑器中按其默认鼓组映射核对音头显示；本次实际验证的是Verovio渲染。
+
+## 按用户鼓谱修订全曲鼓组
+
+```powershell
+npm run annotate:project -- read --out out/score-drums-before.json
+.venv\Scripts\python.exe tools/audio-analyzer/analyze-score-drums.py --snapshot out/score-drums-before.json --output local/analysis/score-drums-new-run
+npm run annotate:project -- preview --input local/analysis/score-drums-new-run/plan.json
+npm run annotate:project -- apply --input local/analysis/score-drums-new-run/plan.json
+```
+
+该入口针对2026-11-19用户鼓谱及当前人工参考，依赖已有 `full-rhythm-v1` 的曲线和音源哈希，使用根`.venv`。军鼓排除反拍&（引子除外），鼓掌排除e/a；按全曲原混音波形相关和实际起音新增点，底鼓增加宽频段匹配以抑制Bass误检。该入口输出自动分析结果，用户确认后以工作台已确认数据为准。参考、参数、阈值、输入/脚本哈希、拒绝点和原始起音在 `analysis.json`，各模板全曲分数在 `wave-scores.npz`，写入仍用统一接口。
+
+当前已导入 `grp_score_drums_v2`：底鼓220、军鼓202、鼓掌211、踩镲／镲片317点，加174个军鼓／鼓掌重合标注；见 `docs/percussion-pattern.md`。固定v2组已存在时拒绝再次分析覆盖人工修订；上述命令只用于尚未导入该组的工程。后续复算须先显式设计新版本ID及范围。旧v1组已按用户要求删除，原始参考轴及人工评论保留，页面「重载」后查看新组，本组全部标注已获用户认可，名称及说明已同步更新。此入口生成的首轮计划依赖旧v1对照，不适用于当前已清理工程。
+
 ## 全曲鼓组与鼓掌对照
 
 ```powershell
@@ -44,6 +71,8 @@ node tools/audio-analyzer/import-claps.ts --apply
 首次完整结果在 `local/analysis/timbre-v1-review/`。互检显示仍有约12.5% / 29.5%的全曲窗口比另一个已知样本得分更高，可靠性有限。候选分数只用于排序，不是识别概率；窗口长度沿用参考，不代表检测到了起止边界。HPSS 不是乐器分轨，混音中的相同人声、音高、和弦或背景均可能误检；需要人工试听，不应按此直接扩充已确认轨迹，也不能据未检出断言音色缺席。
 
 ## 节奏分析
+
+2026-11-19：用户已认可全曲鼓组v2，并要求删除早期工作台 `grp_rhythm_candidates_v1` 整组（6轨704点）。本节保留分析工具与原始数据的复现说明；不要重新导入旧组。私有曲线和MV已生成的数值快照仍保留。
 
 基础分析入口仍为 `npm run analyze:audio`。新增节奏分析使用项目现有 `.venv`，不安装模型、不转码或修改原 FLAC。
 

@@ -15,11 +15,13 @@ const privateDirectory =
   /^(public\/private|local|out|build|dist|\.venv)(\/|$)/i;
 const audioFile = /\.(flac|mp3|wav|m4a|aac|ogg|opus|aif|aiff|wma)$/i;
 const environmentFile = /(^|\/)\.env(?:\..+)?$/i;
+const virtualEnvironment = /(^|\/)\.venv(\/|$)/i;
 const files = result.stdout.split("\0").filter(Boolean);
 const forbidden = files.filter((file) => {
   const example = file === ".env.example" || file.endsWith("/.env.example");
   return (
     privateDirectory.test(file) ||
+    virtualEnvironment.test(file) ||
     audioFile.test(file) ||
     (environmentFile.test(file) && !example)
   );

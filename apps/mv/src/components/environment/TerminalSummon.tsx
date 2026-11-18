@@ -13,10 +13,7 @@ export interface TerminalSummonProps {
 export const TerminalSummon: React.FC<TerminalSummonProps> = ({ sec }) => {
   if (sec < 35.3 || sec > 38.52) return null;
 
-  // 1) L064 地面中央待命终端槽 [ > _ ]
-  const dockIn = smoothStep(sec, 35.341, 35.62);
-  const dockOut = smoothStep(sec, 37.3, 37.58);
-  const dockOpacity = dockIn * (1 - dockOut);
+  // 1) L064 待命状态已并入舞台底部 LyricTerminal 的输入行（standby），不再单独绘制地面胶囊
 
   // 2) L005 第一端：Claude Web 网页版窗口 (Beat 1: 36.455s)
   const webIn = smoothStep(sec, 36.42, 36.56);
@@ -37,52 +34,6 @@ export const TerminalSummon: React.FC<TerminalSummonProps> = ({ sec }) => {
 
   return (
     <>
-      {/* 地面中央后台待命槽 [ > _ ] */}
-      {dockOpacity > 0.01 && (
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            bottom: 148,
-            transform: `translateX(-50%) scale(${interpolate(
-              dockIn,
-              [0, 1],
-              [0.7, 1],
-            )})`,
-            opacity: dockOpacity,
-            backgroundColor: "#0D1117",
-            border: "2px solid #D87757",
-            borderRadius: 999,
-            padding: "6px 18px",
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-            boxShadow: "0 0 22px rgba(216, 119, 87, 0.38)",
-            fontFamily: "monospace",
-            zIndex: 4,
-          }}
-        >
-          <span
-            style={{
-              width: 9,
-              height: 9,
-              borderRadius: "50%",
-              backgroundColor: "#4ADE80",
-            }}
-          />
-          <span
-            style={{
-              fontSize: 14,
-              fontWeight: 800,
-              color: "#F8FAFC",
-              letterSpacing: 0.6,
-            }}
-          >
-            {"[ > _ STANDBY ]"}
-          </span>
-        </div>
-      )}
-
       {/* ① Claude Web 网页版卡片 */}
       {webOpacity > 0.01 && (
         <div

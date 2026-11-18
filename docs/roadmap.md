@@ -1,5 +1,57 @@
 # 推进计划
 
+### 移除无效模型分离工具与环境（2026-11-19，D025）
+
+- 按用户要求移除AudioSep/CLAP/RoBERTa及SAM Audio/T5/DACVAE的模型、适配器、独立虚拟环境、上游克隆、专用缓存和试验输出；同步移除6个npm脚本。16个清理目标均为核对后的项目内绝对路径，没有外部链接。
+- 删除130135个文件，文件大小合计约35.60GiB（含硬链接）；磁盘可用空间实际增加约20.81GiB。原音、已确认时间线/简报、鼓谱及根分析环境配置的哈希保持一致，基础librosa/numpy/scipy/soundfile导入通过；根环境没有torch/transformers/modelscope。
+- MV的另一路在制修改保留，清理没有操作apps目录。lint、check:repo通过；小型清单/验收记录位于 `out/model-cleanup-20261119-inventory.json` 和 `out/model-cleanup-20261119-result.json`。原试验文档副本保留在 `out/model-cleanup-doc-history-20261119/`，模型及GPU环境不留副本。
+
+
+### 舞台底部歌词终端（2026-11-19，决策 D024）
+
+- 按用户同意的方案，在 `TryMeVerse1MV` 舞台台面以下新增与台面同宽的扁平终端 `LyricTerminal`（`apps/mv/src/components/environment/LyricTerminal.tsx`），Clawd 站在终端顶边。L001–L065 歌词按 `trk_lyrics` 人声起点整句出现、逐句上滚（4 帧 ease-out），保留 4 行并逐级变暗；底部 `>` 输入行光标按拍闪烁。
+- 执行表 `apps/mv/src/timeline/verse1-lyrics.ts`：默认 `log`；L007、L065 由舞台元素承载，终端为暗淡残影 `ghost`。L064 原地面 STANDBY 胶囊并入终端输入行 standby；L005 在输入行键入 `claude`，37.28s 回车回显，与右侧 Claude Code 窗口弹出同步。Clawd 位置/动作及其他表演未改。
+- 已验证：新增 4 项终端测试（与主时间线起止/文本一致、整数起始帧整句出现与上滚收敛、历史顺序与行数上限、前奏空终端/standby/键入回车）与原 9 项节奏测试共 13 项通过，`npm run lint` 通过；渲染 F300、F1040、F1075、F1112、F1180、F1270、F1592 静帧（`out/lyric-term-f*.png`）目视检查无遮挡、裁切或重叠。
+- 待验证：Studio 中带音频连续播放的上滚节奏与可读性；等宽日文字体（当前为系统字体回退，未登记素材）；`lift`/`system` 扩展与 L015 以后的人声轴确认。
+
+### 全曲打击乐谱回馈朋友（2026-11-19）
+
+- 按用户提供的鼓谱图式，将已确认全曲标注排为3页A4鼓谱（94小节，含第1小节1/4引子，其后4/4，四分音符=107）。底鼓/军鼓为不同高度实心音头，鼓掌为菱形，踩镲/吊镲为不同高度叉形；逐小节展开变奏，并标示各行录音时间与长镲余音。
+- 来源为v2四声部950个点和人工镲片 `TC_029/TC_019` 两点，共952次击打；174处重合记录不重复算入。按既有十六分网格排谱，最大量化偏移约18.1ms；不改主时间线、原音及已确认标注。
+- 可复现入口 `tools/audio-analyzer/export-percussion-score.py`，使用独立排谱依赖，成果位于 `out/percussion-score-20261119/`：PDF、MusicXML、3张分页PNG和转发压缩包。已验证MusicXML逐ID/网格读回一致、Verovio谱面全部952个来源ID保留、3页渲染目视无裁切/重叠或缺字符，中文字体嵌入；未提交或上传。
+
+### 全曲打击乐动效对齐「鼓谱修订 v2」与四声部差异化图标（2026-11-19）
+
+- 按用户要求将环境打击乐动效直接对齐已确认的「全曲鼓组 · 鼓谱修订 v2」（`grp_score_drums_v2`）全曲时间轴，并重绘四类差异化声部图标：
+  - **全曲 952 点数据导出与自动延长支持**（`tools/audio-analyzer/export-score-drums-v2.ts` → `apps/mv/src/timeline/score-drums-v2.ts`）：完整导出全曲 `0.248s–206.879s` 的底鼓（`trk_score_kick_v2`，220 点）、军鼓（`trk_score_snare_v2`，202 点）、鼓掌（`trk_score_clap_v2`，211 点，含 36 对 `<0.36s` 双声快拍连击）与踩镲（`trk_score_hat_v2`，317 点），加上 `TC_029 / TC_019` 2 处长吊镲共 952 个事件。`RhythmPopups.tsx` 直接读取该全曲时间轴，主 MV `TryMeVerse1MV` 后续只需延长 `durationInFrames` 即可自动按时间轴演绎全曲打点。
+  - **独立全曲打击乐 Composition `FullSongPercussion`**（`apps/mv/src/scenes/FullSongPercussionShowcase.tsx`，已注册至 `Root.tsx`）：覆盖全曲 `209.72s`（`6292` 帧 @ `30fps`），可单独在 Studio 中预览全曲任意时刻的打击乐打点与配乐同步。
+  - **四声部差异化图标设计**（`apps/mv/src/components/environment/RhythmPopups.tsx`）：
+    1. **鼓掌（`EmojiClapIcon`）**：摒弃 Clawd 方块手，采用 👏 Emoji 风格绘制双手侧倾合拍（后掌暖橘、前掌明黄，五指并拢与外侧翘起大拇指轮廓清晰，顶部带扇形拍击光芒）。
+    2. **军鼓（`SnareDrumIcon`）**：蓝灰扁圆柱金属鼓腔 + 三角拉杆 + 顶部白色椭圆鼓面 + 两根鼓槌交叉向下敲击与中心火花。
+    3. **踩镲／吊镲（`CymbalHatIcon`）**：踩镲（`hat`）为上下双层金色合击镲盘 + 中央踩镲立杆 + 两侧高频震动弧线；吊镲（`cymbal`）为大幅倾斜单面金铜镲盘。
+    4. **底鼓（`KickDrumIcon`）**：正面立式大圆低音大鼓（青绿鼓壳 + 米白鼓皮 + 左右双斜撑支脚）+ 底部踏板毛毡槌头向上击打鼓心 + 向外扩散的青绿低频圆形冲击波环。
+- 已验证：9 项节奏/键盘/姿态单测、`npm run lint`、`npm run check:repo` 及 4 张关键帧静帧（`out/perc-f24-hat-kick.png`、`out/perc-f33-clap-snare.png`、`out/perc-f1614-cymbal-clap.png`、`out/perc-full-f3000.png`）渲染目视检查通过；全曲连续播放动态效果待用户在 Studio 中试看。
+
+### 用户鼓谱约束的全曲鼓组修订（2026-11-19，已获用户全量认可）
+
+- 按用户要求删除早期「节奏候选 v1 · 待试听（前55秒）」整组（6轨、704点，无人工评论）。备份 `out/rhythm-old-cleanup-ofiB57/`；恢复该组后与删除前工程深比较一致，已确认v2及其他轨道完全不变，ASS/LRC不变、两份简报一致。原始分析文件及MV已生成的数值快照保留，运行时代码不依赖被删除的工作台节点。
+- 用户明确表示认可本轮全部标注；「全曲鼓组 · 鼓谱修订 v2」的轨道、事件及Agent说明已移除未确认措辞，并记录用户确认原文。底鼓220、军鼓202、鼓掌211、踩镲／镲片317点和174处军鼓／鼓掌重合标注均已确认，ID、时间、颜色及原有人类备注保留。
+- 基于用户鼓谱规则和原混音全曲波形匹配/HPSS起音逐格分析，保留后段及第四小节等变奏。分析方法、模板、阈值和输入哈希保留在 `local/analysis/score-drums-v2-20261119-final/`；不重新计算或修改已确认数据。
+- 旧v1整组（4轨858点）已按用户要求删除，保留原始人工参考轴。清理备份 `out/drums-old-cleanup-EIJ1H1/`，本次确认前备份 `out/drums-confirmed-0NwMfv/`。确认写入读回一致、授权组之外深比较不变、全部点位ID/时间/颜色不变，ASS/LRC不变、两份简报一致；页面点「重载」即可看到确认后的名称。验证记录为 `out/drums-confirm-20261119-result.json`。
+
+### 前奏合成器键盘真实黑白键位与琴体宽度扩展（2026-11-18）
+
+- 按用户反馈（`SYNTH_001` 等段落 `A3 ↔ B♭3 ↔ B♭4` 音高跨度下原 7 白键键盘键数不足），采用方案 A 扩展 `KeyboardProp.tsx`、`ClawdBody.tsx` 与 `PlayKeyboard.tsx`：
+  - **10 白键 + 7 黑键真实音高排布（`G3–B4`）与琴体适度加宽**：将身前小合成器底座从 `x=2.0..14.0` 适度加宽至 `x=0.78..15.22`，键床容纳 `G3` 至 `B4` 共 10 枚白键与 7 枚黑键，完整覆盖 `A3` 到 `B♭4` 的小九度跨度并留出两侧相邻白键（`G3`、`B4`）。
+  - **真实黑白键触发与独立下沉点亮**：将 `zone 0`（`A3` 半音下切最低音）映射到左侧第 2 枚白键（`idx=1`），将 `zone 1`（`B♭3` 基准低音）映射到 `A3` 与 `B3` 之间的黑键（`afterIdx=1`），将 `zone 2`（`B♭4` 高八度音）映射到右侧 `A4` 与 `B4` 之间的黑键（`afterIdx=8`）；黑键新增独立按下下沉行程与琥珀金亮面点亮。
+  - **双爪活动跨度与视线跟随放大**：随琴体加宽加大 Clawd 左右爪水平跨度；左爪在左下方 `A3` 白键与右上方 `B♭3` 黑键之间做明显的前后高低与左右位移切换，同时收窄弹琴时爪部遮挡高度，确保按下点亮的白键与黑键清晰可见。
+- 已验证：9 项节奏/键盘/姿态单测（`tools/audio-analyzer/test-verse1-rhythm.ts`）、`npm run lint`、`npm run check:repo`、3 张关键帧静帧（`out/kb-f10-a3.png`、`out/kb-f18-bb3.png`、`out/kb-f26-bb4.png`）渲染目视检查，以及用户在 Remotion Studio 中实际试看确认通过。
+
+### 模型分离试验（2026-11-17至18，已于2026-11-19移除）
+
+- 先后尝试AudioSep和SAM Audio/T5的本地短片段分离，用户认为效果不理想。按用户要求现已删除相应工具、权重、两套GPU环境、上游源码、项目专用下载缓存及分离试验结果，npm运行入口同步移除。
+- 原始试验文档的本地副本与清理清单保留在 `out/model-cleanup-doc-history-20261119/` 和 `out/model-cleanup-20261119-inventory.json`，不保留模型/环境副本。该段仅为历史记录，不表示模型仍可运行。
+
 ### 全曲鼓组/鼓掌点轴对照（2026-11-17）
 
 - 按用户要求将能检测的全曲节奏放入工作台供对照：新增根分组「全曲鼓组 × 鼓掌 · 待试听」（`grp_full_rhythm_v1`），包含主节奏201点、弱拍/加花388点、鼓掌205点、重合/紧邻64点，共858个点；原混合轴及其他工程内容完整保留。

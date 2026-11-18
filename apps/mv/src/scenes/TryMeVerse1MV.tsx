@@ -10,6 +10,7 @@ import {
 } from "remotion";
 import { Clawd } from "../components/clawd/Clawd";
 import {
+  LyricTerminal,
   RhythmPopups,
   StageDeck,
   Verse1Hud,
@@ -89,8 +90,15 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
         />
       )}
 
-      {/* 舞台环境层：追光与固定稳固的舞台上沿（下方彻底留空） */}
+      {/* 舞台环境层：追光与固定稳固的舞台上沿 */}
       <StageDeck clawdStageX={placement.x} />
+
+      {/* 舞台底部终端：歌词 stdout 逐句打印上滚，Clawd 站在终端顶边 */}
+      <LyricTerminal
+        frame={frame}
+        fps={fps}
+        beatPos={beatPosition(authoredFrame, VERSE1_RHYTHM.beatFrames)}
+      />
 
       {/* 舞台环境节奏弹出层：鼓掌、鼓组、镲片与 Bass 小图标随节奏弹出 */}
       <RhythmPopups sec={sec} />

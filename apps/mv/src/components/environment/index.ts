@@ -4,6 +4,7 @@ export {
   GithubHeatmapCard,
   type GithubHeatmapCardProps,
 } from "./GithubHeatmapCard";
+export { LyricTerminal, type LyricTerminalProps } from "./LyricTerminal";
 export {
   MULTILANG_LINES,
   MultilangBubble,

@@ -1,0 +1,7 @@
+# Independent engraving environment; do not install into the audio-analysis .venv.
+verovio==6.4.1
+svglib==2.4.0
+reportlab==4.4.9
+pypdf==6.21.4
+pypdfium2==5.13.0
+Pillow==13.0.0
