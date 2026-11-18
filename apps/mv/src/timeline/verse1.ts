@@ -1,35 +1,35 @@
 import {
+  beatGridFrame,
   beatPosition,
+  beatPulseEnvelope,
+  fitBeatGrid,
   rhythmMotion,
   sampleRhythmPlan,
   sampleStageKeyboard,
-  sampleStageRhythm,
+  type BeatGrid,
   type ClawdRhythmMotion,
   type RhythmKey,
   type RhythmPlan,
-  type StageBeatKey,
   type StageKeyboardState,
   type StageKeyboardZoneState,
-  type StagePulseKey,
-  type StageRhythmState,
 } from "./rhythm-timing.ts";
 import { VERSE1_RHYTHM } from "./verse1-rhythm.ts";
 
 export {
+  beatGridFrame,
   beatPosition,
+  beatPulseEnvelope,
+  fitBeatGrid,
   rhythmMotion,
   sampleRhythmPlan,
   sampleStageKeyboard,
-  sampleStageRhythm,
   VERSE1_RHYTHM,
+  type BeatGrid,
   type ClawdRhythmMotion,
   type RhythmKey,
   type RhythmPlan,
-  type StageBeatKey,
   type StageKeyboardState,
   type StageKeyboardZoneState,
-  type StagePulseKey,
-  type StageRhythmState,
 };
 
 export type Verse1PlanId = (typeof VERSE1_RHYTHM.plans)[number]["id"];

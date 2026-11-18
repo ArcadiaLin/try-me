@@ -93,68 +93,80 @@ export interface RhythmPopupsProps {
   sec: number;
 }
 
+/** 提前 1 帧开始弹出，命中帧到达缩放峰值 */
+const POPUP_LEAD_SEC = 1 / 30;
+/** 命中后存活时长 */
 const POPUP_LIFETIME_SEC = 0.42;
 
-/**
- * 为每个节奏事件计算舞台两侧环境中的弹出位置，避开中央角色与主要叙事面板
- */
-function computePopupPlacement(
-  ev: RhythmPopupEvent,
-  index: number,
-): { x: number; y: number; rotDeg: number } {
-  // 在终端/热力图占据右侧的 [36.2s, 40.8s] 区间，偏向左侧环境区弹出
-  const forceLeft = ev.sec >= 36.2 && ev.sec <= 40.8;
-  const baseSide = forceLeft ? -1 : index % 2 === 0 ? -1 : 1;
+/** 按音色区分强度：双击第二声、Bass、镲片更大 */
+const KIND_SCALE: Record<RhythmPopupKind, number> = {
+  clap: 0.96,
+  "clap-1": 1.0,
+  "clap-2": 1.12,
+  drum: 1.0,
+  bass: 1.08,
+  cymbal: 1.16,
+};
 
-  if (ev.kind === "drum") {
-    const side = ev.id === "CLAP_0002" ? 1 : ev.id === "CLAP_0001" ? -1 : baseSide;
-    return {
-      x: side * (365 + (index % 3) * 26),
-      y: 355 - (index % 2) * 28,
-      rotDeg: side * -6,
-    };
-  }
-  if (ev.kind === "cymbal") {
-    return {
-      x: -385,
-      y: 215,
-      rotDeg: -8,
-    };
-  }
-  if (ev.kind === "bass") {
-    const side = index % 2 === 0 ? -1 : 1;
-    return {
-      x: side * (395 + (index % 2) * 24),
-      y: 410 - (index % 3) * 18,
-      rotDeg: side * 5,
-    };
-  }
-  if (ev.kind === "clap-1") {
-    return {
-      x: baseSide * 355,
-      y: 278,
-      rotDeg: baseSide * -7,
-    };
-  }
-  if (ev.kind === "clap-2") {
-    // 双声第 2 声紧邻第 1 声向外上方错位弹出，形成“啪-啪”连击感
-    const prevSide = forceLeft ? -1 : (index - 1) % 2 === 0 ? -1 : 1;
-    return {
-      x: prevSide * 412,
-      y: 238,
-      rotDeg: prevSide * 9,
-    };
-  }
-
-  // 常规单声鼓掌：在舞台左右两侧中上空交替轻巧弹出
-  const tierY = [250, 305, 228, 332][index % 4];
-  const spanX = [355, 405, 378, 425][index % 4];
-  return {
-    x: baseSide * spanX,
-    y: tierY,
-    rotDeg: baseSide * ((index % 3) * 4 - 4),
-  };
+interface PopupPlacement {
+  x: number;
+  y: number;
+  rotDeg: number;
 }
+
+/** 在终端/热力图占据右侧的 [36.2s, 40.8s] 区间，全部偏向左侧环境区弹出 */
+function isRightOccupied(sec: number) {
+  return sec >= 36.2 && sec <= 40.8;
+}
+
+/**
+ * 为每个节奏事件预先计算舞台两侧的弹出位置（避开中央角色与主要叙事面板）：
+ * - 拍手只在拍手之间左右交替（双击的第二声在第一声同侧向外上方错位）；
+ * - 鼓组固定在左下，Bass 固定在右下，镲片固定在左上，不打乱拍手的左右节奏。
+ */
+function buildPopupPlacements(
+  events: readonly RhythmPopupEvent[],
+): PopupPlacement[] {
+  let clapCount = 0;
+  let lastClapSide = -1;
+  let drumCount = 0;
+  let bassCount = 0;
+  return events.map((ev) => {
+    const forceLeft = isRightOccupied(ev.sec);
+    if (ev.kind === "drum") {
+      const i = drumCount++;
+      // 连击的两下鼓错开足够距离，避免重叠
+      return { x: -(350 + (i % 2) * 64), y: 362 - (i % 2) * 44, rotDeg: 6 };
+    }
+    if (ev.kind === "bass") {
+      const i = bassCount++;
+      const side = forceLeft ? -1 : 1;
+      return { x: side * (395 + (i % 2) * 24), y: 410 - (i % 3) * 18, rotDeg: side * 5 };
+    }
+    if (ev.kind === "cymbal") {
+      return { x: -385, y: 215, rotDeg: -8 };
+    }
+    if (ev.kind === "clap-2") {
+      // 双声第 2 声紧邻第 1 声同侧向外上方错位弹出，形成“啪-啪”连击感
+      return { x: lastClapSide * 412, y: 238, rotDeg: lastClapSide * 9 };
+    }
+    const i = clapCount++;
+    const side = forceLeft ? -1 : i % 2 === 0 ? -1 : 1;
+    lastClapSide = side;
+    if (ev.kind === "clap-1") {
+      return { x: side * 355, y: 278, rotDeg: side * -7 };
+    }
+    // 常规单声鼓掌：在舞台左右两侧中上空交替轻巧弹出
+    const tier = Math.floor(i / 2) % 4;
+    return {
+      x: side * [355, 405, 378, 425][tier],
+      y: [250, 305, 228, 332][tier],
+      rotDeg: side * ((tier % 3) * 4 - 4),
+    };
+  });
+}
+
+const POPUP_PLACEMENTS = buildPopupPlacements(VERSE1_RHYTHM_POPUP_EVENTS);
 
 /** 像素拍手图标（暖橙爪掌合击 + 顶部三道脆亮声波射线） */
 const PixelClapIcon: React.FC<{ isDoubleSecond?: boolean }> = ({
@@ -348,26 +360,32 @@ export const RhythmPopups: React.FC<RhythmPopupsProps> = ({ sec }) => {
     >
       {VERSE1_RHYTHM_POPUP_EVENTS.map((ev, idx) => {
         const dt = sec - ev.sec;
-        if (dt < -0.015 || dt > POPUP_LIFETIME_SEC) return null;
+        if (dt < -POPUP_LEAD_SEC || dt > POPUP_LIFETIME_SEC) return null;
 
+        // 0~1 的生命周期进度仅用于 Bass 扩散波框
         const p = Math.max(0, Math.min(1, dt / POPUP_LIFETIME_SEC));
-        const { x, y, rotDeg } = computePopupPlacement(ev, idx);
+        const { x, y, rotDeg } = POPUP_PLACEMENTS[idx];
 
-        // 0 -> 0.16 快速高弹性弹出，0.16 -> 0.55 保持微颤，0.55 -> 1.0 干净收拢淡出
-        const scaleBase =
-          ev.kind === "clap-2" || ev.kind === "cymbal" ? 1.12 : 0.96;
+        // 提前 1 帧起跳 -> 命中帧到达弹性峰值 -> 回落微颤 -> 干净收拢淡出
         const scale =
-          scaleBase *
+          KIND_SCALE[ev.kind] *
           interpolate(
-            p,
-            [0, 0.14, 0.28, 0.68, 1],
-            [0.35, 1.18, 0.96, 1.0, 0.72],
+            dt,
+            [-POPUP_LEAD_SEC, 0, 0.07, 0.29, POPUP_LIFETIME_SEC],
+            [0.45, 1.18, 0.96, 1.0, 0.72],
+            { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
           );
-        const liftY = interpolate(p, [0, 0.25, 1], [10, 0, -14]);
+        const liftY = interpolate(
+          dt,
+          [-POPUP_LEAD_SEC, 0.07, POPUP_LIFETIME_SEC],
+          [10, 0, -14],
+          { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
+        );
         const opacity = interpolate(
-          p,
-          [0, 0.08, 0.65, 1],
-          [0, 0.94, 0.88, 0],
+          dt,
+          [-POPUP_LEAD_SEC, 0, 0.27, POPUP_LIFETIME_SEC],
+          [0.35, 0.94, 0.88, 0],
+          { extrapolateLeft: "clamp", extrapolateRight: "clamp" },
         );
 
         return (

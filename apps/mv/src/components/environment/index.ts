@@ -21,10 +21,6 @@ export {
   type RhythmPopupKind,
   type RhythmPopupsProps,
 } from "./RhythmPopups";
-export {
-  StageAutoKeyboard,
-  type StageAutoKeyboardProps,
-} from "./StageAutoKeyboard";
 export { StageDeck, type StageDeckProps } from "./StageDeck";
 export { TerminalSummon, type TerminalSummonProps } from "./TerminalSummon";
 export { Verse1Hud, type Verse1HudProps } from "./Verse1Hud";

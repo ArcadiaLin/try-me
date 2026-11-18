@@ -37,12 +37,47 @@ export function sampleRhythmPlan(frame: number, plan: RhythmPlan): number {
     + (t ** 3 - t ** 2) * span * tangent(i + 1);
 }
 
+export interface BeatGrid {
+  /** 第 0 拍所在帧（可为小数） */
+  originFrame: number;
+  /** 每拍帧数（连续值） */
+  framesPerBeat: number;
+}
+
+const beatGridCache = new WeakMap<readonly number[], BeatGrid>();
+
+/**
+ * 对整数帧候选拍点做最小二乘线性拟合，得到连续拍网格。
+ * 整数取整的拍点间隔在 16/17/18 帧之间跳动，直接按分段线性插值会让摆动速度抖动约 ±6%。
+ */
+export function fitBeatGrid(beats: readonly number[]): BeatGrid {
+  const cached = beatGridCache.get(beats);
+  if (cached) return cached;
+  const n = beats.length;
+  const meanX = (n - 1) / 2;
+  const meanY = beats.reduce((sum, f) => sum + f, 0) / n;
+  let sxy = 0;
+  let sxx = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (i - meanX) * (beats[i] - meanY);
+    sxx += (i - meanX) ** 2;
+  }
+  const framesPerBeat = sxy / sxx;
+  const grid = { originFrame: meanY - framesPerBeat * meanX, framesPerBeat };
+  beatGridCache.set(beats, grid);
+  return grid;
+}
+
+/** 第 index 拍（可为小数，如 0.5 表示半拍）在连续网格上的帧位置 */
+export function beatGridFrame(index: number, beats: readonly number[]): number {
+  const grid = fitBeatGrid(beats);
+  return grid.originFrame + grid.framesPerBeat * index;
+}
+
+/** 当前帧在连续拍网格上的拍位置（整数即拍点） */
 export function beatPosition(frame: number, beats: readonly number[]): number {
-  if (frame <= beats[0]) return 0;
-  const last = beats.length - 1;
-  if (frame >= beats[last]) return last + (frame - beats[last]) / (beats[last] - beats[last - 1]);
-  const next = beats.findIndex((f) => f > frame);
-  return next - 1 + (frame - beats[next - 1]) / (beats[next] - beats[next - 1]);
+  const grid = fitBeatGrid(beats);
+  return Math.max(0, (frame - grid.originFrame) / grid.framesPerBeat);
 }
 
 function smooth(a: number, b: number, x: number) {
@@ -53,49 +88,31 @@ function smooth(a: number, b: number, x: number) {
 export interface ClawdRhythmMotion {
   breathY: number;
   sway: number;
+  /** 快压慢回的拍点下压包络 (0 ~ 1)，拍点处为 1 */
   pulse: number;
+  /** 待机窗口的完整律动权重（左右摆 + 下压） */
   idleWeight: number;
+  /** 叙事动作期间的纵向律动底层权重（只下压，不左右摆） */
+  grooveWeight: number;
 }
 
-export interface StageBeatKey {
-  id: string;
-  frame: number;
-  beatFrame: number;
-  strength: number;
-  onsetId?: string;
-  onsetTrack?: string;
-}
+/** 拍前压下所占拍长（约 2 帧） */
+const PULSE_ATTACK_BEATS = 0.12;
+/** 拍后回弹所占拍长（约 7.5 帧），其余时间保持静止 */
+const PULSE_RELEASE_BEATS = 0.45;
 
-export interface StagePulseKey {
-  id: string;
-  frame: number;
-  sourceId: string;
-  sourceTrack: string;
-  strength: number;
-  label: string;
-}
-
-export interface StageRhythmState {
-  /** 上层薄底板向上靠近舞台上沿的收紧位移 (px, >= 0) */
-  upperLiftPx: number;
-  /** 下层薄底板稍晚跟随向上收紧的位移 (px, >= 0) */
-  lowerLiftPx: number;
-  /** 上层薄底板收紧时的水平微展宽度 (px, >= 0) */
-  upperWidthDeltaPx: number;
-  /** 下层薄底板收紧时的水平微展宽度 (px, >= 0) */
-  lowerWidthDeltaPx: number;
-  /** 上层薄底板亮部响应 (0 ~ 1) */
-  upperHighlight: number;
-  /** 下层薄底板亮部响应 (0 ~ 1) */
-  lowerHighlight: number;
-  /** 最下层底板内部短槽的中央向两端传递脉冲状态 */
-  pulse: {
-    active: boolean;
-    progress: number;
-    opacity: number;
-    strength: number;
-    sourceId?: string;
-  };
+/** 快压慢回：拍前 0.12 拍快速压到底，拍后 0.45 拍缓出回弹，拍间静止 */
+export function beatPulseEnvelope(position: number): number {
+  const ph = position - Math.floor(position);
+  if (ph >= 1 - PULSE_ATTACK_BEATS) {
+    const u = (ph - (1 - PULSE_ATTACK_BEATS)) / PULSE_ATTACK_BEATS;
+    return u * u * (3 - 2 * u);
+  }
+  if (ph < PULSE_RELEASE_BEATS) {
+    const u = 1 - ph / PULSE_RELEASE_BEATS;
+    return u * u;
+  }
+  return 0;
 }
 
 export interface StageKeyboardZoneState {
@@ -263,94 +280,8 @@ export function sampleStageKeyboard(sec: number): StageKeyboardState {
   };
 }
 
-/** 单次拍点的“短促收紧—明确回落”包络：2 帧快速收紧至峰值，7 帧回落归零，其余时间保持落位静止 */
-function beatEnvelope(deltaFrames: number): number {
-  const tightenFrames = 2;
-  const releaseFrames = 7;
-  if (deltaFrames < -tightenFrames || deltaFrames > releaseFrames) {
-    return 0;
-  }
-  if (deltaFrames <= 0) {
-    const u = (deltaFrames + tightenFrames) / tightenFrames;
-    return u * u * (3 - 2 * u);
-  }
-  const u = 1 - deltaFrames / releaseFrames;
-  return u * u * (3 - 2 * u);
-}
-
-/**
- * 计算舞台下方两层悬浮薄底板的基础律动（上层先收紧、下层滞后 2 帧跟随、依次回落）
- * 与最下层内部短槽的稀疏重点脉冲（从中央向两端传递并消退）。
- * 舞台上沿保持 0 位移，不影响 Clawd 脚部接触与本体动作。
- */
-export function sampleStageRhythm(
-  frame: number,
-  stageBeats: readonly StageBeatKey[],
-  stagePulses: readonly StagePulseKey[],
-): StageRhythmState {
-  const lowerLagFrames = 2;
-  let upperNorm = 0;
-  let lowerNorm = 0;
-
-  for (const beat of stageBeats) {
-    const uEnv = beatEnvelope(frame - beat.frame) * beat.strength;
-    if (uEnv > upperNorm) {
-      upperNorm = uEnv;
-    }
-    const lEnv =
-      beatEnvelope(frame - (beat.frame + lowerLagFrames)) * beat.strength;
-    if (lEnv > lowerNorm) {
-      lowerNorm = lEnv;
-    }
-  }
-
-  const sec = frame / 30;
-  // 橙色键盘段（0.00s–18.88s）将键盘按动作为唯一主要底部效果：压低悬浮底板律动幅度，并暂停向两端跑的脉冲
-  const plateGain = 0.22 + 0.78 * smooth(18.88, 19.0, sec);
-  const pulsePaused = sec < 18.9;
-
-  const pulseDurationFrames = 16;
-  let activePulse: StageRhythmState["pulse"] = {
-    active: false,
-    progress: 0,
-    opacity: 0,
-    strength: 0,
-  };
-
-  if (!pulsePaused) {
-    for (const p of stagePulses) {
-      if (p.frame / 30 < 18.9) continue;
-      const dt = frame - p.frame;
-      if (dt >= 0 && dt <= pulseDurationFrames) {
-        const t = dt / pulseDurationFrames;
-        // 从中央快速向两端推进并在末端柔和减速
-        const progress = 1 - Math.pow(1 - t, 2.15);
-        const fadeIn = Math.min(1, (dt + 1) / 2);
-        const fadeOut = 1 - smooth(0.46, 1.0, t);
-        const opacity = fadeIn * fadeOut * p.strength;
-        if (opacity > activePulse.opacity) {
-          activePulse = {
-            active: opacity > 0.01,
-            progress,
-            opacity,
-            strength: p.strength,
-            sourceId: p.sourceId,
-          };
-        }
-      }
-    }
-  }
-
-  return {
-    upperLiftPx: upperNorm * 9.5 * plateGain,
-    lowerLiftPx: lowerNorm * 12.5 * plateGain,
-    upperWidthDeltaPx: upperNorm * 14 * plateGain,
-    lowerWidthDeltaPx: lowerNorm * 12 * plateGain,
-    upperHighlight: upperNorm * plateGain,
-    lowerHighlight: lowerNorm * plateGain,
-    pulse: activePulse,
-  };
-}
+/** 叙事动作期间纵向律动底层的强度（相对待机律动） */
+export const GROOVE_LAYER_WEIGHT = 0.22;
 
 export function rhythmMotion(sec: number, position: number): ClawdRhythmMotion | undefined {
   // Protect terminal entrance, leap, tiptoe hops and the original 365-day double nod.
@@ -364,10 +295,14 @@ export function rhythmMotion(sec: number, position: number): ClawdRhythmMotion |
   ));
   const bassGain = 0.45 + 0.35 * smooth(9.35, 9.67, sec);
   const oldBreath = Math.sin(sec * Math.PI * 2) * 0.12;
+  // 叙事动作期间保留纵向律动底层：不在待机窗口时补足，ほら！ 贴地回弹 (52.576–53.7s) 让位给动作本身
+  const popWindow = smooth(52.42, 52.576, sec) * (1 - smooth(53.55, 53.7, sec));
+  const groove = GROOVE_LAYER_WEIGHT * (1 - weight) * (1 - popWindow) * gain;
   return {
     breathY: oldBreath + (Math.cos(position * Math.PI * 2) * 0.07 - oldBreath) * gain,
     sway: Math.cos(position * Math.PI),
-    pulse: (1 + Math.cos(position * Math.PI * 2)) / 2,
+    pulse: beatPulseEnvelope(position),
     idleWeight: weight * gain * bassGain,
+    grooveWeight: groove,
   };
 }

@@ -2,19 +2,27 @@ import React from "react";
 import { interpolate } from "remotion";
 import { clampedInterpolate } from "../animation/clawd/motion-style";
 import { sampleStageKeyboard } from "../timeline/verse1";
+import {
+  HEY_END_SEC,
+  HEY_LIFT_PEAK_SEC,
+  HEY_RELEASE_START_SEC,
+  HEY_START_SEC,
+  HEY_VOCAL_SEC,
+  sampleHeyWave,
+} from "../timeline/hey-wave";
 import type { ClawdActorState } from "./types";
 
 /**
  * 编排 L066 前奏 (00:00.000 → 00:18.463) Clawd 亲自弹奏紧凑小合成器键盘的表演：
  * - 0.02s–0.24s：小合成器从左侧滑入 Clawd 身前，双爪移向琴键就位；
  * - 0.254s–18.14s：左爪弹奏低音区 (A3 下切与 B♭3 基准音)，右爪弹奏高八度 (B♭4)，视线随左右手弹奏自然追随；
- * - 18.14s–18.46s：在 L001 "Hey" 开口前收手并将小键盘向右侧轻巧滑出退场，为 L001 大幅高举右爪挥手腾出空间。
+ * - 18.10s–18.42s：在 L001 "Hey" 开口前收手并将小键盘向右侧轻巧滑出退场，18.43s 交给 Hey 预备下沉与高举挥爪。
  */
 export function resolvePlayKeyboardActor(
   sec: number,
   baseActor: ClawdActorState,
 ): ClawdActorState {
-  if (sec >= 18.46) {
+  if (sec >= HEY_START_SEC) {
     return baseActor;
   }
 
@@ -23,14 +31,14 @@ export function resolvePlayKeyboardActor(
     return baseActor;
   }
 
-  // 在 18.14s -> 18.45s 提前完成小合成器向右侧滑出与收手，确保 18.463s "Hey" 起拍时右爪完全解放
+  // 在 18.10s -> 18.42s 提前完成小合成器向右侧滑出与收手，确保 18.43s Hey 预备动作开始时双爪完全解放
   const earlyExitSlide =
-    sec > 18.12
-      ? clampedInterpolate(sec, [18.12, 18.45], [1, 0])
+    sec > 18.1
+      ? clampedInterpolate(sec, [18.1, 18.42], [1, 0])
       : rawKeyboard.traySlide;
   const earlyExitUnfold =
-    sec > 18.08
-      ? clampedInterpolate(sec, [18.08, 18.22], [1, 0])
+    sec > 18.06
+      ? clampedInterpolate(sec, [18.06, 18.2], [1, 0])
       : rawKeyboard.trayUnfold;
 
   const keyboardState = {
@@ -83,21 +91,20 @@ export interface HeyBubblePerformanceProps {
 }
 
 /**
- * L001 ("Hey, let's go, I can take it", 18.463s–20.15s) 开头配合 Clawd 奋力抬高右侧身体、
- * 高举右爪快速挥动三次时同步弹出的 "hey" 对话气泡。
+ * L001 ("Hey, let's go, I can take it") 开头配合 Clawd 奋力抬高右侧身体、
+ * 高举右爪挥动三次时同步弹出的 "hey" 对话气泡：随人声弹出，与挥爪共用同一半拍相位，爪尖到顶时气泡同步上扬。
  */
 export const HeyBubblePerformance: React.FC<HeyBubblePerformanceProps> = ({
   sec,
 }) => {
-  if (sec < 18.45 || sec > 19.95) return null;
+  if (sec < HEY_VOCAL_SEC - 0.02 || sec > HEY_END_SEC + 0.05) return null;
 
-  const enterP = clampedInterpolate(sec, [18.46, 18.57], [0, 1]);
-  const exitP = clampedInterpolate(sec, [19.62, 19.9], [0, 1]);
+  const enterP = clampedInterpolate(sec, [HEY_VOCAL_SEC, HEY_LIFT_PEAK_SEC + 0.04], [0, 1]);
+  const exitP = clampedInterpolate(sec, [HEY_RELEASE_START_SEC, HEY_END_SEC], [0, 1]);
   const activeEnv = enterP * (1 - exitP);
 
-  // 随 1.25 倍加速后的三次快速挥手轻微同频弹跳
-  const wavePhase = clampedInterpolate(sec, [18.55, 19.51], [0, 1]);
-  const waveBob = Math.sin(wavePhase * Math.PI * 6) * 4.5 * activeEnv;
+  // 与 Clawd 挥爪共用相位：waveY = -1 时爪尖最高，气泡同步上扬
+  const waveBob = sampleHeyWave(sec).waveY * 4.5 * activeEnv;
 
   const scale =
     interpolate(enterP, [0, 0.7, 1], [0.25, 1.14, 1.0]) *

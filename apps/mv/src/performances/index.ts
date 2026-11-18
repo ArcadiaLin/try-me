@@ -1,4 +1,10 @@
 import {
+  HEY_END_SEC,
+  HEY_START_SEC,
+  heySecToProgress,
+  sampleHeyWave,
+} from "../timeline/hey-wave";
+import {
   sampleVerse1PlanProgress,
   type ClawdRhythmMotion,
 } from "../timeline/verse1";
@@ -77,12 +83,16 @@ export function resolveVerse1ClawdPerformance(
 
   let actor = baseActor;
 
-  if (sec < 18.463) {
+  if (sec < HEY_START_SEC) {
     actor = resolvePlayKeyboardActor(sec, baseActor);
   } else if (sec < 22.721) {
-    const waveProgress = sampleVerse1PlanProgress(authoredFrame, "wave");
-    // 在奋力抬高右侧身体高举挥手阶段 (waveProgress < 0.34) 采用 "> <" (wince) 使劲表情
-    const isHeyStraining = waveProgress > 0.02 && waveProgress < 0.34;
+    // Hey 段按半拍网格线性驱动（与 hey 气泡共用相位），19.9s 之后交给 wave 计划前送与蹲起
+    const waveProgress =
+      sec < HEY_END_SEC
+        ? heySecToProgress(sec)
+        : sampleVerse1PlanProgress(authoredFrame, "wave");
+    // 抬身挥爪期间采用 "> <" (wince) 使劲表情
+    const isHeyStraining = sec < HEY_END_SEC && sampleHeyWave(sec).lift > 0.15;
     actor = {
       ...baseActor,
       action: "wave-step",

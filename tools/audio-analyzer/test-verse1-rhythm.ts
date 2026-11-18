@@ -3,11 +3,22 @@ import fs from "node:fs";
 import { test } from "node:test";
 import { resolveClawdPose } from "../../apps/mv/src/animation/clawd/blend.ts";
 import {
+  HEY_END_SEC,
+  HEY_LIFT_PEAK_SEC,
+  HEY_VOCAL_SEC,
+  HEY_WAVE_COUNT,
+  HEY_WAVE_END_SEC,
+  HEY_WAVE_START_SEC,
+  sampleHeyWave,
+} from "../../apps/mv/src/timeline/hey-wave.ts";
+import {
+  beatGridFrame,
   beatPosition,
+  beatPulseEnvelope,
+  fitBeatGrid,
   rhythmMotion,
   sampleRhythmPlan,
   sampleStageKeyboard,
-  sampleStageRhythm,
   VERSE1_RHYTHM as data,
 } from "../../apps/mv/src/timeline/verse1.ts";
 
@@ -34,16 +45,61 @@ test("key poses land exactly on authored integer frames and keep their original 
   }
 });
 
-test("idle sway alternates on every reference beat without resetting at sentence boundaries", () => {
+test("idle sway alternates on a continuous fitted beat grid without resetting at sentence boundaries", () => {
+  const grid = fitBeatGrid(data.beatFrames);
   data.beatFrames.forEach((f, i) => {
-    assert.equal(beatPosition(f, data.beatFrames), i);
-    const sec = f / data.fps;
-    const motion = rhythmMotion(sec, beatPosition(f, data.beatFrames));
+    // Fitted grid stays within one frame of every integer reference beat.
+    const gridFrame = beatGridFrame(i, data.beatFrames);
+    assert(Math.abs(gridFrame - f) < 1, `beat ${i} drifted ${gridFrame - f}`);
+    assert(Math.abs(beatPosition(gridFrame, data.beatFrames) - i) < 1e-9);
+    const sec = gridFrame / data.fps;
+    const motion = rhythmMotion(sec, beatPosition(gridFrame, data.beatFrames));
     if (motion) {
-      assert(Math.abs(motion.sway - (i % 2 ? -1 : 1)) < 1e-10);
-      assert.equal(motion.pulse, 1);
+      assert(Math.abs(motion.sway - (i % 2 ? -1 : 1)) < 1e-9);
+      assert(Math.abs(motion.pulse - 1) < 1e-9);
+      // Snap-and-release: settles to zero mid-beat, longer release than attack.
+      assert.equal(beatPulseEnvelope(i + 0.5), 0);
+      assert(beatPulseEnvelope(i + 0.06) > beatPulseEnvelope(i - 0.06), "pulse should release slower than it attacks");
     }
   });
+  // Uniform speed: no 16/17/18-frame jitter in beat duration.
+  for (let f = 40; f < 1600; f += 7) {
+    const d = beatPosition(f + 1, data.beatFrames) - beatPosition(f, data.beatFrames);
+    assert(Math.abs(d - 1 / grid.framesPerBeat) < 1e-9);
+  }
+});
+
+test("narrative actions keep a light vertical groove layer outside idle windows and the ほら pop", () => {
+  const atInvite = rhythmMotion(24.2, beatPosition(24.2 * 30, data.beatFrames))!;
+  assert(atInvite.idleWeight < 1e-6 && atInvite.grooveWeight > 0.2);
+  const atIntro = rhythmMotion(12, beatPosition(12 * 30, data.beatFrames))!;
+  assert(atIntro.grooveWeight < 1e-6 && atIntro.idleWeight > 0.5);
+  const atPop = rhythmMotion(53.1, beatPosition(53.1 * 30, data.beatFrames))!;
+  assert(atPop.grooveWeight < 1e-6);
+});
+
+test("Hey wave lifts within 2 frames of the vocal, waves 3 times on the half-beat grid, then hands over to the wave plan", () => {
+  const halfBeat = (beatGridFrame(1, data.beatFrames) - beatGridFrame(0.5, data.beatFrames)) / data.fps;
+  assert(HEY_LIFT_PEAK_SEC - HEY_VOCAL_SEC <= 2.2 / 30);
+  assert(Math.abs(HEY_WAVE_START_SEC - HEY_VOCAL_SEC) < 1.5 / 30);
+  assert(Math.abs(HEY_WAVE_END_SEC - HEY_WAVE_START_SEC - HEY_WAVE_COUNT * halfBeat) < 1e-9);
+  assert(sampleHeyWave(HEY_LIFT_PEAK_SEC).lift > 0.99);
+  for (let k = 0; k <= HEY_WAVE_COUNT; k++) {
+    // Paw tip highest exactly on each half-beat point.
+    assert(Math.abs(sampleHeyWave(HEY_WAVE_START_SEC + k * halfBeat).waveY + 1) < 1e-9);
+  }
+  assert.equal(sampleHeyWave(HEY_END_SEC).lift, 0);
+  const wave = data.plans.find((p) => p.id === "wave")!;
+  assert.equal(wave.keys[0].frame / data.fps, HEY_END_SEC);
+  assert.equal(wave.keys[0].progress, 0.36);
+});
+
+test("L007 weight-shift extremes and center land on reference beats", () => {
+  const sway = data.plans.find((p) => p.id === "sway")!;
+  for (const progress of [0.25, 0.5, 0.75]) {
+    const key = sway.keys.find((k) => k.progress === progress)!;
+    assert((data.beatFrames as readonly number[]).includes(key.frame), `sway ${progress} at F${key.frame}`);
+  }
 });
 
 test("terminal leap, tiptoe hops and 365-day nod receive no new rhythm layer", () => {
@@ -71,63 +127,6 @@ test("linked poses match their candidate source, stay bounded, and do not invent
     assert(Math.abs(key.frame - key.sourceFrame) <= 6);
   }
   assert.equal(data.status, "candidate");
-});
-
-test("stage base plates tighten on rhythm beat keyframes, lag lower plate by 2 frames, and settle to zero between beats", () => {
-  const source = JSON.parse(fs.readFileSync("local/analysis/rhythm-v1/analysis.json", "utf8"));
-  assert.equal(data.stageBeats.length, 99);
-  for (let i = 0; i < data.stageBeats.length; i++) {
-    const sb = data.stageBeats[i];
-    const rawBeat = source.tracks.beat.find((b: { id: string }) => b.id === sb.id);
-    assert(rawBeat);
-    assert.equal(sb.beatFrame, Math.round(rawBeat.time_sec * data.fps));
-    assert(Math.abs(sb.frame - sb.beatFrame) <= 1);
-    if ("onsetId" in sb && sb.onsetId && "onsetTrack" in sb && sb.onsetTrack) {
-      const onset = source.tracks[sb.onsetTrack].find((e: { id: string }) => e.id === sb.onsetId);
-      assert(onset);
-      assert(Math.abs(Math.round(onset.time_sec * data.fps) - sb.beatFrame) <= 2);
-    }
-
-    // Upper plate peaks right on sb.frame; lower plate peaks 2 frames later at sb.frame + 2.
-    const atBeat = sampleStageRhythm(sb.frame, data.stageBeats, data.stagePulses);
-    const beforeBeat = sampleStageRhythm(sb.frame - 1, data.stageBeats, data.stagePulses);
-    const afterBeat = sampleStageRhythm(sb.frame + 1, data.stageBeats, data.stagePulses);
-    assert(atBeat.upperLiftPx > beforeBeat.upperLiftPx && atBeat.upperLiftPx > afterBeat.upperLiftPx);
-    assert(atBeat.upperLiftPx > atBeat.lowerLiftPx);
-
-    const atLag = sampleStageRhythm(sb.frame + 2, data.stageBeats, data.stagePulses);
-    const afterLag = sampleStageRhythm(sb.frame + 3, data.stageBeats, data.stagePulses);
-    assert(atLag.lowerLiftPx > atBeat.lowerLiftPx && atLag.lowerLiftPx > afterLag.lowerLiftPx);
-
-    // Between consecutive beats (e.g. sb.frame + 11), both plates rest completely at 0px lift.
-    if (i < data.stageBeats.length - 1 && data.stageBeats[i + 1].frame - sb.frame >= 14) {
-      const restState = sampleStageRhythm(sb.frame + 11, data.stageBeats, data.stagePulses);
-      assert.equal(restState.upperLiftPx, 0);
-      assert.equal(restState.lowerLiftPx, 0);
-    }
-  }
-});
-
-test("stage accent pulses match break/accent candidates, pause during orange keyboard intro, and remain sparse", () => {
-  const source = JSON.parse(fs.readFileSync("local/analysis/rhythm-v1/analysis.json", "utf8"));
-  assert.equal(data.stagePulses.length, 13);
-  for (const p of data.stagePulses) {
-    const ev = source.tracks[p.sourceTrack].find((e: { id: string }) => e.id === p.sourceId);
-    assert(ev);
-    assert.equal(p.frame, Math.round(ev.time_sec * data.fps));
-    const startState = sampleStageRhythm(p.frame, data.stageBeats, data.stagePulses);
-    if (p.frame / data.fps < 18.9) {
-      // Pulses are paused while the stage-front keyboard is the primary bottom instrument.
-      assert(!startState.pulse.active);
-    } else {
-      const midState = sampleStageRhythm(p.frame + 6, data.stageBeats, data.stagePulses);
-      const afterState = sampleStageRhythm(p.frame + 17, data.stageBeats, data.stagePulses);
-      assert(startState.pulse.active);
-      assert.equal(startState.pulse.progress, 0);
-      assert(midState.pulse.active && midState.pulse.progress > 0.5);
-      assert(!afterState.pulse.active);
-    }
-  }
 });
 
 test("stage-front auto-playing keyboard deploys before first note, overlaps fast key handoffs, and retracts on teal transition", () => {

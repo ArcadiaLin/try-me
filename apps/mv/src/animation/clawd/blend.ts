@@ -82,14 +82,16 @@ export function resolveClawdPose({
     leftKeyShiftX = z0 > 0.05 ? -Math.min(1, z0 * 1.15) : 0;
   }
 
-  // 1. 叠加连续节拍律动（仅安静窗口权重 > 0，且排除 stumble-left 与 static）
+  // 1. 叠加连续节拍律动（排除 stumble-left 与 static）：
+  //    待机窗口为完整律动（左右重心 + 快压慢回下压）；叙事动作期间只保留纵向下压底层 (grooveWeight)
   if (rhythm && action !== "stumble-left" && action !== "static") {
     const weight = rhythm.idleWeight;
+    const groove = rhythm.grooveWeight;
     bodyOffsetX += rhythm.sway * weight * 0.24;
     torsoTiltDeg += rhythm.sway * weight * 1.1;
-    bodyOffsetY += rhythm.pulse * weight * 0.1;
-    scaleX *= 1 + rhythm.pulse * weight * 0.012;
-    scaleY *= 1 - rhythm.pulse * weight * 0.012;
+    bodyOffsetY += rhythm.pulse * (weight * 0.13 + groove * 0.2);
+    scaleX *= 1 + rhythm.pulse * (weight * 0.016 + groove * 0.012);
+    scaleY *= 1 - rhythm.pulse * (weight * 0.016 + groove * 0.012);
   }
 
   // 2. DJ 台专属身体弹动覆盖

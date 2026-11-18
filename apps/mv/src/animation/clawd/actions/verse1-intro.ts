@@ -1,4 +1,9 @@
 import { interpolate } from "remotion";
+import {
+  HEY_PROGRESS_SPAN,
+  heyProgressToSec,
+  sampleHeyWave,
+} from "../../../timeline/hey-wave.ts";
 import { clampedInterpolate } from "../motion-style.ts";
 import type { ClawdPoseDelta } from "../poses.ts";
 
@@ -31,18 +36,13 @@ export function sampleVerse1IntroAction(
   }
 
   if (action === "wave-step") {
-    // A2 (L001): "Hey!" 奋力抬高右侧身体、右侧足部拉伸、右前爪高举快速挥动三次 (0~0.36)
+    // A2 (L001): "Hey!" 1 帧预备下沉 -> 奋力抬高右侧身体、右侧足部拉伸、右前爪高举挥动三次（每次半拍，爪尖最高点落在半拍网格）(0~0.36)
     // -> 重心向前送走到面试位 (0.36~0.64) -> 自信小幅蹲起 (0.64~1.0)
-    if (p < 0.36) {
-      const liftEnv = clampedInterpolate(
-        p,
-        [0, 0.075, 0.285, 0.36],
-        [0, 1, 1, 0],
-      );
-      // 挥舞速度加快 1.25 倍（在 Δp = 0.264 内完成 3 个完整正弦周期 = 6π）
-      const wavePhase = clampedInterpolate(p, [0.035, 0.299], [0, 1]);
-      const waveOscY = Math.sin(wavePhase * Math.PI * 6);
-      const waveOscX = Math.cos(wavePhase * Math.PI * 6);
+    if (p < HEY_PROGRESS_SPAN) {
+      const hey = sampleHeyWave(heyProgressToSec(p));
+      const liftEnv = hey.lift;
+      const waveOscY = hey.waveY;
+      const waveOscX = hey.waveX;
 
       return {
         // 以左侧足部 (rotPivotX = 4.2) 为支点向左上昂起躯干，幅度适中偏低但保持右腿拉伸感
@@ -50,17 +50,20 @@ export function sampleVerse1IntroAction(
         torsoTiltDeg: -6.8 * liftEnv,
         bodyOffsetX: -0.26 * liftEnv + waveOscX * 0.08 * liftEnv,
         bodyOffsetY:
-          breathY - 0.28 * liftEnv - Math.abs(waveOscY) * 0.1 * liftEnv,
-        scaleX: 1 - 0.02 * liftEnv,
-        scaleY: 1 + 0.035 * liftEnv,
+          breathY +
+          0.16 * hey.windup -
+          0.28 * liftEnv -
+          Math.abs(waveOscX) * 0.1 * liftEnv,
+        scaleX: 1 + 0.035 * hey.windup - 0.02 * liftEnv,
+        scaleY: 1 - 0.035 * hey.windup + 0.035 * liftEnv,
         actionLookX: 0.24 * liftEnv,
         actionLookY: -0.16 * liftEnv,
         // 左爪向下微压借力
         leftArmExtend: -0.18 * liftEnv,
-        leftArmDeltaY: 0.35 * liftEnv,
-        // 右侧前爪举至躯干右上侧（比之前略低）并快速挥动三次
+        leftArmDeltaY: 0.35 * liftEnv + 0.12 * hey.windup,
+        // 右侧前爪举至躯干右上侧并挥动三次（waveOscY = -1 时爪尖最高）
         rightArmExtend: (0.72 + waveOscX * 0.34) * liftEnv,
-        rightArmDeltaY: (-2.25 + waveOscY * 0.62) * liftEnv,
+        rightArmDeltaY: (-2.25 + waveOscY * 0.62) * liftEnv + 0.12 * hey.windup,
       };
     }
     if (p < 0.64) {

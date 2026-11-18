@@ -47,6 +47,18 @@
 - 检查：Python 语法、输入哈希保留、26个试听按钮及原音频相对路径、`npm run lint`、`npm run check:repo` 和本轮文档差异空白检查通过；全仓差异检查另报告用户原有 `annotations/agent-brief.md` 三处行尾空白，未改动。
 - 按用户补充要求，将24个候选按时间排序加入原「特殊音色」旁的独立轨道「类手风琴音色候选 · 待试听」（`trk_timbre_candidates_v1`，`TC_001`–`TC_024`），沿用参考轨颜色，每条注明机器来源、参考ID及待试听状态。已备份到 `out/timbre-import-1794922001463/before/`，通过实际持久化同步七份工件；移除新增轨道后与导入前主时间线深比较一致，派生产物与隔离保存一致（预览生成时间除外），运行中的工作台 API 已返回新轨道。页面需点「重载」读取；实际试听仍待用户确认。
 
+### Verse 1 动效与节奏匹配细节优化（2026-11-18）
+
+- 按用户同意的审查建议推进（决策 `D015`）：
+  - **连续拍网格**（`rhythm-timing.ts`）：`fitBeatGrid` 对候选整数拍点做线性拟合，`beatPosition` 改按连续网格计算，消除 16/17/18 帧间隔造成的摆动速度抖动（候选约 16.82 帧/拍，残差 < 1 帧，仍待人工确认）。
+  - **快压慢回律动 + 纵向底层**（`rhythm-timing.ts`、`blend.ts`）：待机下压改为拍前 0.12 拍压下、拍后 0.45 拍回弹；L002–L011 叙事动作期间保留 22% 纵向律动，终端保护区间与 ほら！ 回弹不叠加。
+  - **L001 Hey 卡拍**（新增 `timeline/hey-wave.ts`，`verse1-intro.ts`、`PlayKeyboard.tsx`、`performances/index.ts`）：小键盘在 `18.10s–18.42s` 退场，`18.43s` 起 1 帧预备下沉，人声 `18.463s` 后 2 帧内抬身到位；三次挥爪各占半拍（约 0.280s，较原 0.361s 快约 1.29 倍），爪尖最高点落在半拍网格，`hey` 气泡与挥爪共用相位，`19.9s`（F597）交给 wave 计划。
+  - **L007 换重心**：右极点、换向中心、左极点改为 `F1244 / F1261 / F1278` 拍点。
+  - **环境节奏图标**（`RhythmPopups.tsx`）：提前 1 帧起跳、命中帧到达缩放峰值；拍手只在拍手内部左右交替，鼓组固定左下、Bass 固定右下，并按音色区分大小。
+  - **清理**：移除舞台底板律动数据与采样（`stageBeats`、`stagePulses`、`sampleStageRhythm`）及 `StageAutoKeyboard.tsx`；`plan-verse1-rhythm.ts` 重新生成 `verse1-rhythm.ts` 与 `docs/verse1-rhythm.md`，其他动作计划关键帧不变。
+- 已验证：9 项节奏/键盘/姿态单测（新增连续网格、纵向底层、Hey 半拍卡点、L007 拍点断言）、`npm run lint`；渲染 `F550–F600` 序列与 `F7–F13`、`F31–F34` 目视检查挥爪与气泡同相、预备下沉、F597 交接无跳变、图标命中帧峰值与两下鼓不重叠。
+- 待验证：带音频在 Studio 中实际试听同步感（尤其 Hey 半拍挥爪速度与叙事段律动底层强度）。
+
 ### 前奏 Clawd 弹奏紧凑小键盘、极简舞台与环境节奏图标弹出（2026-11-18）
 
 - 按用户反馈重构 `TryMeVerse1MV` 的舞台层次、前奏键盘演出与多声部节奏可视化：
@@ -69,7 +81,7 @@
 - 按用户确认的分层架构重组 `apps/mv/src/` 下截至 `00:55.168` 的全部角色、动作、道具、环境与协同表演代码，消除巨石组件与跨文件重复实现：
   - **`components/clawd/`（造型与骨骼渲染层）**：拆分为 `model.ts`（`16×10` 网格、配色、关节内嵌锚点与挂点）、`types.ts`（`ClawdPose` 及外观类型）、`Clawd.tsx`（组合容器）、`ClawdBody.tsx`（双层无缝描边躯干四肢、内折线与汗滴）、`ClawdFace.tsx`（五官、视线与自动眨眼）与 `outfits/`（`Glasses.tsx`、`Outfits.tsx`）；原 `ClawdMascot.tsx` 精简为兼容重导出入口。
   - **`animation/clawd/`（纯函数姿态与动作合成引擎）**：拆分为 `poses.ts`、`motion-style.ts`、`blend.ts`（`resolveClawdPose` 局部叠加与足底 `y=10` 贴地约束）及 `actions/`（`loop-actions.ts`、`verse1-intro.ts`、`stumble-left.ts`、`snappy-nod.ts`、`read-look-up.ts`）。
-  - **`components/props/` 与 `components/environment/`（道具与舞台环境积木）**：将手持道具（`BookProp`、`TrumpetProp`、`ShowcaseProps`、`HoraCallout`）与舞台环境组件（`StageDeck`、`StageAutoKeyboard`、`TerminalSummon`、`GithubHeatmapCard`、`MultilangBubble`、`PretrainField`、`Verse1Hud`）独立封装。
+  - **`components/props/` 与 `components/environment/`（道具与舞台环境积木）**：将手持道具（`BookProp`、`TrumpetProp`、`ShowcaseProps`、`HoraCallout`）与舞台环境组件（`StageDeck`、`TerminalSummon`、`GithubHeatmapCard`、`MultilangBubble`、`PretrainField`、`Verse1Hud`；`StageAutoKeyboard` 已于 2026-11-18 移除）独立封装。
   - **`performances/`、`timeline/verse1.ts` 与 `scenes/TryMeVerse1MV.tsx`（协同表演与时间轴编排层）**：新增 `ExitTerminal`、`SpeakLanguages`、`ReadBook`、`PlayTrumpet` 四个协同表演模块及 `timeline/verse1.ts` 统一时间轴入口，将 `TryMeVerse1MV.tsx` 从 `2517` 行精简至 `158` 行，同时保持全场唯一 `<Clawd />` 实例不卸载。
 - 已验证：`npm run lint`（ESLint + TypeScript 类型检查）、`npm run check:repo`、8 项节奏、键盘与姿态架构单测通过，且重构前后 5 个代表性关键帧（`F20`、`F600`、`F1135`、`F1420`、`F1550`）渲染 PNG 的 SHA-256 哈希 100% 字节级一致。
 
