@@ -54,18 +54,21 @@ export function computeHandBoxes(pose: ClawdPose) {
   const handHeight = interpolate(h, [0, 1], [2.0, 1.85]);
 
   if (hKey > hBook && hKey > 0) {
-    const keyShiftX = pose.leftKeyShiftX ?? 0;
+    const keyShiftX = pose.leftKeyShiftX ?? 0; // -1: 按左下侧白键 A3; 0: 按右上侧黑键 B♭3
     const lPress = pose.leftKeyPress ?? 0;
     const rPress = pose.rightKeyPress ?? 0;
+    const dropA3 = Math.max(0, -keyShiftX); // 0 -> 1 当切换到 A3 白键时
 
-    // 保持手部外侧近端与躯干边界 (x=2 / x=14) 无缝连通（不脱节成悬浮方块），远端向内伸到琴键上方按动
-    const targetLeftX = 1.55 + keyShiftX * 0.35;
-    const targetLeftW = 2.35 - keyShiftX * 0.2;
-    const targetLeftY = 4.55 + pose.bodyOffsetY + lPress * 0.52;
+    // 保持手部外侧近端与躯干边界 (x=2 / x=14) 无缝连通，同时手部底边控制在 y≈6.15–6.32，
+    // 既让爪尖清晰触碰对应的 A3 白键 / B♭3 黑键 / B♭4 黑键顶端，又完整显露下方点亮的琴键本体与下沉动作：
+    const handKeyH = 1.65;
+    const targetLeftX = 1.68 - dropA3 * 0.68;
+    const targetLeftW = 2.52 - dropA3 * 0.22;
+    const targetLeftY = 4.18 + dropA3 * 0.14 + pose.bodyOffsetY + lPress * 0.34;
 
-    const targetRightW = 2.35;
-    const targetRightX = 16 - targetRightW - 1.55; // 12.10，外端 14.45 > 14 与躯干无缝相连
-    const targetRightY = 4.5 + pose.bodyOffsetY + rPress * 0.55;
+    const targetRightW = 2.38 + rPress * 0.1;
+    const targetRightX = 12.18 - rPress * 0.18;
+    const targetRightY = 4.16 + pose.bodyOffsetY + rPress * 0.36;
 
     return {
       h: hKey,
@@ -73,13 +76,13 @@ export function computeHandBoxes(pose: ClawdPose) {
         x: interpolate(hKey, [0, 1], [0, targetLeftX]),
         y: interpolate(hKey, [0, 1], [4 + pose.leftArmOffsetY, targetLeftY]),
         width: interpolate(hKey, [0, 1], [handWidth, targetLeftW]),
-        height: handHeight,
+        height: interpolate(hKey, [0, 1], [2.0, handKeyH]),
       },
       right: {
         x: interpolate(hKey, [0, 1], [14, targetRightX]),
         y: interpolate(hKey, [0, 1], [4 + pose.rightArmOffsetY, targetRightY]),
         width: interpolate(hKey, [0, 1], [handWidth, targetRightW]),
-        height: handHeight,
+        height: interpolate(hKey, [0, 1], [2.0, handKeyH]),
       },
     };
   }

@@ -61,13 +61,13 @@ export function resolvePlayKeyboardActor(
   let lookY = 0.16 * unfold;
 
   if (z0 > 0.12) {
-    lookX = -0.32 * unfold;
+    lookX = -0.38 * unfold;
     lookY = 0.28 * unfold;
   } else if (z2 > z1 && z2 > 0.15) {
-    lookX = 0.22 * unfold;
+    lookX = 0.28 * unfold;
     lookY = 0.22 * unfold;
   } else if (z1 > 0.15) {
-    lookX = -0.16 * unfold;
+    lookX = -0.22 * unfold;
     lookY = 0.22 * unfold;
   }
 
