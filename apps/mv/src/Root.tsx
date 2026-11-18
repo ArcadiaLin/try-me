@@ -1,5 +1,6 @@
 import { MyComposition } from "./Composition";
 import { TryMeVerse1MVComposition } from "./scenes/TryMeVerse1MV";
+import { FullSongPercussionComposition } from "./scenes/FullSongPercussionShowcase";
 import { ClawdBasicComposition } from "./scenes/ClawdBasicShowcase";
 import { ClawdVerse1BodyComposition } from "./scenes/ClawdVerse1BodyShowcase";
 import { ClawdVerse1PropsComposition } from "./scenes/ClawdVerse1PropsShowcase";
@@ -9,6 +10,7 @@ export const RemotionRoot: React.FC = () => {
   return (
     <>
       <TryMeVerse1MVComposition />
+      <FullSongPercussionComposition />
       <MyComposition />
       <ClawdBasicComposition />
       <ClawdVerse1BodyComposition />
