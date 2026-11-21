@@ -1,3 +1,4 @@
+import { VIDEO_FPS } from "../video-spec";
 import {
   beatGridFrame,
   beatPosition,
@@ -34,12 +35,12 @@ export {
 
 export type Verse1PlanId = (typeof VERSE1_RHYTHM.plans)[number]["id"];
 
-/** 截至 L065 (ほら！) 句后留白结束、L013 开始前的完整时长：55.168s (1655 帧 @ 30fps) */
+/** 截至 L065 (ほら！) 句后留白结束、L013 开始前的完整时长：55.168s (3310 帧 @ 60fps) */
 export const VERSE1_MV_DURATION_SEC = 55.168;
-export const VERSE1_MV_FPS = 30;
+export const VERSE1_MV_FPS = VIDEO_FPS;
 export const VERSE1_MV_FRAMES = Math.round(
   VERSE1_MV_DURATION_SEC * VERSE1_MV_FPS,
-); // 1655
+); // 3310
 
 export interface Verse1EventMeta {
   id: string;

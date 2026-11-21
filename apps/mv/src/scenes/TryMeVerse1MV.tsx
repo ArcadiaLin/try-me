@@ -1,3 +1,5 @@
+import { VIDEO_WIDTH, VIDEO_HEIGHT } from "../video-spec";
+import { withOutputCanvas } from "../components/OutputCanvas";
 import React from "react";
 import {
   AbsoluteFill,
@@ -142,7 +144,12 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
       <ReadBookPerformance sec={sec} />
       <ExitTerminalPerformance sec={sec} />
       <SpeakLanguagesPerformance sec={sec} />
-      <PlayTrumpetPerformance sec={sec} />
+      <PlayTrumpetPerformance
+        sec={sec}
+        clawdX={placement.x}
+        trumpetProgress={actor.trumpetProgress ?? 0}
+        beatPulse={rhythm?.pulse ?? 0}
+      />
 
       {/* 全程唯一的连续 Clawd 主角实例（绝不卸载或突变尺寸；跳进洞口时裁切台面以下身体） */}
       <AbsoluteFill
@@ -197,11 +204,11 @@ export const TryMeVerse1MVComposition: React.FC = () => {
   return (
     <Composition
       id="TryMeVerse1MV"
-      component={TryMeVerse1MV}
+      component={TryMeVerse1MVOutput}
       durationInFrames={VERSE1_MV_FRAMES}
       fps={VERSE1_MV_FPS}
-      width={1280}
-      height={720}
+      width={VIDEO_WIDTH}
+      height={VIDEO_HEIGHT}
       defaultProps={{
         silentPreview: false,
         showHud: false,
@@ -209,3 +216,5 @@ export const TryMeVerse1MVComposition: React.FC = () => {
     />
   );
 };
+
+const TryMeVerse1MVOutput = withOutputCanvas(TryMeVerse1MV);

@@ -62,6 +62,7 @@ export const Clawd: React.FC<ClawdProps> = ({
       actionProgress,
       prop,
       bookProgress,
+      trumpetProgress,
       keyboardState,
       beatPulse,
       rhythm,
@@ -140,13 +141,6 @@ export const Clawd: React.FC<ClawdProps> = ({
             outlineColor={outlineColor}
           />
         )}
-        {/* 当双手向胸前移动捧书或弹奏键盘时，远端与主体/道具重合的手部色块与描边层 */}
-        <ClawdHandsOverlay
-          pose={pose}
-          bodyColor={bodyColor}
-          outlineColor={outlineColor}
-          outlineWidth={outlineWidth}
-        />
         {prop === "trumpet" && (
           <TrumpetProp
             pose={pose}
@@ -154,6 +148,13 @@ export const Clawd: React.FC<ClawdProps> = ({
             bodyColor={bodyColor}
           />
         )}
+        {/* 当双手向胸前移动捧书、弹奏键盘或握持小号时，远端与主体/道具重合的手部色块与描边层 */}
+        <ClawdHandsOverlay
+          pose={pose}
+          bodyColor={bodyColor}
+          outlineColor={outlineColor}
+          outlineWidth={outlineWidth}
+        />
         {prop === "juggle" && (
           <JuggleProp pose={pose} timeSec={timeSec} bodyColor={bodyColor} />
         )}

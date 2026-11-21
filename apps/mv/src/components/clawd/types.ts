@@ -66,6 +66,8 @@ export interface ClawdPose {
   handHoldProgress: number;
   /** 双手移向身前紧凑小键盘弹奏的连续进度 (0 ~ 1) */
   handKeyboardProgress?: number;
+  /** 右手移向胸前右侧稳稳握住小号的连续进度 (0 ~ 1) */
+  handTrumpetProgress?: number;
   /** 弹键盘时左手在低音区（A3 下切 vs B♭3 基准）的水平微移 (-1 ~ 0) */
   leftKeyShiftX?: number;
   /** 弹键盘时左手下按深度 (0 ~ 1) */

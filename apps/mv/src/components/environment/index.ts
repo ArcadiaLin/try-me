@@ -55,4 +55,16 @@ export {
   type SpotlightState,
 } from "./Spotlight";
 export { TerminalSummon, type TerminalSummonProps } from "./TerminalSummon";
+export {
+  L011_BADGES_CLEAR_END_SEC,
+  L011_BADGES_CLEAR_START_SEC,
+  L011_MAGIC_INSTRUMENTS,
+  L011_STAFF_START_SEC,
+  L011_TAPE_BURST_SEC,
+  L011_TAPE_RETRACT_SEC,
+  TrumpetMagicStage,
+  type MagicInstrumentKind,
+  type MagicInstrumentSpec,
+  type TrumpetMagicStageProps,
+} from "./TrumpetMagicStage";
 export { Verse1Hud, type Verse1HudProps } from "./Verse1Hud";

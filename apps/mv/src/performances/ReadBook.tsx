@@ -5,12 +5,11 @@ import { sampleVerse1PlanProgress } from "../timeline/verse1";
 import type { ClawdActorState, ClawdStagePlacement } from "./types";
 
 /**
- * L009–L010 (45.360s–49.892s) 读书段落舞台站位：全程居中 (x = 0)，49.82s 起提前 2 帧预备向 L011 接小号位置微移
+ * L009–L010 (45.360s–49.892s) 读书段落舞台站位：全程居中 (x = 0)
  */
-export function resolveReadBookPlacement(sec: number): ClawdStagePlacement {
-  const toL011 = smoothStep(sec, 49.82, 50.38);
+export function resolveReadBookPlacement(): ClawdStagePlacement {
   return {
-    x: -44 * toL011,
+    x: 0,
     y: 0,
     scale: 1,
     opacity: 1,

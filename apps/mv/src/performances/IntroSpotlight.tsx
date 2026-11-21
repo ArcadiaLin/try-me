@@ -149,13 +149,19 @@ export function resolveIntroSpotlightActor(
       actionProgress: linearProg(sec, 27.161, L004_SHOWCASE_BEAT_SEC),
     };
   }
-  if (sec < 34.026) {
-    // 32.61s–34.026s: 亮招高潮拍切 ^ ^ 得意笑眼 + self-present 自信展示，33.62s 干脆合刀收回
-    const isAppealSmile = sec <= 33.65;
+  const extraHoldSec = L004_SHOWCASE_BEAT_SEC - L003_TOOLS_BURST_SEC;
+  if (sec < 34.026 + extraHoldSec) {
+    // 在原收回点保持展示姿态一拍，再续播收势；跳洞时间不后移。
+    const originalFoldSec = L004_TOOLS_FOLD_SEC - extraHoldSec;
+    const heldSec = sec < originalFoldSec
+      ? sec
+      : Math.max(originalFoldSec, sec - extraHoldSec);
+    const heldAuthoredFrame = authoredFrame * heldSec / sec;
+    const isAppealSmile = sec <= L004_TOOLS_FOLD_SEC + 0.03;
     return {
       ...base,
       action: "self-present",
-      actionProgress: sampleVerse1PlanProgress(authoredFrame, "present"),
+      actionProgress: sampleVerse1PlanProgress(heldAuthoredFrame, "present"),
       eyes: isAppealSmile ? "happy" : "normal",
     };
   }

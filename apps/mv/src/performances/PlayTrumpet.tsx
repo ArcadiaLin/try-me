@@ -1,5 +1,6 @@
 import React from "react";
 import { smoothStep } from "../animation/clawd/motion-style";
+import { TrumpetMagicStage } from "../components/environment";
 import { HoraCallout } from "../components/props";
 import {
   sampleVerse1PlanProgress,
@@ -8,14 +9,11 @@ import {
 import type { ClawdActorState, ClawdStagePlacement } from "./types";
 
 /**
- * L011–L065 (49.892s–55.168s) 角色迎接小号与ほら！回中的水平站位过渡
+ * L011–L065 (49.892s–55.168s) 舞台站位：Clawd 全程稳居中央 (x = 0)，不因小号入场向左挤移
  */
-export function resolvePlayTrumpetPlacement(sec: number): ClawdStagePlacement {
-  const toL011 = smoothStep(sec, 49.82, 50.38); // 0 -> -44
-  const toL065 = smoothStep(sec, 52.1, 52.56); // -44 -> -24
-  const toCenter = smoothStep(sec, 54.0, 54.85); // -24 -> 0
+export function resolvePlayTrumpetPlacement(): ClawdStagePlacement {
   return {
-    x: -44 * toL011 + 20 * toL065 + 24 * toCenter,
+    x: 0,
     y: 0,
     scale: 1,
     opacity: 1,
@@ -39,6 +37,11 @@ export function resolvePlayTrumpetActor(
       const playT = (p11 - 0.22) / 0.54;
       beatPulse = rhythm ? rhythm.pulse * Math.sin(playT * Math.PI) * 0.12 : 0;
     }
+    // 右上方系绳荡入期间 (49.89s -> 50.36s) 先向右上方看去迎接小号，接住后顺势看向右前方吹奏
+    const lookCatch =
+      smoothStep(sec, 49.892, 50.06) * (1 - smoothStep(sec, 50.25, 50.43));
+    const lookPlay =
+      smoothStep(sec, 49.95, 50.35) * (1 - smoothStep(sec, 52.05, 52.55));
     return {
       ...base,
       action: "idle",
@@ -47,34 +50,48 @@ export function resolvePlayTrumpetActor(
       trumpetProgress: p11,
       beatPulse,
       lookOffset: {
-        x:
-          0.28 *
-          smoothStep(sec, 49.892, 50.35) *
-          (1 - smoothStep(sec, 52.05, 52.55)),
-        y:
-          -0.08 *
-          smoothStep(sec, 49.892, 50.35) *
-          (1 - smoothStep(sec, 52.05, 52.55)),
+        x: 0.34 * lookCatch + 0.28 * lookPlay,
+        y: -0.44 * lookCatch - 0.08 * lookPlay,
       },
     };
   }
 
-  // L065 (52.576~55.168s): 贴地极速回弹 + ^ ^ 微笑弯眼
+  // L065 (52.576~55.168s): 贴地极速回弹 + ^ ^ 微笑弯眼，右手回原位继续帅气拿着小号展示（54.6s 后轻巧收起）
   const popProg = sampleVerse1PlanProgress(authoredFrame, "pop");
+  const holdTail = 1 + Math.max(0, Math.min(1, (sec - 52.576) / (55.1 - 52.576)));
   return {
     ...base,
     action: "elastic-pop",
     actionProgress: popProg,
+    prop: "trumpet",
+    trumpetProgress: holdTail,
     eyes: sec >= 52.83 && sec <= 54.68 ? "happy" : "normal",
   };
 }
 
 export interface PlayTrumpetPerformanceProps {
   sec: number;
+  clawdX?: number;
+  trumpetProgress?: number;
+  beatPulse?: number;
 }
 
 export const PlayTrumpetPerformance: React.FC<PlayTrumpetPerformanceProps> = ({
   sec,
+  clawdX,
+  trumpetProgress = 0,
+  beatPulse = 0,
 }) => {
-  return <HoraCallout sec={sec} />;
+  const resolvedClawdX = clawdX ?? resolvePlayTrumpetPlacement().x;
+  return (
+    <>
+      <TrumpetMagicStage
+        sec={sec}
+        clawdX={resolvedClawdX}
+        trumpetProgress={trumpetProgress}
+        beatPulse={beatPulse}
+      />
+      <HoraCallout sec={sec} />
+    </>
+  );
 };

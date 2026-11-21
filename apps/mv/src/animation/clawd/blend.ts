@@ -16,6 +16,7 @@ export interface ResolveClawdPoseInput {
   actionProgress?: number;
   prop?: ClawdProp;
   bookProgress?: number;
+  trumpetProgress?: number;
   keyboardState?: StageKeyboardState;
   beatPulse?: number;
   rhythm?: ClawdRhythmMotion;
@@ -34,6 +35,7 @@ export function resolveClawdPose({
   actionProgress,
   prop = "none",
   bookProgress,
+  trumpetProgress,
   keyboardState,
   beatPulse = 0,
   rhythm,
@@ -54,7 +56,34 @@ export function resolveClawdPose({
   let scaleX = delta.scaleX ?? 1;
   let scaleY = delta.scaleY ?? 1;
   const leftArmExtend = delta.leftArmExtend ?? 0;
-  const rightArmExtend = delta.rightArmExtend ?? 0;
+  let rightArmExtend = delta.rightArmExtend ?? 0;
+  let trumpetArmDeltaY = 0;
+
+  // 当小号 (prop === "trumpet") 从右上方系绳荡进来时：
+  // 1) tp: 0.04 -> 0.16 向右探身并伸出右爪迎接；
+  // 2) tp: 0.16 -> 0.23 接住小号后顺势收身回到吹奏位，右手滑至胸前右侧真实握住号管；
+  // 3) tp: 0.76 -> 0.96 吹奏结束，右手顺势回到原位 [14, 16]，小号改为由原位右手拿在身侧展示 (L065 ほら！)。
+  let handTrumpetProgress = 0;
+  if (prop === "trumpet") {
+    const tp = trumpetProgress !== undefined ? trumpetProgress : p;
+    if (tp < 1) {
+      const reachIn = clamp01((tp - 0.03) / 0.13);
+      const reachBack = clamp01((tp - 0.16) / 0.08);
+      const reachEnv =
+        Math.sin(reachIn * Math.PI * 0.5) *
+        (1 - reachBack * reachBack * (3 - 2 * reachBack));
+
+      bodyOffsetX += reachEnv * 1.15;
+      bodyOffsetY += reachEnv * 0.16;
+      torsoTiltDeg += reachEnv * 7.2;
+      rightArmExtend += reachEnv * 1.5;
+      trumpetArmDeltaY = -reachEnv * 0.25;
+
+      const grabIn = clamp01((tp - 0.15) / 0.08);
+      const releaseOut = clamp01((tp - 0.76) / 0.18);
+      handTrumpetProgress = grabIn * (1 - releaseOut);
+    }
+  }
 
   // 当捧书阅读 (prop === "book") 时，双手从身体两侧向胸前连续平移合拢 (handHoldProgress: 0 -> 1 -> 0)
   // bookProgress 支持 0->1 (入场) 与 1->2 (从另一侧退场)
@@ -125,7 +154,7 @@ export function resolveClawdPose({
     rightArmOffsetY += bodyOffsetY * 0.35;
   } else {
     leftArmOffsetY += delta.leftArmDeltaY ?? 0;
-    rightArmOffsetY += delta.rightArmDeltaY ?? 0;
+    rightArmOffsetY += (delta.rightArmDeltaY ?? 0) + trumpetArmDeltaY;
   }
 
   // 5. 四足抬升量（walk / bounce / stumble-left 之外严格为 0，确保足底钉在地面 y=10）
@@ -151,6 +180,7 @@ export function resolveClawdPose({
     rightArmOffsetY,
     handHoldProgress,
     handKeyboardProgress,
+    handTrumpetProgress,
     leftKeyShiftX,
     leftKeyPress,
     rightKeyPress,

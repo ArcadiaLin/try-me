@@ -1,3 +1,5 @@
+import { VIDEO_FPS, VIDEO_WIDTH, VIDEO_HEIGHT } from "./video-spec";
+import { withOutputCanvas } from "./components/OutputCanvas";
 import React, { useEffect, useState } from "react";
 import {
   AbsoluteFill,
@@ -310,7 +312,7 @@ const FALLBACK_ANNOTATIONS: AnnotationsPreviewPayload = {
     analysis_run_id: null,
   },
   preview_mapping: {
-    preview_fps: 30,
+    preview_fps: VIDEO_FPS,
     audio_offset_seconds: 0,
   },
   global_notes: {
@@ -378,7 +380,7 @@ const calculateMetadata: CalculateMetadataFunction<SyncPreviewProps> = async ({
     }
   }
 
-  const timeline = computePreviewTimeline(payload, props);
+  const timeline = computePreviewTimeline(payload, props, VIDEO_FPS);
   return {
     fps: timeline.fps,
     durationInFrames: timeline.durationInFrames,
@@ -389,11 +391,11 @@ export const MyComposition = () => {
   return (
     <Composition
       id="MyComp"
-      component={MyComponent}
-      durationInFrames={470}
-      fps={30}
-      width={1280}
-      height={720}
+      component={MyComponentOutput}
+      durationInFrames={Math.round(15.65 * VIDEO_FPS)}
+      fps={VIDEO_FPS}
+      width={VIDEO_WIDTH}
+      height={VIDEO_HEIGHT}
       calculateMetadata={calculateMetadata}
       defaultProps={{
         silentPreview: false,
@@ -842,3 +844,5 @@ export const MyComponent: React.FC<SyncPreviewProps> = (props) => {
     </AbsoluteFill>
   );
 };
+
+const MyComponentOutput = withOutputCanvas(MyComponent);

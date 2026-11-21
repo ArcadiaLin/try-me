@@ -1,3 +1,5 @@
+import { VIDEO_FPS, VIDEO_WIDTH, VIDEO_HEIGHT } from "../video-spec";
+import { withOutputCanvas } from "../components/OutputCanvas";
 import React from "react";
 import {
   AbsoluteFill,
@@ -163,11 +165,11 @@ export const PRELUDE_LAB_SEC = 38.6;
 export const PreludeLabComposition: React.FC = () => (
   <Composition
     id="PreludeLab"
-    component={PreludeLab}
-    durationInFrames={Math.round(PRELUDE_LAB_SEC * 30)}
-    fps={30}
-    width={1280}
-    height={720}
+    component={PreludeLabOutput}
+    durationInFrames={Math.round(PRELUDE_LAB_SEC * VIDEO_FPS)}
+    fps={VIDEO_FPS}
+    width={VIDEO_WIDTH}
+    height={VIDEO_HEIGHT}
     defaultProps={{
       silentPreview: false,
       preludeAmbient: 0.12,
@@ -177,3 +179,5 @@ export const PreludeLabComposition: React.FC = () => (
     }}
   />
 );
+
+const PreludeLabOutput = withOutputCanvas(PreludeLab);

@@ -1,3 +1,5 @@
+import { VIDEO_FPS, VIDEO_WIDTH, VIDEO_HEIGHT } from "../video-spec";
+import { withOutputCanvas } from "../components/OutputCanvas";
 import React from "react";
 import {
   AbsoluteFill,
@@ -11,10 +13,10 @@ import {
 import { RhythmPopups, StageDeck } from "../components/environment";
 import { FULL_SONG_DURATION_SEC } from "../timeline/score-drums-v2";
 
-export const FULL_PERCUSSION_FPS = 30;
+export const FULL_PERCUSSION_FPS = VIDEO_FPS;
 export const FULL_PERCUSSION_FRAMES = Math.ceil(
   FULL_SONG_DURATION_SEC * FULL_PERCUSSION_FPS,
-); // 6292 帧 @ 30fps (209.72s 全曲)
+); // 12584 帧 @ 60fps (209.72s 全曲)
 
 export interface FullSongPercussionMVProps {
   /** 是否强制静音预览（未放置私有 FLAC 音源时也会自动降级为静音预览） */
@@ -68,14 +70,16 @@ export const FullSongPercussionComposition: React.FC = () => {
   return (
     <Composition
       id="FullSongPercussion"
-      component={FullSongPercussionMV}
+      component={FullSongPercussionMVOutput}
       durationInFrames={FULL_PERCUSSION_FRAMES}
       fps={FULL_PERCUSSION_FPS}
-      width={1280}
-      height={720}
+      width={VIDEO_WIDTH}
+      height={VIDEO_HEIGHT}
       defaultProps={{
         silentPreview: false,
       }}
     />
   );
 };
+
+const FullSongPercussionMVOutput = withOutputCanvas(FullSongPercussionMV);

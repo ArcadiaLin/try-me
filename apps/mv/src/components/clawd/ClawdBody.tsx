@@ -49,9 +49,35 @@ const SWEAT_DROPS = [
 export function computeHandBoxes(pose: ClawdPose) {
   const hBook = pose.handHoldProgress;
   const hKey = pose.handKeyboardProgress ?? 0;
-  const h = Math.max(hBook, hKey);
+  const hTrumpet = pose.handTrumpetProgress ?? 0;
+  const h = Math.max(hBook, hKey, hTrumpet);
   const handWidth = 2.0;
   const handHeight = interpolate(h, [0, 1], [2.0, 1.85]);
+
+  if (hTrumpet > hBook && hTrumpet > hKey && hTrumpet > 0) {
+    // 握持小号时：左手留在躯干左侧保持平衡，右手连续平移至胸前右侧稳稳托握小号号管
+    const leftOuterW = Math.max(0.6, 2 + pose.leftArmExtend);
+    const rightStartW = Math.max(0.6, 2 + pose.rightArmExtend);
+    return {
+      h: hTrumpet,
+      left: {
+        x: Math.min(1.4, -pose.leftArmExtend),
+        y: 4 + pose.leftArmOffsetY,
+        width: leftOuterW,
+        height: 2.0,
+      },
+      right: {
+        x: interpolate(hTrumpet, [0, 1], [14, 11.45]),
+        y: interpolate(
+          hTrumpet,
+          [0, 1],
+          [4 + pose.rightArmOffsetY, 4.18 + pose.bodyOffsetY],
+        ),
+        width: interpolate(hTrumpet, [0, 1], [rightStartW, 1.95]),
+        height: interpolate(hTrumpet, [0, 1], [2.0, 1.65]),
+      },
+    };
+  }
 
   if (hKey > hBook && hKey > 0) {
     const keyShiftX = pose.leftKeyShiftX ?? 0; // -1: 按左下侧白键 A3; 0: 按右上侧黑键 B♭3

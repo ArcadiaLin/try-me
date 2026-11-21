@@ -113,11 +113,11 @@ export function resolveVerse1ClawdPerformance(
     actor = resolveSpeakLanguagesActor(sec, authoredFrame, baseActor);
   } else if (sec < 49.892) {
     // 45.360s – 49.892s: L009–L010 舞台中央捧读 3D 书与白反光眼镜
-    placement = resolveReadBookPlacement(sec);
+    placement = resolveReadBookPlacement();
     actor = resolveReadBookActor(sec, authoredFrame, baseActor);
   } else {
     // 49.892s – 55.168s: L011–L065 迎接小号吹奏与 ほら！回中回弹
-    placement = resolvePlayTrumpetPlacement(sec);
+    placement = resolvePlayTrumpetPlacement();
     actor = resolvePlayTrumpetActor(sec, authoredFrame, rhythm, baseActor);
   }
 
@@ -130,6 +130,7 @@ export function resolveVerse1ClawdPerformance(
         actionProgress: actor.actionProgress,
         prop: actor.prop,
         bookProgress: actor.bookProgress,
+        trumpetProgress: actor.trumpetProgress,
         keyboardState: actor.keyboardState,
         beatPulse: actor.beatPulse,
         rhythm,

@@ -133,8 +133,9 @@ export const L003_ARROW_POINT_SEC = 30.92;
 export const L003_TOOLS_BURST_SEC = 32.05;
 /** 亮招高潮拍（32.61s）：Clawd 切 ^ ^ 得意笑眼 + 工具二次昂扬外扩亮相，持续展示至收刀。 */
 export const L004_SHOWCASE_BEAT_SEC = 32.61;
-/** 工具与左上「得意な + 箭头」一同收起的时刻（33.62s） */
-export const L004_TOOLS_FOLD_SEC = 33.62;
+/** 延长一拍（沿用展开拍到亮招拍的 0.56s 间隔），约 34.18s 收回。 */
+export const L004_TOOLS_FOLD_SEC =
+  33.62 + (L004_SHOWCASE_BEAT_SEC - L003_TOOLS_BURST_SEC);
 
 /**
  * 不规则多段细金属折臂工具规格：
@@ -1175,7 +1176,7 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
   // =========================================================================
   if (layer === "front") {
     const showL002 = sec >= 22.85 && sec <= 27.45;
-    const showL003Text = sec >= 27.38 && sec <= 33.9;
+    const showL003Text = sec >= 27.38 && sec <= L004_TOOLS_FOLD_SEC + 0.28;
     if (!showL002 && !showL003Text) return null;
 
     const l002Out = interpolate(sec, [27.12, 27.36], [0, 1], {
@@ -1210,7 +1211,7 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
         easing: Easing.out(Easing.back(1.4)),
       },
     );
-    // 卡通「得意な」和弯箭头一直保留到 L004 句尾收工具时 (33.62s) 才一起消失！
+    // 卡通字与弯箭头随工具一起延长展示，再同时收回。
     const l003TextOut = interpolate(
       sec,
       [L004_TOOLS_FOLD_SEC, L004_TOOLS_FOLD_SEC + 0.16],
@@ -1815,7 +1816,7 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
   // =========================================================================
   // 2. BEHIND 层：箭头指中 Clawd 后（30.93s），瞬间展开 6 支带工业机械质感与景深分层的精密冷灰工具臂
   // =========================================================================
-  if (sec < L003_TOOLS_BURST_SEC - 0.02 || sec > 34.05) return null;
+  if (sec < L003_TOOLS_BURST_SEC - 0.02 || sec > L004_TOOLS_FOLD_SEC + 0.43) return null;
 
   const pivotX = 640 + clawdX;
   const pivotY = 432;

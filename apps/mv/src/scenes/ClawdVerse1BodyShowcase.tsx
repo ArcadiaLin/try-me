@@ -1,3 +1,5 @@
+import { VIDEO_FPS, VIDEO_WIDTH, VIDEO_HEIGHT } from "../video-spec";
+import { withOutputCanvas } from "../components/OutputCanvas";
 import React from "react";
 import {
   AbsoluteFill,
@@ -11,11 +13,11 @@ export const ClawdVerse1BodyComposition: React.FC = () => {
   return (
     <Composition
       id="ClawdVerse1Body"
-      component={ClawdVerse1BodyShowcase}
+      component={ClawdVerse1BodyShowcaseOutput}
       durationInFrames={360}
-      fps={60}
-      width={1280}
-      height={720}
+      fps={VIDEO_FPS}
+      width={VIDEO_WIDTH}
+      height={VIDEO_HEIGHT}
     />
   );
 };
@@ -392,3 +394,5 @@ export const ClawdVerse1BodyShowcase: React.FC = () => {
     </AbsoluteFill>
   );
 };
+
+const ClawdVerse1BodyShowcaseOutput = withOutputCanvas(ClawdVerse1BodyShowcase);

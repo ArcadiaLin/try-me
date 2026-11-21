@@ -46,7 +46,7 @@ export const TERMINAL_TYPE_END_SEC = 37.24;
 
 /** 可见历史行数（含最新行） */
 export const TERMINAL_VISIBLE_ROWS = 4;
-/** 换行上滚时长（帧），ease-out，不回弹 */
+/** 换行上滚时长（30 FPS 编排帧，采样时按输出 FPS 换算），ease-out，不回弹 */
 export const TERMINAL_SCROLL_FRAMES = 4;
 
 const ROW_DEPTH_OPACITY = [1, 0.55, 0.3, 0.14, 0];
@@ -92,7 +92,7 @@ export function sampleLyricTerminal(
   let scroll = 0;
   for (const cue of printed) {
     scroll += easeOutCubic(
-      (frame - cueStartFrame(cue, fps)) / TERMINAL_SCROLL_FRAMES,
+      (frame - cueStartFrame(cue, fps)) / (TERMINAL_SCROLL_FRAMES * fps / 30),
     );
   }
 

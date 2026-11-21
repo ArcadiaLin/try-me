@@ -1,3 +1,5 @@
+import { VIDEO_FPS, VIDEO_WIDTH, VIDEO_HEIGHT } from "../video-spec";
+import { withOutputCanvas } from "../components/OutputCanvas";
 import React from "react";
 import {
   AbsoluteFill,
@@ -222,10 +224,12 @@ export const StageFxLab: React.FC = () => {
 export const StageFxLabComposition: React.FC = () => (
   <Composition
     id="StageFxLab"
-    component={StageFxLab}
-    durationInFrames={Math.round(STAGE_FX_LAB_SEC * 30)}
-    fps={30}
-    width={1280}
-    height={720}
+    component={StageFxLabOutput}
+    durationInFrames={Math.round(STAGE_FX_LAB_SEC * VIDEO_FPS)}
+    fps={VIDEO_FPS}
+    width={VIDEO_WIDTH}
+    height={VIDEO_HEIGHT}
   />
 );
+
+const StageFxLabOutput = withOutputCanvas(StageFxLab);
