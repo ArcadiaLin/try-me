@@ -21,6 +21,7 @@ import {
 import {
   ExitTerminalPerformance,
   HeyBubblePerformance,
+  IntroSpotlightPerformance,
   PlayTrumpetPerformance,
   ReadBookPerformance,
   resolveVerse1ClawdPerformance,
@@ -128,6 +129,16 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
 
       {/* 协同表演层：按时间区间安排背景、画外道具与多元素交互 */}
       <HeyBubblePerformance sec={sec} offsetX={VERSE1_PRELUDE_SIDE_X} />
+      <IntroSpotlightPerformance
+        sec={sec}
+        clawdX={placement.x}
+        layer="behind"
+      />
+      <IntroSpotlightPerformance
+        sec={sec}
+        clawdX={placement.x}
+        layer="front"
+      />
       <ReadBookPerformance sec={sec} />
       <ExitTerminalPerformance sec={sec} />
       <SpeakLanguagesPerformance sec={sec} />

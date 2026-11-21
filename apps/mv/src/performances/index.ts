@@ -7,6 +7,7 @@ import {
   resolveExitTerminalPlacement,
 } from "./ExitTerminal";
 import {
+  IntroSpotlightPerformance,
   resolveIntroSpotlightActor,
   resolvePreludeAndSpotlightStage,
   resolveVerse1Spotlight,
@@ -47,6 +48,7 @@ import type {
 export {
   ExitTerminalPerformance,
   HeyBubblePerformance,
+  IntroSpotlightPerformance,
   PlayTrumpetPerformance,
   ReadBookPerformance,
   resolvePlayKeyboardActor,

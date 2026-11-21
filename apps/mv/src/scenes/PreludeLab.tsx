@@ -18,6 +18,7 @@ import {
 import {
   ExitTerminalPerformance,
   HeyBubblePerformance,
+  IntroSpotlightPerformance,
   resolveVerse1ClawdPerformance,
   VERSE1_BASS_IN_SEC,
   VERSE1_HIGHWAY_CLOSE_SEC,
@@ -101,6 +102,16 @@ export const PreludeLab: React.FC<PreludeLabProps> = ({
       {showRhythmPopups && <RhythmPopups sec={sec} />}
       <ExitTerminalPerformance sec={sec} />
       <HeyBubblePerformance sec={sec} offsetX={VERSE1_PRELUDE_SIDE_X} />
+      <IntroSpotlightPerformance
+        sec={sec}
+        clawdX={placement.x}
+        layer="behind"
+      />
+      <IntroSpotlightPerformance
+        sec={sec}
+        clawdX={placement.x}
+        layer="front"
+      />
       <AbsoluteFill
         style={{
           zIndex: placement.zIndex,

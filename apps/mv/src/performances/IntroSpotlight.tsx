@@ -1,3 +1,4 @@
+import React from "react";
 import { Easing, interpolate } from "remotion";
 import { resolveClawdPose } from "../animation/clawd/blend";
 import {
@@ -8,6 +9,15 @@ import {
 } from "../animation/clawd/hop-travel";
 import { linearProg } from "../animation/clawd/motion-style";
 import type { ClawdPose } from "../components/clawd/types";
+import {
+  L003_TOOLS_BURST_SEC,
+  L004_TOOLS_FOLD_SEC,
+  PromptAndSwissKnife,
+  sampleL002PromptLook,
+  sampleL003SwissSnapKick,
+  sampleSnapFold,
+  sampleSnapOpen,
+} from "../components/environment";
 import {
   HEY_END_SEC,
   heySecToProgress,
@@ -88,9 +98,9 @@ function clawdXAt(s: number) {
 /**
  * L001–L064 (18.430s–37.540s) 聚光灯段落的身体基础动作：
  * - L001 (18.430–22.721s): Hey 高举右爪挥动 + let's go 碎步跳进中央
- * - L002 (22.721–27.161s): 侧身邀请
- * - L003 (27.161–31.695s): 点头律动（待重写脚本）
- * - L004 (31.695–34.026s): 自我展示（待重写脚本）
+ * - L002 (22.721–27.161s): 降频休息，身体随节拍轻柔呼吸，眼神依次追随 4 个浮现的 Prompt 气泡（含鹈鹕骑自行车）
+ * - L003 (27.161–31.695s): 瑞士军刀式“孔雀开屏”6 件工具从背后按拍“咔哒！”干脆弹锁到位，身体带机械顿点反馈
+ * - L004 (31.695–34.026s): 自己アピール全屏高光亮相 (^ ^ 笑眼 + 双臂微张)，句尾干脆合刀收回
  * - L064 (34.026–37.540s): 前半段原地微蹲，随后跳向左侧台面小洞并挥手告别
  */
 export function resolveIntroSpotlightActor(
@@ -112,24 +122,37 @@ export function resolveIntroSpotlightActor(
     };
   }
   if (sec < 27.161) {
+    // L002 前半段 (22.721s–25.18s): 动作降频休息，眼神依次追随 4 个浮现的 Prompt 气泡
+    if (sec < 25.18) {
+      return {
+        ...base,
+        action: "idle",
+        actionProgress: linearProg(sec, 22.721, 25.18),
+      };
+    }
+    // L002 后半段 (25.18s–27.161s): 最后一个气泡出现后，使用 A3 (tilt-invite) 侧身歪头伸爪 + 右上方冒出无框问号「？」
     return {
       ...base,
       action: "tilt-invite",
-      actionProgress: sampleVerse1PlanProgress(authoredFrame, "invite"),
+      actionProgress: linearProg(sec, 25.18, 27.12),
     };
   }
   if (sec < 31.695) {
+    // L003 (27.161s–31.695s): 左上方逐拍贴出「と・く・い」→ 合成为「得意な」→ 箭头指向自己 → 30.27s 瞬间全展开细金属折臂工具
     return {
       ...base,
-      action: "posture-nod",
-      actionProgress: sampleVerse1PlanProgress(authoredFrame, "posture"),
+      action: "idle",
+      actionProgress: linearProg(sec, 27.161, 31.695),
     };
   }
   if (sec < 34.026) {
+    // L004 (31.695s–34.026s): 自己アピール！全套细金属工具展开状态下 ^ ^ 得意笑眼展示，33.62s 干脆合刀收回
+    const isAppealSmile = sec >= 31.72 && sec <= 33.65;
     return {
       ...base,
       action: "self-present",
       actionProgress: sampleVerse1PlanProgress(authoredFrame, "present"),
+      eyes: isAppealSmile ? "happy" : "normal",
     };
   }
   // L064 前半段原地微蹲，35.06s 起由跳洞挥手姿态接管
@@ -261,11 +284,22 @@ export function resolvePreludeAndSpotlightStage(
       [0, -0.35, -0.35, 0],
       clamp,
     );
+    // L002 (22.721s–27.161s) 眼神跟随 4 个逐拍浮现的 Prompt 气泡
+    const promptLook = sampleL002PromptLook(sec);
+    // L003–L004 (27.161s–34.026s) 瑞士军刀干脆弹锁时的机械顿点反馈
+    const swissKick = sampleL003SwissSnapKick(sec);
+
     pose = {
       ...hopped,
+      bodyOffsetY: hopped.bodyOffsetY + swissKick.kickY,
+      torsoTiltDeg: hopped.torsoTiltDeg + promptLook.tiltDeg,
+      scaleX: hopped.scaleX * (1 + swissKick.scaleKick),
+      scaleY: hopped.scaleY * (1 - swissKick.scaleKick * 0.5),
+      leftArmOffsetY: hopped.leftArmOffsetY + swissKick.kickY,
+      rightArmOffsetY: hopped.rightArmOffsetY + swissKick.kickY,
       actionLook: {
-        x: hopped.actionLook.x + lookX,
-        y: hopped.actionLook.y + lookUp,
+        x: hopped.actionLook.x + lookX + promptLook.lookX,
+        y: hopped.actionLook.y + lookUp + promptLook.lookY,
       },
     };
   }
@@ -316,16 +350,39 @@ export function resolveVerse1Spotlight(
         ) *
         (1 - release);
 
+  // L003–L004 (30.27s–33.75s) 瞬间展开全套细金属工具时，光圈同步干脆撑宽
+  const fanSpotExpand =
+    sampleSnapOpen(sec, L003_TOOLS_BURST_SEC) *
+    sampleSnapFold(sec, L004_TOOLS_FOLD_SEC) *
+    (1 - release);
+
   return {
     x: spotX,
     iris: spotIris * (1 - Math.max(0, (sec - SPOT_RELEASE_END) / 0.1)),
     ambient,
-    rx: 150 + 1150 * release,
-    ry: 30 + 15 * release,
-    lampHalfWidth: 14 + 900 * release,
+    rx: 150 + 145 * fanSpotExpand + 1150 * release,
+    ry: 30 + 10 * fanSpotExpand + 15 * release,
+    lampHalfWidth: 14 + 28 * fanSpotExpand + 900 * release,
     glow: (1 - release) ** 2,
   };
 }
+
+export interface IntroSpotlightPerformanceProps {
+  sec: number;
+  clawdX?: number;
+  layer: "behind" | "front";
+}
+
+/**
+ * L002–L004 (22.721s–34.150s) 聚光灯下的舞台交互层：
+ * - layer="front": L002 浮现的 4 个 Prompt 提问气泡（含「画一个鹈鹕自行车」SVG 梗）
+ * - layer="behind": L003–L004 从 Clawd 背后“咔哒”干脆旋出的瑞士军刀式孔雀开屏工具扇面
+ */
+export const IntroSpotlightPerformance: React.FC<
+  IntroSpotlightPerformanceProps
+> = ({ sec, clawdX = 0, layer }) => {
+  return <PromptAndSwissKnife sec={sec} clawdX={clawdX} layer={layer} />;
+};
 
 /**
  * 左侧台面小洞状态（L064 滑开迎接 Clawd 跳入，落入后闭合）

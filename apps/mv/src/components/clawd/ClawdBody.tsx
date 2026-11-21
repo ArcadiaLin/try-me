@@ -142,7 +142,6 @@ export const ClawdBody: React.FC<ClawdBodyProps> = ({
     legLifts,
     isAirborneAction,
     isStumbleHop,
-    selfPointOpacity,
     sweatDropsProgress,
   } = pose;
 
@@ -232,20 +231,6 @@ export const ClawdBody: React.FC<ClawdBodyProps> = ({
 
       {/* 第 2 层：实体填充层 */}
       {renderBodyParts(bodyColor)}
-
-      {/* L004 朝自己示意时的胸前前足内折像素折线 */}
-      {selfPointOpacity > 0.05 && (
-        <g
-          transform={upperBodyTransform}
-          fill={outlineColor}
-          opacity={selfPointOpacity * 0.85}
-        >
-          <rect x={4.2} y={5.15 + bodyOffsetY} width={1.35} height={0.34} />
-          <rect x={5.2} y={4.55 + bodyOffsetY} width={0.34} height={0.94} />
-          <rect x={10.45} y={5.15 + bodyOffsetY} width={1.35} height={0.34} />
-          <rect x={10.45} y={4.55 + bodyOffsetY} width={0.34} height={0.94} />
-        </g>
-      )}
 
       {/* 踉跄慌乱时的汗滴特效 (stumble-left) */}
       {sweatDropsProgress !== null && (

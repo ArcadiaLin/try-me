@@ -158,34 +158,22 @@ export function sampleVerse1IntroAction(
   }
 
   if (action === "self-present") {
-    // A5 (L004): 前足朝自己示意 (0~0.44) -> 向外展开展示 (0.44~0.82) -> 平滑回稳
-    if (p < 0.44) {
-      const inward = interpolate(p, [0, 0.14, 0.32, 0.44], [0, 1, 1, 0]);
-      const tap = Math.sin((p / 0.44) * Math.PI * 2) * 0.1 * inward;
-      return {
-        leftArmExtend: -0.75 * inward,
-        rightArmExtend: -0.75 * inward,
-        selfPointOpacity: inward,
-        bodyOffsetY: breathY + 0.14 * inward + tap,
-        actionLookY: 0.14 * inward,
-        leftArmDeltaY: -0.65 * inward,
-        rightArmDeltaY: -0.65 * inward,
-      };
-    }
+    // A5 (L004): 轻微下压蓄力 (0~0.22) -> 骄傲挺身 + 双臂向外展开展示 (0.22~0.85) -> 平滑回稳
+    const crouch = clampedInterpolate(p, [0, 0.12, 0.24], [0, 1, 0]);
     const openEnv = clampedInterpolate(
       p,
-      [0.44, 0.58, 0.82, 1],
-      [0, 1, 0.85, 0],
+      [0.18, 0.34, 0.82, 1],
+      [0, 1, 0.9, 0],
     );
     return {
-      leftArmExtend: 0.72 * openEnv,
-      rightArmExtend: 0.72 * openEnv,
-      bodyOffsetY: breathY - 0.26 * openEnv,
-      scaleX: 1 + 0.03 * openEnv,
-      scaleY: 1 + 0.035 * openEnv,
+      leftArmExtend: 0.72 * openEnv - 0.15 * crouch,
+      rightArmExtend: 0.72 * openEnv - 0.15 * crouch,
+      bodyOffsetY: breathY + 0.18 * crouch - 0.26 * openEnv,
+      scaleX: 1 + 0.03 * crouch + 0.025 * openEnv,
+      scaleY: 1 - 0.025 * crouch + 0.035 * openEnv,
       actionLookY: -0.08 * openEnv,
-      leftArmDeltaY: -0.45 * openEnv,
-      rightArmDeltaY: -0.45 * openEnv,
+      leftArmDeltaY: 0.15 * crouch - 0.45 * openEnv,
+      rightArmDeltaY: 0.15 * crouch - 0.45 * openEnv,
     };
   }
 
