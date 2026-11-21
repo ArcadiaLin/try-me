@@ -1,27 +1,28 @@
 import React from "react";
 import { interpolate } from "remotion";
 import { linearProg, smoothStep } from "../../animation/clawd/motion-style";
+import { POP_PALETTE } from "../../styles/palette";
 
 export const MULTILANG_LINES = [
   {
     lang: "EN",
     text: "I speak different languages",
-    color: "#38BDF8",
+    color: POP_PALETTE.mint,
   },
   {
     lang: "ZH",
     text: "我会说不同的语言",
-    color: "#F59E0B",
+    color: POP_PALETTE.amberMid,
   },
   {
     lang: "JA",
     text: "いろんな言葉が話せるよ",
-    color: "#F472B6",
+    color: POP_PALETTE.pinkLight,
   },
   {
     lang: "ES",
     text: "Hablo diferentes idiomas",
-    color: "#4ADE80",
+    color: POP_PALETTE.lime,
   },
 ] as const;
 
@@ -80,7 +81,7 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
           transform: `translate(-50%, -50%) scale(${bubbleScale})`,
           opacity: bubbleOpacity,
           backgroundColor: "#F8FAFC",
-          color: "#0F172A",
+          color: POP_PALETTE.ink,
           border: "4px solid #11131F",
           borderRadius: 20,
           padding: "14px 20px",
@@ -111,7 +112,7 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
                   padding: "2px 8px",
                   borderRadius: 6,
                   backgroundColor: line.color,
-                  color: "#0F172A",
+                  color: POP_PALETTE.ink,
                   width: 42,
                   textAlign: "center",
                   flexShrink: 0,
@@ -123,7 +124,7 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
                 style={{
                   fontSize: 22,
                   fontWeight: 800,
-                  color: "#0F172A",
+                  color: POP_PALETTE.ink,
                   whiteSpace: "nowrap",
                   letterSpacing: -0.2,
                 }}
@@ -135,7 +136,7 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
                       display: "inline-block",
                       width: 9,
                       height: 21,
-                      backgroundColor: "#0F172A",
+                      backgroundColor: POP_PALETTE.ink,
                       marginLeft: 3,
                       verticalAlign: "middle",
                     }}
@@ -183,7 +184,7 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
                   display: "inline-block",
                   width: 9,
                   height: 21,
-                  backgroundColor: "#0F172A",
+                  backgroundColor: POP_PALETTE.ink,
                   marginLeft: 3,
                   verticalAlign: "middle",
                 }}
@@ -217,14 +218,14 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
               width: 44,
               height: 44,
               borderRadius: 10,
-              backgroundColor: "#FACC15",
+              backgroundColor: POP_PALETTE.yellowDeep,
               border: "3px solid #11131F",
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
               fontSize: 26,
               fontWeight: 900,
-              color: "#0F172A",
+              color: POP_PALETTE.ink,
               transform: `scale(${badgePop})`,
               boxShadow: "0 6px 14px rgba(0,0,0,0.3)",
             }}
@@ -258,11 +259,11 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
               width: 34,
               height: 34,
               borderRadius: 8,
-              backgroundColor: "#FACC15",
+              backgroundColor: POP_PALETTE.yellowDeep,
               border: "3px solid #11131F",
               fontSize: 20,
               fontWeight: 900,
-              color: "#0F172A",
+              color: POP_PALETTE.ink,
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
@@ -274,7 +275,7 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
             ★
           </div>
           <svg width={118} height={112} viewBox="0 0 10 10">
-            <rect x={2} y={0.8} width={6.5} height={1.1} fill="#38BDF8" />
+            <rect x={2} y={0.8} width={6.5} height={1.1} fill={POP_PALETTE.mint} />
             <rect
               x={1.5}
               y={1.8}
@@ -284,8 +285,8 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
               stroke="#11131F"
               strokeWidth={0.4}
             />
-            <rect x={3.8} y={3.1} width={0.8} height={1.5} fill="#0F172A" />
-            <rect x={6.0} y={3.1} width={0.8} height={1.5} fill="#0F172A" />
+            <rect x={3.8} y={3.1} width={0.8} height={1.5} fill={POP_PALETTE.ink} />
+            <rect x={6.0} y={3.1} width={0.8} height={1.5} fill={POP_PALETTE.ink} />
             <rect x={2.5} y={7.6} width={1.1} height={2.2} fill="#64748B" />
             <rect x={5.8} y={7.6} width={1.1} height={2.2} fill="#64748B" />
           </svg>
@@ -316,11 +317,11 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
               width: 34,
               height: 34,
               borderRadius: 8,
-              backgroundColor: "#FACC15",
+              backgroundColor: POP_PALETTE.yellowDeep,
               border: "3px solid #11131F",
               fontSize: 20,
               fontWeight: 900,
-              color: "#0F172A",
+              color: POP_PALETTE.ink,
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
@@ -332,8 +333,8 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
             ★
           </div>
           <svg width={118} height={112} viewBox="0 0 10 10">
-            <rect x={4.6} y={0.3} width={0.9} height={1.5} fill="#F472B6" />
-            <rect x={3.8} y={0.3} width={2.4} height={0.7} fill="#F472B6" />
+            <rect x={4.6} y={0.3} width={0.9} height={1.5} fill={POP_PALETTE.pinkLight} />
+            <rect x={3.8} y={0.3} width={2.4} height={0.7} fill={POP_PALETTE.pinkLight} />
             <rect
               x={2.0}
               y={1.8}
@@ -343,8 +344,8 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
               stroke="#11131F"
               strokeWidth={0.4}
             />
-            <rect x={3.2} y={3.1} width={0.8} height={1.5} fill="#0F172A" />
-            <rect x={5.4} y={3.1} width={0.8} height={1.5} fill="#0F172A" />
+            <rect x={3.2} y={3.1} width={0.8} height={1.5} fill={POP_PALETTE.ink} />
+            <rect x={5.4} y={3.1} width={0.8} height={1.5} fill={POP_PALETTE.ink} />
             <rect x={3.0} y={7.6} width={1.1} height={2.2} fill="#4D7C73" />
             <rect x={6.3} y={7.6} width={1.1} height={2.2} fill="#4D7C73" />
           </svg>

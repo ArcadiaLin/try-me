@@ -1,6 +1,7 @@
 import React from "react";
 import { interpolate } from "remotion";
 import { linearProg } from "../../animation/clawd/motion-style";
+import { POP_PALETTE } from "../../styles/palette";
 
 export interface HoraCalloutProps {
   sec: number;
@@ -43,9 +44,9 @@ export const HoraCallout: React.FC<HoraCalloutProps> = ({ sec }) => {
       }}
     >
       {[
-        { x: -34, y: -18, s: 30, c: "#FACC15" },
-        { x: 210, y: -22, s: 34, c: "#FEF08A" },
-        { x: 224, y: 54, s: 26, c: "#EF4444" },
+        { x: -34, y: -18, s: 30, c: POP_PALETTE.yellowDeep },
+        { x: 210, y: -22, s: 34, c: POP_PALETTE.yellowLight },
+        { x: 224, y: 54, s: 26, c: POP_PALETTE.shoutRedLight },
       ].map((st, idx) => (
         <span
           key={idx}
@@ -67,8 +68,8 @@ export const HoraCallout: React.FC<HoraCalloutProps> = ({ sec }) => {
             '"Excalifont", "Segoe Print", "Comic Sans MS", "Hiragino Maru Gothic ProN", cursive, sans-serif',
           fontSize: 68,
           fontWeight: 900,
-          color: "#E11D48",
-          WebkitTextStroke: "10px #FACC15",
+          color: POP_PALETTE.shoutRed,
+          WebkitTextStroke: `10px ${POP_PALETTE.cream}`,
           paintOrder: "stroke fill",
           textShadow: "0px 8px 18px rgba(0, 0, 0, 0.48)",
           letterSpacing: 2,

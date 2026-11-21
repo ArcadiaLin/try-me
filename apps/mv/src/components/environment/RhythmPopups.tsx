@@ -5,6 +5,7 @@ import {
   type ScoreDrumEvent,
   type ScoreDrumKind,
 } from "../../timeline/score-drums-v2";
+import { POP_PALETTE } from "../../styles/palette";
 
 export type RhythmPopupKind = ScoreDrumKind;
 export type RhythmPopupEvent = ScoreDrumEvent;
@@ -145,7 +146,7 @@ const EmojiClapIcon: React.FC<{ isDoubleSecond?: boolean }> = ({
 }) => (
   <svg width={58} height={58} viewBox="0 0 64 64" style={{ overflow: "visible" }}>
     {/* 左上/顶部水滴形拍击光芒（👏 经典三道/五道拍击水滴线） */}
-    <g fill={isDoubleSecond ? "#FEF08A" : "#FDBA74"} stroke="#11131F" strokeWidth={1.6}>
+    <g fill={isDoubleSecond ? POP_PALETTE.yellowLight : "#FDBA74"} stroke="#11131F" strokeWidth={1.6}>
       {/* 中央水滴光芒 */}
       <path d="M 27 5 C 28.5 5 30 11 28.5 14.5 C 27 16 25 14.5 25 11.5 C 25 8 25.5 5 27 5 Z" />
       {/* 左侧水滴光芒 */}
@@ -200,7 +201,7 @@ const EmojiClapIcon: React.FC<{ isDoubleSecond?: boolean }> = ({
         cy={45}
         rx={5.2}
         ry={3.4}
-        fill="#FEF08A"
+        fill={POP_PALETTE.yellowLight}
         opacity={0.78}
       />
     </g>
@@ -216,7 +217,7 @@ const SnareDrumIcon: React.FC = () => (
     {/* 鼓槌敲击中心脆亮火花 */}
     <polygon
       points="32,15 34.5,20.5 40,21.5 35.5,25 37,30.5 32,27.2 27,30.5 28.5,25 24,21.5 29.5,20.5"
-      fill="#FDE047"
+      fill={POP_PALETTE.yellow}
     />
     {/* 交叉鼓槌 */}
     <g stroke="#11131F" strokeWidth={5.5} strokeLinecap="round">
@@ -290,7 +291,7 @@ const CymbalHatIcon: React.FC<{ isCrash?: boolean }> = ({
           : "M 6 25 Q 3 32 6 39 M 58 25 Q 61 32 58 39"
       }
       fill="none"
-      stroke="#FDE047"
+      stroke={POP_PALETTE.yellow}
       strokeWidth={2.8}
       strokeLinecap="round"
     />
@@ -312,7 +313,7 @@ const CymbalHatIcon: React.FC<{ isCrash?: boolean }> = ({
           cy={28}
           rx={25}
           ry={7.5}
-          fill="#FACC15"
+          fill={POP_PALETTE.yellowDeep}
           stroke="#11131F"
           strokeWidth={3.0}
         />
@@ -321,7 +322,7 @@ const CymbalHatIcon: React.FC<{ isCrash?: boolean }> = ({
           cy={26.5}
           rx={8.5}
           ry={3.2}
-          fill="#FEF08A"
+          fill={POP_PALETTE.yellowLight}
           stroke="#11131F"
           strokeWidth={2.2}
         />
@@ -345,7 +346,7 @@ const CymbalHatIcon: React.FC<{ isCrash?: boolean }> = ({
           cy={29.5}
           rx={22}
           ry={5.2}
-          fill="#FDE047"
+          fill={POP_PALETTE.yellow}
           stroke="#11131F"
           strokeWidth={2.8}
         />

@@ -1,6 +1,7 @@
 import React from "react";
 import { interpolate } from "remotion";
 import { linearProg, smoothStep } from "../../animation/clawd/motion-style";
+import { POP_PALETTE } from "../../styles/palette";
 
 export const PARAM_TOKENS = [
   "∇W₁",
@@ -200,9 +201,9 @@ export const PretrainField: React.FC<PretrainFieldProps> = ({ sec }) => {
           const mergeIcons = smoothStep(sec, 48.35, 48.62);
           const showMedal = smoothStep(sec, 48.56, 48.84);
           const items = [
-            { sym: "Aa", color: "#38BDF8", start: 0.05, dx: -105 },
-            { sym: "</>", color: "#4ADE80", start: 0.17, dx: 0 },
-            { sym: "◇", color: "#F472B6", start: 0.29, dx: 105 },
+            { sym: "Aa", color: POP_PALETTE.mint, start: 0.05, dx: -105 },
+            { sym: "</>", color: POP_PALETTE.lime, start: 0.17, dx: 0 },
+            { sym: "◇", color: POP_PALETTE.pinkLight, start: 0.29, dx: 105 },
           ];
 
           return (
@@ -217,8 +218,8 @@ export const PretrainField: React.FC<PretrainFieldProps> = ({ sec }) => {
                   [-42, 0],
                 )}px)`,
                 opacity: panelPresence,
-                backgroundColor: "#0F172A",
-                border: `3px solid ${showMedal > 0.3 ? "#FACC15" : "#38BDF8"}`,
+                backgroundColor: POP_PALETTE.ink,
+                border: `3px solid ${showMedal > 0.3 ? POP_PALETTE.yellowDeep : POP_PALETTE.mint}`,
                 borderRadius: 16,
                 padding: "10px 28px",
                 width: 440,
@@ -244,12 +245,12 @@ export const PretrainField: React.FC<PretrainFieldProps> = ({ sec }) => {
                         })`,
                         opacity: Math.max(0, 1 - mergeIcons * 1.15),
                         backgroundColor: done ? it.color : "#1E293B",
-                        color: done ? "#0F172A" : "#64748B",
+                        color: done ? POP_PALETTE.ink : "#64748B",
                         fontSize: 22,
                         fontWeight: 900,
                         padding: "6px 16px",
                         borderRadius: 10,
-                        border: "2px solid #0F172A",
+                        border: `2px solid ${POP_PALETTE.ink}`,
                         fontFamily: "monospace",
                       }}
                     >
@@ -277,8 +278,8 @@ export const PretrainField: React.FC<PretrainFieldProps> = ({ sec }) => {
                       width: 48,
                       height: 48,
                       borderRadius: "50%",
-                      backgroundColor: "#FACC15",
-                      border: "3px solid #FEF08A",
+                      backgroundColor: POP_PALETTE.yellowDeep,
+                      border: `3px solid ${POP_PALETTE.yellowLight}`,
                       display: "flex",
                       justifyContent: "center",
                       alignItems: "center",
@@ -294,7 +295,7 @@ export const PretrainField: React.FC<PretrainFieldProps> = ({ sec }) => {
                     style={{
                       fontSize: 26,
                       fontWeight: 900,
-                      color: "#FEF08A",
+                      color: POP_PALETTE.yellowLight,
                       letterSpacing: 1.5,
                     }}
                   >

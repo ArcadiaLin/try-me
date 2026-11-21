@@ -1,5 +1,17 @@
 # 决策记录
 
+## D032 — 2026-11-21：前景波普色板切换为「汽水糖果」并收敛至 `styles/palette.ts`
+
+- 用户确认采用对比预览中的方案 C（「汽水糖果」色板），替换此前偏 Tailwind 默认模板感的前景强调色与墨线色。
+- 新建 `apps/mv/src/styles/palette.ts` 集中定义 `POP_PALETTE`（茄紫深墨 `#22182E`、暖奶油 `#FFF0D0`、蛋黄 `#FFC83D`、泡泡糖粉 `#FF7FB0`、薄荷汽水青 `#3ED6C5`、青柠绿 `#A6E86B`、喊叫朱红 `#FF4B2B` 及对应深浅阶）与 `CLAWD_TERRACOTTA`（`#D87757`），并将 8 个前景漫画与道具组件（`PromptAndSwissKnife`、`RhythmPopups`、`MultilangBubble`、`PretrainField`、`HoraCallout`、`TrumpetProp`、`KeyboardProp`、`ClawdVerse1Stage`）改为引用 `POP_PALETTE`；L065「ほら！」描边同步改为暖奶油 `#FFF0D0`。
+- 舞台底色、Clawd 本体、底部终端与冷灰金属工具保持不变；同步更新 `AGENTS.md` 色彩与线条规范。
+
+## D031 — 2026-11-21：视觉与动效风格基调写入 AGENTS.md
+
+- 用户在 `AGENTS.md` 新增「视觉与动效风格基调」（日系波普漫画 × KKB 式塑料玩具感 × 极客终端舞台），并授权 Agent 补充边界。基调由 D029、D030 与 `L065`「ほら！」样片归纳，作为后续段落的默认约束，色值与参数在全曲样片中继续校准。
+- 补充内容：终端语言与漫画语言分工；Clawd 陶土橙 `#D87757` 专用；深红 `#E11D48` 作为喊叫类稀缺重音色（与现有「ほら！」一致）；单画面前景强调色一般不超过 3 种；每句最多一个漫画主焦点、安静句留白；Snap-Lock 锁定帧对齐命中帧；明确不采用的视觉手法；正式渲染字体须随项目加载并登记许可。
+- 已知差距（未修改代码）：`PromptAndSwissKnife.tsx` 的 `CARTOON_FONT` 目前依赖系统字体回退，正式渲染前需改为随项目加载的字体并登记 `docs/assets.md`。
+
 ## D030 — 2026-11-21：L002–L004 漫画风格、逐字时序与动作收敛
 
 - 用户授权优化卡通与卡点，保留 D029 叙事和共享 Clawd。Prompt 改为纸色粗描边与硬阴影；文字参照「ほら！」采用红字黄描边。

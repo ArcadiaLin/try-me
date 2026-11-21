@@ -1,6 +1,7 @@
 import React from "react";
 import { interpolate } from "remotion";
 import type { StageKeyboardState } from "../../timeline/rhythm-timing";
+import { POP_PALETTE } from "../../styles/palette";
 import { CLAWD_MODEL } from "../clawd/model";
 import type { ClawdPose } from "../clawd/types";
 
@@ -102,7 +103,7 @@ export const KeyboardProp: React.FC<KeyboardPropProps> = ({
         fill="#D87757"
         rx={0.05}
       />
-      <circle cx={13.95} cy={0.27} r={0.1} fill="#38BDF8" />
+      <circle cx={13.95} cy={0.27} r={0.1} fill={POP_PALETTE.mint} />
       <circle cx={14.32} cy={0.27} r={0.1} fill="#FDBA74" />
 
       {/* 键床内凹暗槽 */}
@@ -196,7 +197,7 @@ export const KeyboardProp: React.FC<KeyboardPropProps> = ({
               width={blackW - 0.08}
               height={topH}
               rx={0.04}
-              fill={isPressed ? "#FDE047" : "#262B40"}
+              fill={isPressed ? POP_PALETTE.yellow : "#262B40"}
             />
           </g>
         );

@@ -28,6 +28,7 @@ export {
   L003_TOKUI_CHARS,
   L003_TOKUI_MERGE_SEC,
   L003_TOOLS_BURST_SEC,
+  L004_SHOWCASE_BEAT_SEC,
   L004_TOOLS_FOLD_SEC,
   PromptAndSwissKnife,
   sampleL002PromptLook,

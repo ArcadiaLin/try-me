@@ -1,5 +1,6 @@
 import React from "react";
 import { interpolate } from "remotion";
+import { POP_PALETTE } from "../../styles/palette";
 import type { ClawdPose } from "../clawd/types";
 
 export interface TrumpetPropProps {
@@ -53,9 +54,9 @@ export const TrumpetProp: React.FC<TrumpetPropProps> = ({
         strokeWidth={0.18}
       />
       {/* 活塞按键与下部回管 */}
-      <rect x={11.1} y={3.15} width={0.42} height={0.65} fill="#FEF08A" />
-      <rect x={11.8} y={3.15} width={0.42} height={0.65} fill="#FEF08A" />
-      <rect x={12.5} y={3.15} width={0.42} height={0.65} fill="#FEF08A" />
+      <rect x={11.1} y={3.15} width={0.42} height={0.65} fill={POP_PALETTE.yellowLight} />
+      <rect x={11.8} y={3.15} width={0.42} height={0.65} fill={POP_PALETTE.yellowLight} />
+      <rect x={12.5} y={3.15} width={0.42} height={0.65} fill={POP_PALETTE.yellowLight} />
       <rect
         x={10.6}
         y={4.5}
@@ -88,8 +89,8 @@ export const TrumpetProp: React.FC<TrumpetPropProps> = ({
       {/* 吹奏期间飘出的两枚短暂几何音符 */}
       {isPlaying &&
         [
-          { delay: 0.05, color: "#38BDF8", dy: -1.6 },
-          { delay: 0.32, color: "#F472B6", dy: -2.8 },
+          { delay: 0.05, color: POP_PALETTE.mint, dy: -1.6 },
+          { delay: 0.32, color: POP_PALETTE.pinkLight, dy: -2.8 },
         ].map((n, idx) => {
           const np = Math.max(0, Math.min(1, (playPhase - n.delay) / 0.55));
           if (np <= 0 || np >= 1) return null;

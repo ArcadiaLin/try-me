@@ -7,6 +7,7 @@ import {
   GITHUB_HEAT_COLORS,
   PARAM_TOKENS,
 } from "./environment";
+import { POP_PALETTE } from "../styles/palette";
 
 export type Verse1PropStageId =
   | "L006"
@@ -30,28 +31,28 @@ const MULTILANG_LINES = [
   {
     lang: "EN",
     text: "I speak different languages",
-    color: "#38BDF8",
+    color: POP_PALETTE.mint,
     start: 0.06,
     end: 0.78,
   },
   {
     lang: "ZH",
     text: "我会说不同的语言",
-    color: "#F59E0B",
+    color: POP_PALETTE.amberMid,
     start: 0.06,
     end: 0.78,
   },
   {
     lang: "JA",
     text: "いろんな言葉が話せるよ",
-    color: "#F472B6",
+    color: POP_PALETTE.pinkLight,
     start: 0.06,
     end: 0.78,
   },
   {
     lang: "ES",
     text: "Hablo diferentes idiomas",
-    color: "#4ADE80",
+    color: POP_PALETTE.lime,
     start: 0.06,
     end: 0.78,
   },
@@ -415,7 +416,7 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                 transformOrigin: "bottom left",
                 opacity: bubbleIn,
                 backgroundColor: "#F8FAFC",
-                color: "#0F172A",
+                color: POP_PALETTE.ink,
                 border: "2px solid #11131F",
                 borderRadius: 9,
                 padding: "5px 7px",
@@ -455,7 +456,7 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                           padding: "0px 3px",
                           borderRadius: 2.5,
                           backgroundColor: isStarted ? line.color : "#CBD5E1",
-                          color: "#0F172A",
+                          color: POP_PALETTE.ink,
                           flexShrink: 0,
                         }}
                       >
@@ -479,7 +480,7 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                       style={{
                         fontSize: idx === 4 ? 10.5 : 8.2,
                         fontWeight: 700,
-                        color: "#0F172A",
+                        color: POP_PALETTE.ink,
                         whiteSpace: "nowrap",
                         letterSpacing: -0.2,
                       }}
@@ -491,7 +492,7 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                             display: "inline-block",
                             width: 3.5,
                             height: 8.5,
-                            backgroundColor: "#0F172A",
+                            backgroundColor: POP_PALETTE.ink,
                             marginLeft: 1,
                             verticalAlign: "middle",
                           }}
@@ -592,7 +593,7 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                           padding: "0px 2.5px",
                           borderRadius: 2,
                           backgroundColor: line.color,
-                          color: "#0F172A",
+                          color: POP_PALETTE.ink,
                         }}
                       >
                         {line.lang}
@@ -614,7 +615,7 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                       style={{
                         fontSize: 7.8,
                         fontWeight: 700,
-                        color: "#0F172A",
+                        color: POP_PALETTE.ink,
                         whiteSpace: "nowrap",
                         letterSpacing: -0.2,
                       }}
@@ -632,14 +633,14 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                     width: 18,
                     height: 18,
                     borderRadius: 4,
-                    backgroundColor: "#FACC15",
+                    backgroundColor: POP_PALETTE.yellowDeep,
                     border: "1.5px solid #11131F",
                     display: "flex",
                     justifyContent: "center",
                     alignItems: "center",
                     fontSize: 11,
                     fontWeight: 900,
-                    color: "#0F172A",
+                    color: POP_PALETTE.ink,
                   }}
                 >
                   ★
@@ -669,11 +670,11 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                     width: 12,
                     height: 12,
                     borderRadius: 3,
-                    backgroundColor: "#FACC15",
+                    backgroundColor: POP_PALETTE.yellowDeep,
                     border: "1px solid #11131F",
                     fontSize: 8,
                     fontWeight: 800,
-                    color: "#0F172A",
+                    color: POP_PALETTE.ink,
                     display: "flex",
                     justifyContent: "center",
                     alignItems: "center",
@@ -686,7 +687,7 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                 </div>
                 <svg width={44} height={42} viewBox="0 0 10 10">
                   {/* 极简小帽檐配件 */}
-                  <rect x={2} y={0.8} width={6.5} height={1.1} fill="#38BDF8" />
+                  <rect x={2} y={0.8} width={6.5} height={1.1} fill={POP_PALETTE.mint} />
                   {/* 极简听众方块主体 */}
                   <rect
                     x={1.5}
@@ -698,8 +699,8 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                     strokeWidth={0.4}
                   />
                   {/* 视线朝向中央气泡 */}
-                  <rect x={3.8} y={3.1} width={0.8} height={1.5} fill="#0F172A" />
-                  <rect x={6.0} y={3.1} width={0.8} height={1.5} fill="#0F172A" />
+                  <rect x={3.8} y={3.1} width={0.8} height={1.5} fill={POP_PALETTE.ink} />
+                  <rect x={6.0} y={3.1} width={0.8} height={1.5} fill={POP_PALETTE.ink} />
                   <rect x={2.5} y={7.6} width={1.1} height={2.2} fill="#64748B" />
                   <rect x={5.8} y={7.6} width={1.1} height={2.2} fill="#64748B" />
                 </svg>
@@ -727,11 +728,11 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                     width: 12,
                     height: 12,
                     borderRadius: 3,
-                    backgroundColor: "#FACC15",
+                    backgroundColor: POP_PALETTE.yellowDeep,
                     border: "1px solid #11131F",
                     fontSize: 8,
                     fontWeight: 800,
-                    color: "#0F172A",
+                    color: POP_PALETTE.ink,
                     display: "flex",
                     justifyContent: "center",
                     alignItems: "center",
@@ -744,8 +745,8 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                 </div>
                 <svg width={44} height={42} viewBox="0 0 10 10">
                   {/* 极简小呆毛/发卡配件 */}
-                  <rect x={4.6} y={0.3} width={0.9} height={1.5} fill="#F472B6" />
-                  <rect x={3.8} y={0.3} width={2.4} height={0.7} fill="#F472B6" />
+                  <rect x={4.6} y={0.3} width={0.9} height={1.5} fill={POP_PALETTE.pinkLight} />
+                  <rect x={3.8} y={0.3} width={2.4} height={0.7} fill={POP_PALETTE.pinkLight} />
                   {/* 极简听众方块主体 */}
                   <rect
                     x={2.0}
@@ -757,8 +758,8 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                     strokeWidth={0.4}
                   />
                   {/* 视线朝向中央气泡 */}
-                  <rect x={3.2} y={3.1} width={0.8} height={1.5} fill="#0F172A" />
-                  <rect x={5.4} y={3.1} width={0.8} height={1.5} fill="#0F172A" />
+                  <rect x={3.2} y={3.1} width={0.8} height={1.5} fill={POP_PALETTE.ink} />
+                  <rect x={5.4} y={3.1} width={0.8} height={1.5} fill={POP_PALETTE.ink} />
                   <rect x={3.0} y={7.6} width={1.1} height={2.2} fill="#4D7C73" />
                   <rect x={6.3} y={7.6} width={1.1} height={2.2} fill="#4D7C73" />
                 </svg>
@@ -955,9 +956,9 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
             extrapolateRight: "clamp",
           });
           const items = [
-            { sym: "Aa", color: "#38BDF8", start: 0.05, dx: -38 },
-            { sym: "</>", color: "#4ADE80", start: 0.17, dx: 0 },
-            { sym: "◇", color: "#F472B6", start: 0.29, dx: 38 },
+            { sym: "Aa", color: POP_PALETTE.mint, start: 0.05, dx: -38 },
+            { sym: "</>", color: POP_PALETTE.lime, start: 0.17, dx: 0 },
+            { sym: "◇", color: POP_PALETTE.pinkLight, start: 0.29, dx: 38 },
           ];
 
           return (
@@ -972,8 +973,8 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                   [-22, 0],
                 )}px)`,
                 opacity: panelOut,
-                backgroundColor: "#0F172A",
-                border: `1.5px solid ${showMedal > 0.3 ? "#FACC15" : "#38BDF8"}`,
+                backgroundColor: POP_PALETTE.ink,
+                border: `1.5px solid ${showMedal > 0.3 ? POP_PALETTE.yellowDeep : POP_PALETTE.mint}`,
                 borderRadius: 8,
                 padding: "4px 12px",
                 width: 176,
@@ -999,12 +1000,12 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                         })`,
                         opacity: Math.max(0, 1 - mergeIcons * 1.15),
                         backgroundColor: done ? it.color : "#1E293B",
-                        color: done ? "#0F172A" : "#64748B",
+                        color: done ? POP_PALETTE.ink : "#64748B",
                         fontSize: 9,
                         fontWeight: 800,
                         padding: "2px 6px",
                         borderRadius: 4,
-                        border: "1px solid #0F172A",
+                        border: `1px solid ${POP_PALETTE.ink}`,
                       }}
                     >
                       {it.sym}
@@ -1032,8 +1033,8 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                       width: 20,
                       height: 20,
                       borderRadius: "50%",
-                      backgroundColor: "#FACC15",
-                      border: "2px solid #FEF08A",
+                      backgroundColor: POP_PALETTE.yellowDeep,
+                      border: `2px solid ${POP_PALETTE.yellowLight}`,
                       display: "flex",
                       justifyContent: "center",
                       alignItems: "center",
@@ -1049,7 +1050,7 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                     style={{
                       fontSize: 10,
                       fontWeight: 800,
-                      color: "#FEF08A",
+                      color: POP_PALETTE.yellowLight,
                     }}
                   >
                     TOP CLASS
@@ -1095,9 +1096,9 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
             >
               {/* 少量星形点缀 */}
               {[
-                { x: -12, y: -6, s: 11, c: "#FACC15" },
-                { x: 76, y: -8, s: 13, c: "#FEF08A" },
-                { x: 82, y: 20, s: 10, c: "#EF4444" },
+                { x: -12, y: -6, s: 11, c: POP_PALETTE.yellowDeep },
+                { x: 76, y: -8, s: 13, c: POP_PALETTE.yellowLight },
+                { x: 82, y: 20, s: 10, c: POP_PALETTE.shoutRedLight },
               ].map((st, idx) => (
                 <span
                   key={idx}
@@ -1120,8 +1121,8 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                     '"Excalifont", "Segoe Print", "Comic Sans MS", "Hiragino Maru Gothic ProN", cursive, sans-serif',
                   fontSize: 24,
                   fontWeight: 900,
-                  color: "#E11D48",
-                  WebkitTextStroke: "4px #FACC15",
+                  color: POP_PALETTE.shoutRed,
+                  WebkitTextStroke: `4px ${POP_PALETTE.cream}`,
                   paintOrder: "stroke fill",
                   textShadow: "0px 3px 6px rgba(0,0,0,0.45)",
                   letterSpacing: 1,

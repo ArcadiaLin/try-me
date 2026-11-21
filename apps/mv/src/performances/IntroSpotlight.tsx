@@ -11,6 +11,7 @@ import { linearProg } from "../animation/clawd/motion-style";
 import type { ClawdPose } from "../components/clawd/types";
 import {
   L003_TOOLS_BURST_SEC,
+  L004_SHOWCASE_BEAT_SEC,
   L004_TOOLS_FOLD_SEC,
   PromptAndSwissKnife,
   sampleL002PromptLook,
@@ -140,17 +141,17 @@ export function resolveIntroSpotlightActor(
       actionProgress: linearProg(sec, 25.18, 27.12),
     };
   }
-  if (sec < 31.695) {
-    // L003 (27.161s–31.695s): 左上方逐拍贴出「と・く・い」→ 合成为「得意な」→ 箭头指向自己 → 30.27s 瞬间全展开细金属折臂工具
+  if (sec < L004_SHOWCASE_BEAT_SEC) {
+    // 27.161s–32.61s: 盯字「と・く・い → 得意な」→ 30.92s 箭头拍（不展开）→ 32.05s 展开拍（淡定普通眼唰地开武装）
     return {
       ...base,
       action: "idle",
-      actionProgress: linearProg(sec, 27.161, 31.695),
+      actionProgress: linearProg(sec, 27.161, L004_SHOWCASE_BEAT_SEC),
     };
   }
   if (sec < 34.026) {
-    // L004 (31.695s–34.026s): 自己アピール！全套细金属工具展开状态下 ^ ^ 得意笑眼展示，33.62s 干脆合刀收回
-    const isAppealSmile = sec >= 31.72 && sec <= 33.65;
+    // 32.61s–34.026s: 亮招高潮拍切 ^ ^ 得意笑眼 + self-present 自信展示，33.62s 干脆合刀收回
+    const isAppealSmile = sec <= 33.65;
     return {
       ...base,
       action: "self-present",
@@ -291,11 +292,11 @@ export function resolvePreludeAndSpotlightStage(
     const promptLook = sampleL002PromptLook(sec);
     // L003–L004 (27.161s–34.026s) 瑞士军刀干脆弹锁时的机械顿点反馈
     const swissKick = sampleL003SwissSnapKick(sec);
-    // Quiet observer during the text/tool presentation. Ease at both edges
-    // and attenuate the underlying groove as well as the added reactions.
+    // 27.16s–31.95s 盯字、等箭头与瞬间展开时保持克制静谧；
+    // 32.05s 亮招拍切 ^ ^ 笑眼时释放回完整律动，让 L004 后半段活泼展示不发呆
     const quiet = interpolate(
       sec,
-      [27.161, 27.36, 33.8, 34.026],
+      [27.161, 27.36, L004_SHOWCASE_BEAT_SEC - 0.12, L004_SHOWCASE_BEAT_SEC + 0.04],
       [1, 0.2, 0.2, 1],
       clamp,
     );
@@ -367,9 +368,13 @@ export function resolveVerse1Spotlight(
         ) *
         (1 - release);
 
-  // L003–L004 (30.27s–33.75s) 瞬间展开全套细金属工具时，光圈同步干脆撑宽
+  // L003–L004 (31.49s–33.75s) 瞬间展开全套细金属工具时光圈撑宽；32.05s 亮招拍再轻扩一格
   const fanSpotExpand =
     sampleSnapOpen(sec, L003_TOOLS_BURST_SEC) *
+    sampleSnapFold(sec, L004_TOOLS_FOLD_SEC) *
+    (1 - release);
+  const showcaseSpotBoost =
+    sampleSnapOpen(sec, L004_SHOWCASE_BEAT_SEC) *
     sampleSnapFold(sec, L004_TOOLS_FOLD_SEC) *
     (1 - release);
 
@@ -377,9 +382,9 @@ export function resolveVerse1Spotlight(
     x: spotX,
     iris: spotIris * (1 - Math.max(0, (sec - SPOT_RELEASE_END) / 0.1)),
     ambient,
-    rx: 150 + 145 * fanSpotExpand + 1150 * release,
-    ry: 30 + 10 * fanSpotExpand + 15 * release,
-    lampHalfWidth: 14 + 28 * fanSpotExpand + 900 * release,
+    rx: 150 + 135 * fanSpotExpand + 26 * showcaseSpotBoost + 1150 * release,
+    ry: 30 + 10 * fanSpotExpand + 3 * showcaseSpotBoost + 15 * release,
+    lampHalfWidth: 14 + 26 * fanSpotExpand + 6 * showcaseSpotBoost + 900 * release,
     glow: (1 - release) ** 2,
   };
 }
