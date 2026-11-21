@@ -57,7 +57,9 @@ const HOLE_X = -270;
 const HOLE_OPEN: [number, number] = [34.55, 34.8];
 const HOLE_CLOSE: [number, number] = [35.95, 36.2];
 /** 先一小跳靠近洞口（落在候选半拍点 35.017s） */
-const EXIT_HOPS: HopSpec[] = [{ takeoffSec: 34.84, landSec: 35.017, toX: -125 }];
+const EXIT_HOPS: HopSpec[] = [
+  { takeoffSec: 34.84, landSec: 35.017, toX: -125 },
+];
 const DIVE_FROM_X = -125;
 /** 起跳前下压 */
 const DIVE_LOAD = 35.06;
@@ -91,7 +93,8 @@ function sampleDive(s: number) {
 }
 
 function clawdXAt(s: number) {
-  if (s < DIVE_TAKEOFF) return sampleHopTravel(s, VERSE1_PRELUDE_SIDE_X, ALL_HOPS).x;
+  if (s < DIVE_TAKEOFF)
+    return sampleHopTravel(s, VERSE1_PRELUDE_SIDE_X, ALL_HOPS).x;
   return sampleDive(s).x;
 }
 
@@ -288,15 +291,29 @@ export function resolvePreludeAndSpotlightStage(
     const promptLook = sampleL002PromptLook(sec);
     // L003–L004 (27.161s–34.026s) 瑞士军刀干脆弹锁时的机械顿点反馈
     const swissKick = sampleL003SwissSnapKick(sec);
+    // Quiet observer during the text/tool presentation. Ease at both edges
+    // and attenuate the underlying groove as well as the added reactions.
+    const quiet = interpolate(
+      sec,
+      [27.161, 27.36, 33.8, 34.026],
+      [1, 0.2, 0.2, 1],
+      clamp,
+    );
 
     pose = {
       ...hopped,
-      bodyOffsetY: hopped.bodyOffsetY + swissKick.kickY,
-      torsoTiltDeg: hopped.torsoTiltDeg + promptLook.tiltDeg,
-      scaleX: hopped.scaleX * (1 + swissKick.scaleKick),
-      scaleY: hopped.scaleY * (1 - swissKick.scaleKick * 0.5),
-      leftArmOffsetY: hopped.leftArmOffsetY + swissKick.kickY,
-      rightArmOffsetY: hopped.rightArmOffsetY + swissKick.kickY,
+      bodyOffsetX: hopped.bodyOffsetX * quiet,
+      bodyOffsetY: hopped.bodyOffsetY * quiet + swissKick.kickY,
+      torsoTiltDeg:
+        hopped.torsoTiltDeg * quiet +
+        promptLook.tiltDeg * quiet +
+        swissKick.tilt,
+      scaleX: (1 + (hopped.scaleX - 1) * quiet) * (1 + swissKick.scaleKick),
+      scaleY: (1 + (hopped.scaleY - 1) * quiet) / (1 + swissKick.scaleKick),
+      leftArmExtend: hopped.leftArmExtend + swissKick.arm,
+      rightArmExtend: hopped.rightArmExtend + swissKick.arm,
+      leftArmOffsetY: hopped.leftArmOffsetY * quiet + swissKick.kickY,
+      rightArmOffsetY: hopped.rightArmOffsetY * quiet + swissKick.kickY,
       actionLook: {
         x: hopped.actionLook.x + lookX + promptLook.lookX,
         y: hopped.actionLook.y + lookUp + promptLook.lookY,

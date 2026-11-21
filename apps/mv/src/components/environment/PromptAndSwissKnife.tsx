@@ -89,35 +89,43 @@ export const L003_TOKUI_CHARS = [
   {
     char: "と",
     spawnSec: 27.43,
-    offsetX: -62,
+    offsetX: -93,
     offsetY: 14,
     rotDeg: -16,
-    color: "#FDE047",
+    color: "#E11D48",
   },
   {
     char: "く",
-    spawnSec: 28.0,
-    offsetX: 0,
+    spawnSec: 28.15,
+    offsetX: -31,
     offsetY: -8,
     rotDeg: -3,
-    color: "#F8FAFC",
+    color: "#E11D48",
   },
   {
     char: "い",
-    spawnSec: 28.6,
-    offsetX: 62,
+    spawnSec: 28.82,
+    offsetX: 31,
     offsetY: 10,
     rotDeg: 14,
-    color: "#FDE047",
+    color: "#E11D48",
+  },
+  {
+    char: "な",
+    spawnSec: 30.15,
+    offsetX: 93,
+    offsetY: 20,
+    rotDeg: 16,
+    color: "#E11D48",
   },
 ] as const;
 
-/** 合成为卡通艺术字「得意な」的时刻（F874 = 29.13s） */
-export const L003_TOKUI_MERGE_SEC = 29.13;
-/** 卡通弧线箭头从「得意な」射向 Clawd 自己的时刻（F891 = 29.70s） */
-export const L003_ARROW_POINT_SEC = 29.7;
-/** 箭头指中后瞬间展开全套不规则细金属折臂工具的时刻（F908 = 30.27s） */
-export const L003_TOOLS_BURST_SEC = 30.27;
+/** 用户逐字时序；「な」在 30.15s 出现时开始合字。 */
+export const L003_TOKUI_MERGE_SEC = L003_TOKUI_CHARS[3].spawnSec;
+/** 合字后，卡通弧线箭头在 30.36s 开始指向 Clawd。 */
+export const L003_ARROW_POINT_SEC = 30.36;
+/** 箭头指中后，在 30.93s 展开全套细金属折臂工具。 */
+export const L003_TOOLS_BURST_SEC = 30.93;
 /** 工具与左上「得意な + 箭头」一同收起的时刻（33.62s） */
 export const L004_TOOLS_FOLD_SEC = 33.62;
 
@@ -340,8 +348,18 @@ export function sampleL002PromptLook(sec: number): {
       ...clamp,
       easing: Easing.out(Easing.cubic),
     });
-    const step2 = interpolate(sec, [27.96, 28.08], [0, 1], clamp);
-    const step3 = interpolate(sec, [28.56, 28.68], [0, 1], clamp);
+    const step2 = interpolate(
+      sec,
+      [L003_TOKUI_CHARS[1].spawnSec, L003_TOKUI_CHARS[1].spawnSec + 0.12],
+      [0, 1],
+      clamp,
+    );
+    const step3 = interpolate(
+      sec,
+      [L003_TOKUI_CHARS[2].spawnSec, L003_TOKUI_CHARS[2].spawnSec + 0.12],
+      [0, 1],
+      clamp,
+    );
     const mergeStep = interpolate(
       sec,
       [L003_TOKUI_MERGE_SEC - 0.03, L003_TOKUI_MERGE_SEC + 0.1],
@@ -381,27 +399,48 @@ export function sampleL003SwissSnapKick(sec: number): {
   kickY: number;
   scaleKick: number;
   appealBoost: number;
+  tilt: number;
+  arm: number;
 } {
   const snapTimes = [
-    { t: L003_TOKUI_MERGE_SEC, amp: 0.45 },
-    { t: L003_TOOLS_BURST_SEC, amp: 1.45 },
-    { t: 31.695, amp: 0.9 },
+    // Looking between prompts/characters only uses sampleL002PromptLook.
+    // Save whole-body squash and arm reactions for the actual reveal.
+    { t: L003_TOOLS_BURST_SEC, amp: 0.3 },
+    { t: 31.695, amp: 0.2 },
   ];
   let kickY = 0;
   let scaleKick = 0;
-  for (const { t: t0, amp } of snapTimes) {
-    if (sec >= t0 && sec <= t0 + 0.18) {
-      const p = (sec - t0) / 0.18;
-      const impulse = Math.sin(p * Math.PI) * (1 - p * 0.4);
-      kickY -= 0.24 * impulse * amp;
-      scaleKick += 0.032 * impulse * amp;
+  const tilt = 0;
+  let arm = 0;
+  for (const hit of snapTimes) {
+    const dt = sec - hit.t;
+    if (dt >= -0.1 && dt <= 0.4) {
+      // Anticipate for three frames, hit on the cue, hold the silhouette,
+      // then recover once. No endless spring wobble between accents.
+      const squash =
+        interpolate(
+          dt,
+          [-0.1, -0.034, 0, 0.067, 0.13, 0.23, 0.4],
+          [0, 0.1, -0.17, -0.17, 0.12, -0.025, 0],
+          clamp,
+        ) * hit.amp;
+      scaleKick += squash;
+      kickY +=
+        interpolate(
+          dt,
+          [-0.1, -0.034, 0, 0.067, 0.13, 0.4],
+          [0, 0.26, -0.6, -0.6, 0.18, 0],
+          clamp,
+        ) * hit.amp;
+      arm +=
+        interpolate(dt, [-0.1, 0, 0.1, 0.4], [0, 0.7, 0.7, 0], clamp) * hit.amp;
     }
   }
   const appealBoost =
     interpolate(sec, [31.695, 31.82], [0, 1], clamp) *
     interpolate(sec, [33.55, 33.72], [1, 0], clamp);
 
-  return { kickY, scaleKick, appealBoost };
+  return { kickY, scaleKick, appealBoost, tilt, arm };
 }
 
 /**
@@ -755,10 +794,10 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
         easing: Easing.inOut(Easing.cubic),
       },
     );
-    const kanjiSnap = sampleSnapOpen(sec, L003_TOKUI_MERGE_SEC + 0.05);
+    const kanjiSnap = sampleSnapOpen(sec, L003_TOKUI_MERGE_SEC);
     const arrowProg = interpolate(
       sec,
-      [L003_ARROW_POINT_SEC, L003_ARROW_POINT_SEC + 0.18],
+      [L003_ARROW_POINT_SEC, L003_ARROW_POINT_SEC + 0.18 / 0.75],
       [0, 1],
       {
         ...clamp,
@@ -798,7 +837,12 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
                 : 25.32;
             const isFocused = sec >= b.spawnSec && sec < nextSpawn + 0.12;
 
-            const floatY = Math.sin((sec - b.spawnSec) * 3.2 + idx) * 3.5;
+            const floatY = interpolate(
+              sec - b.spawnSec,
+              [0, 0.067, 0.14, 0.25],
+              [24, -9, 3, 0],
+              clamp,
+            );
             const scale = popScale * (1 - l002Out * 0.85);
             const opacity = clamp01(popT * 2.2) * (1 - l002Out);
             const isLeft = b.x < 0;
@@ -811,15 +855,13 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
                   left: `calc(50% + ${clawdX + b.x}px)`,
                   top: b.y + floatY,
                   width: b.width,
-                  transform: `translate(-50%, -50%) scale(${scale})`,
+                  transform: `translate(-50%, -50%) rotate(${(isLeft ? -1 : 1) * (isFocused ? 5 : 2)}deg) scale(${scale * (isFocused ? 1.04 : 0.94)}, ${scale})`,
                   opacity,
-                  backgroundColor: "#141624",
-                  border: `3px solid ${isFocused ? b.accent : "#334155"}`,
-                  borderRadius: 14,
+                  backgroundColor: "#FFF5DC",
+                  border: "4px solid #171923",
+                  borderRadius: "22px 30px 20px 28px",
                   padding: b.hasPelicanBike ? "10px 14px" : "10px 16px",
-                  boxShadow: isFocused
-                    ? `0 10px 26px rgba(0,0,0,0.52), 0 0 16px ${b.accent}44`
-                    : "0 8px 20px rgba(0,0,0,0.42)",
+                  boxShadow: `6px 7px 0 ${isFocused ? b.accent : "#171923"}`,
                   display: "flex",
                   alignItems: "center",
                   gap: 10,
@@ -840,7 +882,7 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
                 </span>
                 <span
                   style={{
-                    color: "#F8FAFC",
+                    color: "#171923",
                     fontSize: b.hasPelicanBike ? 14.5 : 15.5,
                     fontWeight: 700,
                     lineHeight: 1.25,
@@ -850,7 +892,9 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
                 >
                   {b.prompt}
                 </span>
-                {b.hasPelicanBike && <PelicanBicycleMiniSvg accent={b.accent} />}
+                {b.hasPelicanBike && (
+                  <PelicanBicycleMiniSvg accent={b.accent} />
+                )}
                 <div
                   style={{
                     position: "absolute",
@@ -858,9 +902,9 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
                     [isLeft ? "right" : "left"]: 22,
                     width: 12,
                     height: 12,
-                    backgroundColor: "#141624",
-                    borderRight: `3px solid ${isFocused ? b.accent : "#334155"}`,
-                    borderBottom: `3px solid ${isFocused ? b.accent : "#334155"}`,
+                    backgroundColor: "#FFF5DC",
+                    borderRight: "4px solid #171923",
+                    borderBottom: "4px solid #171923",
                     transform: "rotate(45deg)",
                   }}
                 />
@@ -898,7 +942,8 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
             {mergeProg < 0.98 &&
               L003_TOKUI_CHARS.map((item, idx) => {
                 if (sec < item.spawnSec - 0.01) return null;
-                const snap = sampleSnapOpen(sec, item.spawnSec);
+                const snap =
+                  item.char === "な" ? 1 : sampleSnapOpen(sec, item.spawnSec);
                 const curX = item.offsetX * (1 - mergeProg * 0.9);
                 const curY = item.offsetY * (1 - mergeProg * 0.9);
                 const wobble =
@@ -920,7 +965,7 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
                       fontSize: 54,
                       fontWeight: 900,
                       color: item.color,
-                      WebkitTextStroke: "10px #0F172A",
+                      WebkitTextStroke: "10px #FACC15",
                       paintOrder: "stroke fill",
                       filter: "drop-shadow(0 6px 0 #0F172A)",
                       lineHeight: 1,
@@ -932,7 +977,7 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
               })}
 
             {/* 合成为卡通艺术字「得意な」（错落倾斜排布 + 漫画小星芒点缀） */}
-            {sec >= L003_TOKUI_MERGE_SEC + 0.04 && (
+            {sec >= L003_TOKUI_MERGE_SEC && (
               <div
                 style={{
                   position: "absolute",
@@ -979,8 +1024,8 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
                   style={{
                     fontSize: 56,
                     fontWeight: 900,
-                    color: "#FDE047",
-                    WebkitTextStroke: "11px #0F172A",
+                    color: "#E11D48",
+                    WebkitTextStroke: "10px #FACC15",
                     paintOrder: "stroke fill",
                     display: "inline-block",
                     transform: "rotate(-5deg) translateY(3px)",
@@ -992,8 +1037,8 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
                   style={{
                     fontSize: 60,
                     fontWeight: 900,
-                    color: "#F8FAFC",
-                    WebkitTextStroke: "11px #0F172A",
+                    color: "#E11D48",
+                    WebkitTextStroke: "10px #FACC15",
                     paintOrder: "stroke fill",
                     display: "inline-block",
                     transform: "rotate(3deg) translateY(-4px)",
@@ -1005,8 +1050,8 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
                   style={{
                     fontSize: 48,
                     fontWeight: 900,
-                    color: "#FB923C",
-                    WebkitTextStroke: "10px #0F172A",
+                    color: "#E11D48",
+                    WebkitTextStroke: "10px #FACC15",
                     paintOrder: "stroke fill",
                     display: "inline-block",
                     transform: "rotate(11deg) translateY(2px)",
@@ -1117,6 +1162,13 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
 
   const foldOut = sampleSnapFold(sec, L004_TOOLS_FOLD_SEC);
   const appealOpen = sampleSnapOpen(sec, 31.695) * clamp01(foldOut);
+  const burstAge = sec - L003_TOOLS_BURST_SEC;
+  const burst = interpolate(
+    burstAge,
+    [0, 0.034, 0.1, 0.3],
+    [0, 1, 1, 0],
+    clamp,
+  );
 
   return (
     <svg
@@ -1131,6 +1183,24 @@ export const PromptAndSwissKnife: React.FC<PromptAndSwissKnifeProps> = ({
         overflow: "visible",
       }}
     >
+      {/* One short, graphic impact behind the silhouette, followed by clear air. */}
+      {burst > 0 &&
+        Array.from({ length: 10 }, (_, i) => {
+          const angle = ((i * 36 - 108) * Math.PI) / 180;
+          const radius = 122 + Math.max(0, burstAge) * 180;
+          const x = pivotX + Math.cos(angle) * radius;
+          const y = pivotY + Math.sin(angle) * radius * 0.75;
+          return (
+            <path
+              key={`impact-${i}`}
+              d={`M ${x} ${y} l ${Math.cos(angle) * 35} ${Math.sin(angle) * 27}`}
+              stroke={i % 2 ? "#FFF5DC" : "#FDE047"}
+              strokeWidth={i % 2 ? 5 : 8}
+              strokeLinecap="round"
+              opacity={burst}
+            />
+          );
+        })}
       {L003_SWISS_TOOLS.map((tool) => {
         const triggerSec = L003_TOOLS_BURST_SEC + tool.staggerSec;
         if (sec < triggerSec - 0.01) return null;
