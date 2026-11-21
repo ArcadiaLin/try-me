@@ -80,16 +80,16 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
           width: 520,
           transform: `translate(-50%, -50%) scale(${bubbleScale})`,
           opacity: bubbleOpacity,
-          backgroundColor: "#F8FAFC",
+          backgroundColor: POP_PALETTE.cream,
           color: POP_PALETTE.ink,
-          border: "4px solid #11131F",
+          border: `4px solid ${POP_PALETTE.ink}`,
           borderRadius: 20,
           padding: "14px 20px",
           display: "flex",
           flexDirection: "column",
           gap: 7,
           zIndex: 6,
-          boxShadow: "0 14px 32px rgba(0, 0, 0, 0.36)",
+          boxShadow: `7px 8px 0 ${POP_PALETTE.ink}`,
         }}
       >
         {MULTILANG_LINES.map((line) => {
@@ -198,13 +198,13 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
           style={{
             position: "absolute",
             left: `${interpolate(moveToHeader, [0, 1], [8, 50])}%`,
-            bottom: -16,
-            transform: "translateX(-50%)",
-            width: 0,
-            height: 0,
-            borderLeft: "14px solid transparent",
-            borderRight: "14px solid transparent",
-            borderTop: "16px solid #F8FAFC",
+            bottom: -11,
+            width: 18,
+            height: 18,
+            backgroundColor: POP_PALETTE.cream,
+            borderRight: `4px solid ${POP_PALETTE.ink}`,
+            borderBottom: `4px solid ${POP_PALETTE.ink}`,
+            transform: "translateX(-50%) rotate(45deg)",
           }}
         />
 
@@ -219,7 +219,7 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
               height: 44,
               borderRadius: 10,
               backgroundColor: POP_PALETTE.yellowDeep,
-              border: "3px solid #11131F",
+              border: `3px solid ${POP_PALETTE.ink}`,
               display: "flex",
               justifyContent: "center",
               alignItems: "center",
@@ -227,7 +227,7 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
               fontWeight: 900,
               color: POP_PALETTE.ink,
               transform: `scale(${badgePop})`,
-              boxShadow: "0 6px 14px rgba(0,0,0,0.3)",
+              boxShadow: `3px 4px 0 ${POP_PALETTE.ink}`,
             }}
           >
             ★
@@ -260,7 +260,7 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
               height: 34,
               borderRadius: 8,
               backgroundColor: POP_PALETTE.yellowDeep,
-              border: "3px solid #11131F",
+              border: `3px solid ${POP_PALETTE.ink}`,
               fontSize: 20,
               fontWeight: 900,
               color: POP_PALETTE.ink,
@@ -318,7 +318,7 @@ export const MultilangBubble: React.FC<MultilangBubbleProps> = ({ sec }) => {
               height: 34,
               borderRadius: 8,
               backgroundColor: POP_PALETTE.yellowDeep,
-              border: "3px solid #11131F",
+              border: `3px solid ${POP_PALETTE.ink}`,
               fontSize: 20,
               fontWeight: 900,
               color: POP_PALETTE.ink,

@@ -415,16 +415,16 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                 transform: `scale(${interpolate(bubbleIn, [0, 1], [0.85, 1])})`,
                 transformOrigin: "bottom left",
                 opacity: bubbleIn,
-                backgroundColor: "#F8FAFC",
+                backgroundColor: POP_PALETTE.cream,
                 color: POP_PALETTE.ink,
-                border: "2px solid #11131F",
+                border: `2px solid ${POP_PALETTE.ink}`,
                 borderRadius: 9,
                 padding: "5px 7px",
                 display: "flex",
                 flexDirection: "column",
                 gap: 2.5,
                 zIndex: 5,
-                boxShadow: "0 4px 10px rgba(0, 0, 0, 0.3)",
+                boxShadow: `3px 3px 0 ${POP_PALETTE.ink}`,
               }}
             >
               {MULTILANG_LINES.map((line, idx) => {
@@ -512,7 +512,7 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                   height: 0,
                   borderTop: "5px solid transparent",
                   borderBottom: "5px solid transparent",
-                  borderRight: "7px solid #F8FAFC",
+                  borderRight: `7px solid ${POP_PALETTE.cream}`,
                 }}
               />
             </div>
@@ -564,8 +564,8 @@ export const ClawdVerse1Stage: React.FC<ClawdVerse1StageProps> = ({
                   transform: `scale(${bubbleScale})`,
                   transformOrigin: "top center",
                   opacity: bubbleExit,
-                  backgroundColor: "#F8FAFC",
-                  border: "2px solid #11131F",
+                  backgroundColor: POP_PALETTE.cream,
+                  border: `2px solid ${POP_PALETTE.ink}`,
                   borderRadius: 9,
                   padding: "4px 8px",
                   width: 188,

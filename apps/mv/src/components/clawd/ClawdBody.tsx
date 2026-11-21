@@ -210,12 +210,10 @@ export const ClawdBody: React.FC<ClawdBodyProps> = ({
               ? baseX + 0.35
               : baseX
             : baseX + (isAirborneAction ? bodyOffsetX : bodyOffsetX * 0.22);
-          const tiptoeInset = isStumbleHop && !isRightLeg ? 0.16 : 0;
-
           return (
             <polygon
               key={baseX}
-              points={`${hipX},${hipY} ${hipX + 1},${hipY} ${footX + 1 - tiptoeInset},${footY} ${footX + tiptoeInset},${footY}`}
+              points={`${hipX},${hipY} ${hipX + 1},${hipY} ${footX + 1},${footY} ${footX},${footY}`}
             />
           );
         })}
