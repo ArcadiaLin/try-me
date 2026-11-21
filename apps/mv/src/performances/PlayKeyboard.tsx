@@ -88,6 +88,8 @@ export function resolvePlayKeyboardActor(
 
 export interface HeyBubblePerformanceProps {
   sec: number;
+  /** 可选水平舞台偏移（当前奏 Clawd 位于左侧 x=-320 时同步偏移气泡） */
+  offsetX?: number;
 }
 
 /**
@@ -96,6 +98,7 @@ export interface HeyBubblePerformanceProps {
  */
 export const HeyBubblePerformance: React.FC<HeyBubblePerformanceProps> = ({
   sec,
+  offsetX = -320,
 }) => {
   if (sec < HEY_VOCAL_SEC - 0.02 || sec > HEY_END_SEC + 0.05) return null;
 
@@ -116,7 +119,7 @@ export const HeyBubblePerformance: React.FC<HeyBubblePerformanceProps> = ({
     <div
       style={{
         position: "absolute",
-        left: "calc(50% + 172px)",
+        left: `calc(50% + ${172 + offsetX}px)`,
         bottom: 374 - waveBob,
         transform: `translate(-50%, 0) scale(${scale}) rotate(${-4 + waveBob * 0.45}deg)`,
         transformOrigin: "bottom left",

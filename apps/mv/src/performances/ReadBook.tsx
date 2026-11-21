@@ -2,7 +2,21 @@ import React from "react";
 import { smoothStep } from "../animation/clawd/motion-style";
 import { PretrainField } from "../components/environment";
 import { sampleVerse1PlanProgress } from "../timeline/verse1";
-import type { ClawdActorState } from "./types";
+import type { ClawdActorState, ClawdStagePlacement } from "./types";
+
+/**
+ * L009–L010 (45.360s–49.892s) 读书段落舞台站位：全程居中 (x = 0)，49.82s 起提前 2 帧预备向 L011 接小号位置微移
+ */
+export function resolveReadBookPlacement(sec: number): ClawdStagePlacement {
+  const toL011 = smoothStep(sec, 49.82, 50.38);
+  return {
+    x: -44 * toL011,
+    y: 0,
+    scale: 1,
+    opacity: 1,
+    zIndex: 5,
+  };
+}
 
 /**
  * L009–L010 (45.360s–49.892s) 身体＋3D立体书＋白反光眼镜＋视线的协调：

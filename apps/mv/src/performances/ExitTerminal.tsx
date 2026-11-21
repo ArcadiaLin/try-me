@@ -7,25 +7,14 @@ import {
   smoothStep,
 } from "../animation/clawd/motion-style";
 import { GithubHeatmapCard, TerminalSummon } from "../components/environment";
-import { sampleVerse1PlanProgress } from "../timeline/verse1";
 import type { ClawdActorState, ClawdStagePlacement } from "./types";
 
 /**
- * L064 尾 – L008 初 (35.34s–45.20s) 连续舞台位置编排：
- * 缩入地面待命槽 -> 终端左侧亮相 -> 跃出终端至左侧 -> 三次递减踮脚跳站稳 -> 配合气泡与听众归中
+ * L005–L006 (37.540s–40.800s) 终端召唤段落的连续舞台位置编排：
+ * 终端左侧亮相 -> 跃出终端至左侧 -> 三次递减踮脚跳站稳 -> 向 L007 站位平滑预备
  */
 export function resolveExitTerminalPlacement(sec: number): ClawdStagePlacement {
-  if (sec >= 35.34 && sec < 37.54) {
-    const shrinkT = smoothStep(sec, 35.341, 35.82);
-    return {
-      x: 0,
-      y: shrinkT * 36,
-      scale: interpolate(shrinkT, [0, 0.4, 1], [1, 1.06, 0.08]),
-      opacity: interpolate(shrinkT, [0, 0.72, 1], [1, 1, 0]),
-      zIndex: 3,
-    };
-  }
-  if (sec >= 37.54 && sec < 37.837) {
+  if (sec < 37.837) {
     const popInTerm = smoothStep(sec, 37.54, 37.66);
     return {
       x: 42,
@@ -35,7 +24,7 @@ export function resolveExitTerminalPlacement(sec: number): ClawdStagePlacement {
       zIndex: 6,
     };
   }
-  if (sec >= 37.837 && sec < 38.139) {
+  if (sec < 38.139) {
     const jumpT = linearProg(sec, 37.837, 38.139);
     const startY = -263;
     const linearY = startY * (1 - jumpT);
@@ -48,7 +37,7 @@ export function resolveExitTerminalPlacement(sec: number): ClawdStagePlacement {
       zIndex: 6,
     };
   }
-  // 38.139s ~ 45.20s
+  // 38.139s ~ 40.800s
   let baseX = -195;
   let stageY = 0;
   if (sec < 39.2) {
@@ -59,34 +48,23 @@ export function resolveExitTerminalPlacement(sec: number): ClawdStagePlacement {
     stageY = -34 * hopArc * hopHeightRatio;
   }
   const toL007 = smoothStep(sec, 40.35, 41.05);
-  const toL008 = smoothStep(sec, 42.75, 43.38);
   return {
-    x: baseX - 20 * toL007 + 215 * toL008,
+    x: baseX - 20 * toL007,
     y: stageY,
     scale: 1,
     opacity: 1,
-    zIndex: 3,
+    zIndex: 5,
   };
 }
 
 /**
- * L064 – L006 (34.026s–40.800s) 角色身体、表情与视线协调
+ * L005–L006 (37.540s–40.800s) 角色身体、表情与视线协调
  */
 export function resolveExitTerminalActor(
   sec: number,
-  authoredFrame: number,
+  _authoredFrame: number,
   base: ClawdActorState,
 ): ClawdActorState {
-  if (sec < 36.371) {
-    return {
-      ...base,
-      action: "crouch-lean",
-      actionProgress:
-        sec < 35.34
-          ? sampleVerse1PlanProgress(authoredFrame, "crouch")
-          : linearProg(sec, 34.026, 35.82) * 0.65,
-    };
-  }
   if (sec < 37.837) {
     return {
       ...base,

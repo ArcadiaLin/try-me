@@ -11,8 +11,11 @@ import {
 import { Clawd } from "../components/clawd/Clawd";
 import {
   LyricTerminal,
+  NoteHighway,
   RhythmPopups,
+  Spotlight,
   StageDeck,
+  StageTrapdoor,
   Verse1Hud,
 } from "../components/environment";
 import {
@@ -22,7 +25,14 @@ import {
   ReadBookPerformance,
   resolveVerse1ClawdPerformance,
   SpeakLanguagesPerformance,
+  VERSE1_BASS_IN_SEC,
+  VERSE1_HIGHWAY_CLOSE_SEC,
+  VERSE1_PRELUDE_SIDE_X,
 } from "../performances";
+import {
+  INTRO_KEYBOARD_GRID_LINES,
+  INTRO_KEYBOARD_NOTES,
+} from "../timeline/rhythm-timing";
 import {
   beatPosition,
   rhythmMotion,
@@ -55,19 +65,14 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
   const { fps } = useVideoConfig();
   const sec = frame / fps;
   const authoredFrame = (frame * VERSE1_RHYTHM.fps) / fps;
+  const beatPos = beatPosition(authoredFrame, VERSE1_RHYTHM.beatFrames);
 
   // 1. 采样全局节拍律动
-  const rhythm = rhythmMotion(
-    sec,
-    beatPosition(authoredFrame, VERSE1_RHYTHM.beatFrames),
-  );
+  const rhythm = rhythmMotion(sec, beatPos);
 
-  // 2. 编排唯一 Clawd 实例的连续舞台位置与各段动作/视线/道具（含前奏弹奏小键盘）状态
-  const { placement, actor } = resolveVerse1ClawdPerformance(
-    sec,
-    authoredFrame,
-    rhythm,
-  );
+  // 2. 编排唯一 Clawd 实例的连续舞台位置、各段动作/视线/道具、聚光灯与台面小洞状态
+  const { placement, actor, spotlight, trapdoor } =
+    resolveVerse1ClawdPerformance(sec, authoredFrame, rhythm);
 
   const canPlayAudio = !silentPreview && hasPrivateAudio();
 
@@ -94,51 +99,82 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
       <StageDeck clawdStageX={placement.x} />
 
       {/* 舞台底部终端：歌词 stdout 逐句打印上滚，Clawd 站在终端顶边 */}
-      <LyricTerminal
-        frame={frame}
-        fps={fps}
-        beatPos={beatPosition(authoredFrame, VERSE1_RHYTHM.beatFrames)}
+      <LyricTerminal frame={frame} fps={fps} beatPos={beatPos} />
+
+      {/* 左侧台面小洞（L064 退场入口，层级高于台面上沿） */}
+      <AbsoluteFill style={{ zIndex: 4, pointerEvents: "none" }}>
+        <StageTrapdoor
+          x={trapdoor.x}
+          open={trapdoor.open}
+          sinceEnter={trapdoor.sinceEnter}
+        />
+      </AbsoluteFill>
+
+      {/* 地面聚光灯圈 */}
+      <Spotlight layer="floor" {...spotlight} />
+
+      {/* 前奏中央 4 轨透视下落谱面（第 3 轨留空，bass 切入升级，18.47s 收回终端） */}
+      <NoteHighway
+        sec={sec}
+        notes={INTRO_KEYBOARD_NOTES}
+        gridLines={INTRO_KEYBOARD_GRID_LINES}
+        openSec={0}
+        levelUpSec={VERSE1_BASS_IN_SEC}
+        closeSec={VERSE1_HIGHWAY_CLOSE_SEC}
       />
 
       {/* 舞台环境节奏弹出层：鼓掌、鼓组、镲片与 Bass 小图标随节奏弹出 */}
       <RhythmPopups sec={sec} />
 
       {/* 协同表演层：按时间区间安排背景、画外道具与多元素交互 */}
-      <HeyBubblePerformance sec={sec} />
+      <HeyBubblePerformance sec={sec} offsetX={VERSE1_PRELUDE_SIDE_X} />
       <ReadBookPerformance sec={sec} />
       <ExitTerminalPerformance sec={sec} />
       <SpeakLanguagesPerformance sec={sec} />
       <PlayTrumpetPerformance sec={sec} />
 
-      {/* 全程唯一的连续 Clawd 主角实例（绝不卸载或突变尺寸） */}
-      <div
+      {/* 全程唯一的连续 Clawd 主角实例（绝不卸载或突变尺寸；跳进洞口时裁切台面以下身体） */}
+      <AbsoluteFill
         style={{
-          position: "absolute",
-          left: "50%",
-          bottom: 162,
-          transform: `translateX(-50%) translateX(${placement.x}px) translateY(${placement.y}px) scale(${placement.scale})`,
-          transformOrigin: "bottom center",
-          opacity: placement.opacity,
           zIndex: placement.zIndex,
+          clipPath: placement.clipPath,
+          pointerEvents: "none",
         }}
       >
-        <Clawd
-          width={310}
-          action={actor.action}
-          actionProgress={actor.actionProgress}
-          eyes={actor.eyes}
-          mouth="none"
-          outfit="none"
-          prop={actor.prop}
-          glassesProgress={actor.glassesProgress}
-          bookProgress={actor.bookProgress}
-          trumpetProgress={actor.trumpetProgress}
-          keyboardState={actor.keyboardState}
-          beatPulse={actor.beatPulse}
-          rhythm={rhythm}
-          lookOffset={actor.lookOffset}
-        />
-      </div>
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            bottom: 162,
+            transform: `translateX(-50%) translateX(${placement.x}px) translateY(${placement.y}px) scale(${placement.scale})`,
+            transformOrigin: "bottom center",
+            opacity: placement.opacity,
+          }}
+        >
+          <Clawd
+            width={310}
+            pose={actor.pose}
+            action={actor.action}
+            actionProgress={actor.actionProgress}
+            eyes={actor.eyes}
+            mouth="none"
+            outfit="none"
+            prop={actor.prop}
+            glassesProgress={actor.glassesProgress}
+            bookProgress={actor.bookProgress}
+            trumpetProgress={actor.trumpetProgress}
+            keyboardState={actor.keyboardState}
+            beatPulse={actor.beatPulse}
+            rhythm={rhythm}
+            lookOffset={actor.lookOffset}
+          />
+        </div>
+      </AbsoluteFill>
+
+      {/* 聚光灯空气光束与场内压暗遮罩（L064 跳洞后张开消散，L005 起完全回归初版全场光） */}
+      <AbsoluteFill style={{ zIndex: 6, pointerEvents: "none" }}>
+        <Spotlight layer="air" {...spotlight} />
+      </AbsoluteFill>
 
       {/* 可选调试栏（默认关闭） */}
       {showHud && <Verse1Hud sec={sec} frame={frame} />}

@@ -5,11 +5,17 @@ import { ClawdBasicComposition } from "./scenes/ClawdBasicShowcase";
 import { ClawdVerse1BodyComposition } from "./scenes/ClawdVerse1BodyShowcase";
 import { ClawdVerse1PropsComposition } from "./scenes/ClawdVerse1PropsShowcase";
 import { ClawdPropsComposition } from "./scenes/ClawdPropsShowcase";
+import { StageFxLabComposition } from "./scenes/StageFxLab";
+import { ClawdMotionLabComposition } from "./scenes/ClawdMotionLab";
+import { PreludeLabComposition } from "./scenes/PreludeLab";
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
       <TryMeVerse1MVComposition />
+      <PreludeLabComposition />
+      <StageFxLabComposition />
+      <ClawdMotionLabComposition />
       <FullSongPercussionComposition />
       <MyComposition />
       <ClawdBasicComposition />

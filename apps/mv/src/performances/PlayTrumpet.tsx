@@ -8,7 +8,7 @@ import {
 import type { ClawdActorState, ClawdStagePlacement } from "./types";
 
 /**
- * L011–L065 (49.82s–55.00s) 角色迎接小号与ほら！回中的水平站位过渡
+ * L011–L065 (49.892s–55.168s) 角色迎接小号与ほら！回中的水平站位过渡
  */
 export function resolvePlayTrumpetPlacement(sec: number): ClawdStagePlacement {
   const toL011 = smoothStep(sec, 49.82, 50.38); // 0 -> -44
@@ -19,7 +19,7 @@ export function resolvePlayTrumpetPlacement(sec: number): ClawdStagePlacement {
     y: 0,
     scale: 1,
     opacity: 1,
-    zIndex: 3,
+    zIndex: 5,
   };
 }
 

@@ -126,14 +126,18 @@ export const ClawdFace: React.FC<ClawdFaceProps> = ({
         </g>
       ) : mouth === "blush" || eyes === "happy" ? (
         <g
-          transform={`translate(${bodyOffsetX}, ${bodyOffsetY}) rotate(${torsoTiltDeg}, 8, 8)`}
+          transform={`translate(${bodyOffsetX}, ${bodyOffsetY}) rotate(${torsoTiltDeg}, ${rotPivotX}, 8)`}
         >
-          <rect x={3.4} y={2.45} width={0.6} height={0.6} fill={eyeColor} />
-          <rect x={4.0} y={1.85} width={0.6} height={0.6} fill={eyeColor} />
-          <rect x={4.6} y={2.45} width={0.6} height={0.6} fill={eyeColor} />
-          <rect x={10.8} y={2.45} width={0.6} height={0.6} fill={eyeColor} />
-          <rect x={11.4} y={1.85} width={0.6} height={0.6} fill={eyeColor} />
-          <rect x={12.0} y={2.45} width={0.6} height={0.6} fill={eyeColor} />
+          <g
+            fill="none"
+            stroke={eyeColor}
+            strokeWidth={0.58}
+            strokeLinecap="square"
+            strokeLinejoin="miter"
+          >
+            <polyline points="3.55,3.15 4.45,1.95 5.35,3.15" />
+            <polyline points="10.65,3.15 11.55,1.95 12.45,3.15" />
+          </g>
           {mouth === "blush" && (
             <>
               <rect

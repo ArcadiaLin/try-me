@@ -2,10 +2,28 @@ import React from "react";
 import {
   clampedInterpolate,
   linearProg,
+  smoothStep,
 } from "../animation/clawd/motion-style";
 import { MultilangBubble } from "../components/environment";
 import { sampleVerse1PlanProgress } from "../timeline/verse1";
-import type { ClawdActorState } from "./types";
+import type { ClawdActorState, ClawdStagePlacement } from "./types";
+
+/**
+ * L007–L008 (40.800s–45.360s) 角色配合多语言气泡站稳 (-215px) 与听众回应归中 (0px)
+ */
+export function resolveSpeakLanguagesPlacement(
+  sec: number,
+): ClawdStagePlacement {
+  const toL007 = smoothStep(sec, 40.35, 41.05);
+  const toL008 = smoothStep(sec, 42.75, 43.38);
+  return {
+    x: -195 - 20 * toL007 + 215 * toL008,
+    y: 0,
+    scale: 1,
+    opacity: 1,
+    zIndex: 5,
+  };
+}
 
 /**
  * L007–L008 (40.800s–45.360s) 多语言气泡与两侧听众共鸣的身体与视线协调

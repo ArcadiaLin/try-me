@@ -1,5 +1,31 @@
 # 推进计划
 
+### 删除 L003–L004 脚本，追光样片（2026-11-21，D028）
+
+- 按用户要求，通过工作台保存路由（带 baseRevision）删除 L003、L004 共 4 条 `agent` 备注；与写入前备份比对，差异仅为这 4 条。备份在 `out/manual-edit-backup/20261121-l003-l004/`。`script.md` 和 D026 中 L003–L004 的部分标为已删除、待重写。工作台页面需「重载」。
+- 新增样片 Composition `StageFxLab`（聚光灯组成、停在角落、被招来后冲过头、追光跟随、收光）和 `ClawdMotionLab`（A 原地探身、B 碎步跳追光及 1/6 慢放、C 跳回麦克风前、D 按歌曲 17.6–24.6s 连播）。新增可复用的 `Spotlight` 组件和 `hop-travel` 碎步跳位移函数，都还没接入 `TryMeVerse1MV`。
+- 已验证：lint、typecheck、check:repo、`git diff --check` 都通过；渲染了 11 帧静帧（`out/lab-stills/`）检查画面。Studio 里的连续播放和带音轨的同步还没试看。已知问题：D 段地面光圈的下半部分被歌词终端挡住。
+- 同日追加 `PreludeLab`（前奏 B 方案，0–24.6s，可带音轨）：
+  - Clawd 在 `x=-320` 弹琴，中央 4 轨谱面（第 3 轨留空），9.512s 起谱面全亮，18.47s 收回终端。
+  - Hey 时中央聚光灯打开，没有"滑过头"；三小跳落在候选半拍点 20.165 / 20.446 / 20.726s，到达中央。
+  - 键盘音符整理成共享数组 `INTRO_KEYBOARD_NOTES`，谱面和键盘动画用同一份数据；`sampleStageKeyboard` 新旧版本在 0–19s 逐 1/600 秒比对，结果完全一致。
+  - 已渲染 6 帧静帧检查画面，连续播放和带音轨的 A/B 对比还没试看。
+- 同日按用户新路线更新 `PreludeLab`（延长到 38.6s）：
+  - 灯光：Hey 时中央上方的灯直接打到 `x=-320` 的 Clawd 身上，三小跳期间光圈以 0.12s 延迟跟随；聚光维持到 L004；35.45–36.25s（Clawd 缩进终端时）光束两侧张开、压暗退去，回到初版舞台光。35.34s 起沿用现有 ExitTerminal 的站位。
+  - 谱面加强：透视轨道、像素斜面方块、分段长音尾、拍线和小节线、命中时的光柱与像素火花、强音横向闪线、两侧导轨脉冲、连击计数；bass 进入时整体变亮并扫光；结束时外侧轨道先收回终端。`Spotlight` 新增光束张开宽度与亮度两个参数，`rhythm-timing.ts` 新增与音符同一网格的拍线列表。
+  - 已验证：lint、typecheck 通过，渲染 10 帧静帧检查画面。连续播放、带音轨的同步和整体性能还没试看。
+- 同日按用户要求改 L064 退场（`PreludeLab`）：
+  - 34.026s 起保留原地蹲起；34.55–34.8s 左侧 `x=-270` 处台面滑门拉开，露出深色入口和一条橙色光标线。
+  - Clawd 先一小跳到 `x=-125`（落在 35.017s），35.15s 起跳、扎进洞里（左前爪伸向洞口带路，右前爪高举朝观众快速挥手告别、微笑弯眼 `^ ^`），35.578s 越过台面，入口闪光并溅起像素块；台面以下的身体被裁掉，看起来是掉进了终端。35.95–36.2s 滑门关上。
+  - 光圈一路跟着他；他掉进去后（35.62–36.42s）光束张开、回到初版舞台光。37.54s 起接现有的终端亮相。
+  - 新增 `StageTrapdoor` 组件。Clawd 层级调到台面上沿（StageDeck zIndex 3）之上，修正了此前脚被台面线挡住的问题。
+  - 渲染了 12 帧静帧检查画面，连续播放和带音轨的效果还没试看。
+- 同日按用户指令将整套编排正式接入主合成 `TryMeVerse1MV`，保留 `StageFxLab`、`ClawdMotionLab`、`PreludeLab` 三个样片，并完成表演层解耦与笑眼表情优化：
+  - 抽离前奏与聚光舞台模块 `apps/mv/src/performances/IntroSpotlight.tsx`，在 `resolveVerse1ClawdPerformance`（`apps/mv/src/performances/index.ts`）中按单一时间轴顺序同时分发各段落的 `placement` + `actor` 并统一在出口合成 `actor.pose`，消除动作与位置区间错位；`PreludeLab` 直接复用主合成编排输出，移除重复计算。
+  - `TryMeVerse1MV` 接入 `<NoteHighway />`、`<StageTrapdoor />` 与双层 `<Spotlight />`；`HeyBubblePerformance` 默认随前奏左侧站位（`offsetX = -320`）对齐。`ClawdFace.tsx` 将 `happy` 笑眼由像素小方块改为与 `> <` 同风格的矢量折线 `^ ^`。
+  - 36.42s 光束完全张开后 `TryMeVerse1MV` 无缝回到初版全场舞台光，37.54s 起无缝衔接 L005 终端亮相、L006 热力图、L007–L008 多语言气泡、L009–L010 读书与预训练矩阵、L011 小号与 L065 贴地回弹。
+  - 已验证：`npm run lint`、`npm run check:repo`、`git diff --check` 均通过；渲染 `TryMeVerse1MV` 关键静帧（`out/lab-stills/mv-*.png`、`out/lab-stills/happy-*.png`）核验前奏至后半段衔接及 `^ ^` 笑眼效果。Studio 连续带音频播放已由用户试看确认。
+
 ### Cowork 分身与多 agent 派对编排（2026-11-19，D027）
 
 - 更新 L017、L021、L023、L024 及 SYNTH_013–015 的剧本备注：L017 先一个 agent 与人类交流，L023 再三个伴舞/演奏，首个 agent 在第二主歌开头负责键盘，主角继续演绎。

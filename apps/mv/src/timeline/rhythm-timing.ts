@@ -172,6 +172,53 @@ const INTRO_ORANGE_CYCLES: readonly [number, number][] = [
   [13.996, 18.477],
 ];
 
+/** 前奏小键盘的单个音符（0: A3 下切, 1: B♭3 基准, 2: B♭4 高八度） */
+export interface IntroKeyboardNote {
+  zone: 0 | 1 | 2;
+  startSec: number;
+  endSec: number;
+  velocity: number;
+  releaseSec: number;
+}
+
+function buildIntroKeyboardNotes(): IntroKeyboardNote[] {
+  // SYNTH_000 (0.254s–0.534s): 开场前导最低音 A3 (zone 0)
+  const notes: IntroKeyboardNote[] = [
+    { zone: 0, startSec: 0.254, endSec: 0.485, velocity: 0.8, releaseSec: 0.075 },
+  ];
+  // SYNTH_001–SYNTH_004 (0.534s–18.477s): 4 轮双小节循环
+  for (let c = 0; c < INTRO_ORANGE_CYCLES.length; c++) {
+    const [cStart, cEnd] = INTRO_ORANGE_CYCLES[c];
+    const slotDur = (cEnd - cStart) / 32;
+    const isLastCycle = c === INTRO_ORANGE_CYCLES.length - 1;
+    for (let n = 0; n < CYCLE_KEYBOARD_NOTES.length; n++) {
+      const [s0, s1, zIdx, vel] = CYCLE_KEYBOARD_NOTES[n];
+      notes.push({
+        zone: zIdx,
+        startSec: cStart + s0 * slotDur,
+        endSec: cStart + s1 * slotDur,
+        velocity: vel,
+        // 第 4 轮最后一个音在 18.465s 前干净收束熄灭，随后才执行键盘收平
+        releaseSec: isLastCycle && n === CYCLE_KEYBOARD_NOTES.length - 1 ? 0.062 : 0.082,
+      });
+    }
+  }
+  return notes;
+}
+
+/** 前奏小键盘全部音符（键盘动画与 PreludeLab 谱面共用同一份数据） */
+export const INTRO_KEYBOARD_NOTES: readonly IntroKeyboardNote[] = buildIntroKeyboardNotes();
+
+/** 前奏谱面的拍线：按与音符相同的四轮 32 格网格，每 4 格一拍，每 16 格一小节 */
+export const INTRO_KEYBOARD_GRID_LINES: readonly { sec: number; kind: "bar" | "beat" }[] =
+  INTRO_ORANGE_CYCLES.flatMap(([cStart, cEnd]) => {
+    const slotDur = (cEnd - cStart) / 32;
+    return Array.from({ length: 8 }, (_, i) => ({
+      sec: cStart + i * 4 * slotDur,
+      kind: i % 4 === 0 ? ("bar" as const) : ("beat" as const),
+    }));
+  });
+
 function evalKeyNoteEnvelope(
   sec: number,
   tStart: number,
@@ -253,22 +300,8 @@ export function sampleStageKeyboard(sec: number): StageKeyboardState {
     }
   };
 
-  // SYNTH_000 (0.254s–0.534s): 开场前导最低音 A3 (zone 0)
-  accumulate(0, 0.254, 0.485, 0.8, 0.075);
-
-  // SYNTH_001–SYNTH_004 (0.534s–18.477s): 4 轮双小节循环
-  for (let c = 0; c < INTRO_ORANGE_CYCLES.length; c++) {
-    const [cStart, cEnd] = INTRO_ORANGE_CYCLES[c];
-    const slotDur = (cEnd - cStart) / 32;
-    const isLastCycle = c === INTRO_ORANGE_CYCLES.length - 1;
-    for (let n = 0; n < CYCLE_KEYBOARD_NOTES.length; n++) {
-      const [s0, s1, zIdx, vel] = CYCLE_KEYBOARD_NOTES[n];
-      const t0 = cStart + s0 * slotDur;
-      const t1 = cStart + s1 * slotDur;
-      // 第 4 轮最后一个音在 18.465s 前干净收束熄灭，随后才执行键盘收平
-      const rel = isLastCycle && n === CYCLE_KEYBOARD_NOTES.length - 1 ? 0.062 : 0.082;
-      accumulate(zIdx, t0, t1, vel, rel);
-    }
+  for (const note of INTRO_KEYBOARD_NOTES) {
+    accumulate(note.zone, note.startSec, note.endSec, note.velocity, note.releaseSec);
   }
 
   return {
