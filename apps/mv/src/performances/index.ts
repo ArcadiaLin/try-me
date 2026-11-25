@@ -37,6 +37,13 @@ import {
   resolveSpeakLanguagesPlacement,
   SpeakLanguagesPerformance,
 } from "./SpeakLanguages";
+import {
+  resolveThinkSuperstarActor,
+  resolveThinkSuperstarPlacement,
+  SUPERSTAR_DAB_HIT_SEC,
+  THINK_RELAX_START_SEC,
+  ThinkSuperstarPerformance,
+} from "./ThinkSuperstar";
 import type {
   ClawdActorState,
   ClawdStagePlacement,
@@ -55,6 +62,9 @@ export {
   resolveVerse1Spotlight,
   resolveVerse1Trapdoor,
   SpeakLanguagesPerformance,
+  SUPERSTAR_DAB_HIT_SEC,
+  THINK_RELAX_START_SEC,
+  ThinkSuperstarPerformance,
   VERSE1_BASS_IN_SEC,
   VERSE1_DIVE_ENTER_SEC,
   VERSE1_EXIT_TERMINAL_SEC,
@@ -115,10 +125,14 @@ export function resolveVerse1ClawdPerformance(
     // 45.360s – 49.892s: L009–L010 舞台中央捧读 3D 书与白反光眼镜
     placement = resolveReadBookPlacement();
     actor = resolveReadBookActor(sec, authoredFrame, baseActor);
-  } else {
-    // 49.892s – 55.168s: L011–L065 迎接小号吹奏与 ほら！回中回弹
+  } else if (sec < THINK_RELAX_START_SEC) {
+    // 49.892s – 54.450s: L011–L065 迎接小号吹奏与 ほら！回中回弹
     placement = resolvePlayTrumpetPlacement();
     actor = resolvePlayTrumpetActor(sec, authoredFrame, rhythm, baseActor);
+  } else {
+    // 54.450s – 62.689s: L065 收尾放松闭眼深呼吸 → L013 浮动思考气泡 → L014 Superstar 卡点 Dab
+    placement = resolveThinkSuperstarPlacement();
+    actor = resolveThinkSuperstarActor(sec, baseActor);
   }
 
   // 统一在编排出口生成最终 ClawdPose，确保全片姿态管线唯一

@@ -182,6 +182,8 @@ test("refactored pose & timeline layers keep feet grounded and preserve exact re
     "read-look-up",
     "elastic-pop",
     "snappy-nod",
+    "deep-breathe",
+    "superstar-dab",
   ] as const;
 
   for (const action of groundedActions) {

@@ -54,7 +54,17 @@ export {
   type SpotlightProps,
   type SpotlightState,
 } from "./Spotlight";
+export {
+  SuperstarSignAndConfetti,
+  type SuperstarSignAndConfettiProps,
+} from "./SuperstarSignAndConfetti";
 export { TerminalSummon, type TerminalSummonProps } from "./TerminalSummon";
+export {
+  THINKING_BUBBLES,
+  ThinkingBubbles,
+  type ThinkingBubblesProps,
+  type ThinkingVerbSpec,
+} from "./ThinkingBubbles";
 export {
   L011_BADGES_CLEAR_END_SEC,
   L011_BADGES_CLEAR_START_SEC,

@@ -181,6 +181,7 @@ export function resolveClawdPose({
     handHoldProgress,
     handKeyboardProgress,
     handTrumpetProgress,
+    dabProgress: delta.dabProgress ?? 0,
     leftKeyShiftX,
     leftKeyPress,
     rightKeyPress,

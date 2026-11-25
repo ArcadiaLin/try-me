@@ -173,6 +173,7 @@ export const ClawdBody: React.FC<ClawdBodyProps> = ({
 
   const { armInset, hipInset, legBaseX } = CLAWD_MODEL.joints;
   const hands = computeHandBoxes(pose);
+  const dab = pose.dabProgress ?? 0;
 
   // 位于躯干外侧 (x < 2 或 x > 14) 的手臂部分与躯干无缝融合，共享外轮廓
   const leftProtrudeX = Math.min(2, hands.left.x);
@@ -183,6 +184,14 @@ export const ClawdBody: React.FC<ClawdBodyProps> = ({
 
   const upperBodyTransform = `translate(${bodyOffsetX}, 0) rotate(${torsoTiltDeg}, ${rotPivotX}, 8)`;
   const tiltRad = (torsoTiltDeg * Math.PI) / 180;
+
+  // Dab 姿势右侧伸直臂（向画面右上方斜伸，保持 Clawd 短萌手臂比例，与躯干无缝融合共享外轮廓）
+  const dabRightAngle = interpolate(dab, [0, 1], [0, -34]);
+  const dabRightLen = interpolate(dab, [0, 1], [2.0, 3.3]);
+  const dabRightH = interpolate(dab, [0, 1], [2.0, 1.82]);
+  const dabRightPivotY = 4.2 + bodyOffsetY;
+  // Dab 时左臂收回并改由 ClawdHandsOverlay 渲染为斜跨脸前的弯臂
+  const leftNormalScale = Math.max(0, 1 - dab * 2.2);
 
   const legConfigs = legBaseX.map((baseX, idx) => ({
     baseX,
@@ -199,21 +208,32 @@ export const ClawdBody: React.FC<ClawdBodyProps> = ({
       {/* 上半身（躯干 + 伸出躯干外侧的手臂部分） */}
       <g transform={upperBodyTransform}>
         <rect x={2} y={bodyOffsetY} width={12} height={8} />
-        {leftProtrudeW > armInset && (
+        {leftProtrudeW > armInset && leftNormalScale > 0.01 && (
           <rect
-            x={leftProtrudeX}
+            x={2 - (2 - leftProtrudeX) * leftNormalScale}
             y={hands.left.y}
-            width={leftProtrudeW}
+            width={(2 - leftProtrudeX) * leftNormalScale + armInset}
             height={hands.left.height}
           />
         )}
-        {rightProtrudeW > armInset && (
-          <rect
-            x={rightProtrudeX}
-            y={hands.right.y}
-            width={rightProtrudeW}
-            height={hands.right.height}
-          />
+        {dab > 0.01 ? (
+          <g transform={`rotate(${dabRightAngle}, ${14 - armInset}, ${dabRightPivotY})`}>
+            <rect
+              x={14 - armInset}
+              y={dabRightPivotY - dabRightH * 0.5}
+              width={dabRightLen + armInset}
+              height={dabRightH}
+            />
+          </g>
+        ) : (
+          rightProtrudeW > armInset && (
+            <rect
+              x={rightProtrudeX}
+              y={hands.right.y}
+              width={rightProtrudeW}
+              height={hands.right.height}
+            />
+          )
         )}
       </g>
 
@@ -306,12 +326,42 @@ export const ClawdHandsOverlay: React.FC<ClawdBodyProps> = ({
   outlineColor,
   outlineWidth,
 }) => {
+  const dab = pose.dabProgress ?? 0;
   const hands = computeHandBoxes(pose);
-  if (hands.h <= 0.001) return null;
+  if (hands.h <= 0.001 && dab <= 0.001) return null;
 
-  const { bodyOffsetX, torsoTiltDeg, rotPivotX } = pose;
+  const { bodyOffsetX, bodyOffsetY, torsoTiltDeg, rotPivotX } = pose;
   const upperBodyTransform = `translate(${bodyOffsetX}, 0) rotate(${torsoTiltDeg}, ${rotPivotX}, 8)`;
   const strokeW = Math.max(0.24, outlineWidth * 1.5);
+
+  // L014 Superstar Dab：左前爪抬起并斜跨挡在脸前下方（缩短手臂保持短萌比例，100% 实体填充 + 深墨轮廓）
+  if (dab > 0.001) {
+    const armLen = interpolate(dab, [0, 1], [2.0, 4.2]);
+    const armH = 1.76;
+    const shoulderX = 1.95;
+    const shoulderY = interpolate(dab, [0, 1], [4.9 + bodyOffsetY, 4.35 + bodyOffsetY]);
+    const armAngle = interpolate(dab, [0, 1], [0, -20]);
+    const x0 = shoulderX - 0.45 * dab;
+    const x1 = shoulderX + armLen;
+    const y0 = shoulderY - armH * 0.5;
+
+    return (
+      <g transform={upperBodyTransform}>
+        <g transform={`rotate(${armAngle}, ${shoulderX}, ${shoulderY})`}>
+          <rect
+            x={x0}
+            y={y0}
+            width={x1 - x0}
+            height={armH}
+            fill={bodyColor}
+            stroke={outlineColor}
+            strokeWidth={strokeW}
+            strokeLinejoin="round"
+          />
+        </g>
+      </g>
+    );
+  }
 
   // 左手与主体 (x >= 2) 重合的远端区间 [leftOverlapX0, leftOverlapX1]
   const leftOverlapX0 = Math.max(2, hands.left.x);

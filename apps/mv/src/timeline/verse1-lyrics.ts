@@ -36,6 +36,8 @@ export const VERSE1_LYRIC_CUES: readonly LyricTerminalCue[] = [
   { id: "L010", startSec: 47.58, endSec: 49.892, text: "I was the best in every class", mode: "log" },
   { id: "L011", startSec: 49.892, endSec: 52.576, text: "ブラバン部で楽器も吹けるよ", mode: "log" },
   { id: "L065", startSec: 52.576, endSec: 53.549, text: "ほら！", mode: "ghost" },
+  { id: "L013", startSec: 55.168, endSec: 58.317, text: "But sometimes if I think too hard", mode: "log" },
+  { id: "L014", startSec: 58.317, endSec: 62.212, text: "I forget that I'm a superstar", mode: "log" },
 ];
 
 /** L064 缩入终端后的待命状态（取代原地面 `[ > _ STANDBY ]` 胶囊） */

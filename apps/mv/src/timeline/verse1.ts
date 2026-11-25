@@ -1,4 +1,4 @@
-import { VIDEO_FPS } from "../video-spec";
+import { VIDEO_FPS } from "../video-spec.ts";
 import {
   beatGridFrame,
   beatPosition,
@@ -35,12 +35,12 @@ export {
 
 export type Verse1PlanId = (typeof VERSE1_RHYTHM.plans)[number]["id"];
 
-/** 截至 L065 (ほら！) 句后留白结束、L013 开始前的完整时长：55.168s (3310 帧 @ 60fps) */
-export const VERSE1_MV_DURATION_SEC = 55.168;
+/** 截至 L014 + L069 间奏结束、L015 副歌开始前的完整时长：62.689s (3761 帧 @ 60fps) */
+export const VERSE1_MV_DURATION_SEC = 62.689;
 export const VERSE1_MV_FPS = VIDEO_FPS;
 export const VERSE1_MV_FRAMES = Math.round(
   VERSE1_MV_DURATION_SEC * VERSE1_MV_FPS,
-); // 3310
+); // 3761
 
 export interface Verse1EventMeta {
   id: string;
@@ -150,6 +150,27 @@ export const VERSE1_EVENTS: readonly Verse1EventMeta[] = [
     endSec: 53.549,
     lyric: "(ほら！)",
     summary: "极速贴地回弹 + ^ ^ 微笑弯眼 + 右上红底黄边手写『ほら！』",
+  },
+  {
+    id: "L013",
+    startSec: 55.168,
+    endSec: 58.317,
+    lyric: "But sometimes if I think too hard",
+    summary: "放松闭眼深呼吸 + 小幅跟拍 + 终端状态词思考气泡渐显并持续轻微浮动",
+  },
+  {
+    id: "L014",
+    startSec: 58.317,
+    endSec: 62.212,
+    lyric: "I forget that I'm a superstar",
+    summary: "气泡停转瘪掉清场 → superstar 卡点突然摆出 Dab 短暂得意定姿 → 收势",
+  },
+  {
+    id: "L069",
+    startSec: 62.212,
+    endSec: 62.689,
+    lyric: "(间奏 — 回归基础站姿迎接副歌)",
+    summary: "Dab 收势完毕，回归干净待机站姿衔接 L015",
   },
 ] as const;
 

@@ -322,15 +322,16 @@ export function rhythmMotion(sec: number, position: number): ClawdRhythmMotion |
   const protection = 1 - smooth(34.95, 35.34, sec) + smooth(40.8, 41.15, sec);
   const gain = Math.min(1, protection);
   const idleWindows = [[0, 18.525], [42.91, 43.95],
-    [44.72, 45.36], [49.892, 52.576], [53.7, 55.168]];
+    [44.72, 45.36], [49.892, 52.576], [53.7, 60.86], [62.54, 62.85]];
   const weight = Math.max(0, ...idleWindows.map(([a, b]) =>
     smooth(a, a + 0.16, sec) * (1 - smooth(b - 0.16, b, sec)),
   ));
   const bassGain = 0.45 + 0.35 * smooth(9.35, 9.67, sec);
   const oldBreath = Math.sin(sec * Math.PI * 2) * 0.12;
-  // 叙事动作期间保留纵向律动底层：不在待机窗口时补足，ほら！ 贴地回弹 (52.576–53.7s) 让位给动作本身
+  // 叙事动作期间保留纵向律动底层：不在待机窗口时补足，ほら！ 回弹 (52.576–53.7s) 与 Dab 爆发定姿 (60.86–62.56s) 让位给动作本身
   const popWindow = smooth(52.42, 52.576, sec) * (1 - smooth(53.55, 53.7, sec));
-  const groove = GROOVE_LAYER_WEIGHT * (1 - weight) * (1 - popWindow) * gain;
+  const dabWindow = smooth(60.78, 60.9, sec) * (1 - smooth(62.42, 62.58, sec));
+  const groove = GROOVE_LAYER_WEIGHT * (1 - weight) * (1 - popWindow) * (1 - dabWindow) * gain;
   return {
     breathY: oldBreath + (Math.cos(position * Math.PI * 2) * 0.07 - oldBreath) * gain,
     sway: Math.cos(position * Math.PI),

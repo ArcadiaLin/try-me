@@ -25,6 +25,7 @@ export interface ClawdPoseDelta {
   actionLookY?: number;
   selfPointOpacity?: number;
   sweatDropsProgress?: number | null;
+  dabProgress?: number;
 }
 
 /**

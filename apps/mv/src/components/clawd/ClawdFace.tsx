@@ -126,7 +126,7 @@ export const ClawdFace: React.FC<ClawdFaceProps> = ({
         </g>
       ) : mouth === "blush" || eyes === "happy" ? (
         <g
-          transform={`translate(${bodyOffsetX}, ${bodyOffsetY}) rotate(${torsoTiltDeg}, ${rotPivotX}, 8)`}
+          transform={`translate(${bodyOffsetX + lookOffset.x + actionLook.x}, ${bodyOffsetY + lookOffset.y + actionLook.y}) rotate(${torsoTiltDeg}, ${rotPivotX}, 8)`}
         >
           <g
             fill="none"
@@ -156,6 +156,17 @@ export const ClawdFace: React.FC<ClawdFaceProps> = ({
               />
             </>
           )}
+        </g>
+      ) : eyes === "closed" ? (
+        <g
+          transform={`translate(${bodyOffsetX + lookOffset.x + actionLook.x}, ${bodyOffsetY + lookOffset.y + actionLook.y}) rotate(${torsoTiltDeg}, ${rotPivotX}, 8)`}
+          fill="none"
+          stroke={eyeColor}
+          strokeWidth={0.56}
+          strokeLinecap="round"
+        >
+          <path d="M 3.4 2.72 Q 4.45 3.16 5.5 2.72" />
+          <path d="M 10.5 2.72 Q 11.55 3.16 12.6 2.72" />
         </g>
       ) : eyes === "wince" ? (
         <g

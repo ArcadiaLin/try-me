@@ -8,6 +8,10 @@ import {
   sampleStumbleLeftAction,
 } from "./stumble-left.ts";
 import { sampleVerse1IntroAction } from "./verse1-intro.ts";
+import {
+  sampleDeepBreatheAction,
+  sampleSuperstarDabAction,
+} from "./think-dab.ts";
 
 export { getStumbleLeftKinematics };
 
@@ -47,5 +51,11 @@ export function sampleClawdActionDelta(
 
     case "snappy-nod":
       return sampleSnappyNodAction(p, breathY);
+
+    case "deep-breathe":
+      return sampleDeepBreatheAction(p, timeSec, breathY);
+
+    case "superstar-dab":
+      return sampleSuperstarDabAction(p, timeSec, breathY);
   }
 }

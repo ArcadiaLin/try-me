@@ -28,6 +28,7 @@ import {
   ReadBookPerformance,
   resolveVerse1ClawdPerformance,
   SpeakLanguagesPerformance,
+  ThinkSuperstarPerformance,
   VERSE1_BASS_IN_SEC,
   VERSE1_HIGHWAY_CLOSE_SEC,
   VERSE1_PRELUDE_SIDE_X,
@@ -52,6 +53,8 @@ export interface TryMeVerse1MVProps {
   silentPreview?: boolean;
   /** 是否显示底部调试栏（默认关闭，保持舞台下方干净留空） */
   showHud?: boolean;
+  /** 局部预览起始秒数偏移（默认 0，供片段样片复用整套舞台与音频） */
+  startSec?: number;
 }
 
 function hasPrivateAudio(): boolean {
@@ -63,9 +66,12 @@ function hasPrivateAudio(): boolean {
 export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
   silentPreview = false,
   showHud = false,
+  startSec = 0,
 }) => {
-  const frame = useCurrentFrame();
+  const localFrame = useCurrentFrame();
   const { fps } = useVideoConfig();
+  const startFrame = Math.round(startSec * fps);
+  const frame = localFrame + startFrame;
   const sec = frame / fps;
   const authoredFrame = (frame * VERSE1_RHYTHM.fps) / fps;
   const beatPos = beatPosition(authoredFrame, VERSE1_RHYTHM.beatFrames);
@@ -94,7 +100,7 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
       {canPlayAudio && (
         <Html5Audio
           src={staticFile("private/audio/try-me.flac")}
-          trimBefore={0}
+          trimBefore={startFrame}
         />
       )}
 
@@ -150,6 +156,7 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
         trumpetProgress={actor.trumpetProgress ?? 0}
         beatPulse={rhythm?.pulse ?? 0}
       />
+      <ThinkSuperstarPerformance sec={sec} />
 
       {/* 全程唯一的连续 Clawd 主角实例（绝不卸载或突变尺寸；跳进洞口时裁切台面以下身体） */}
       <AbsoluteFill

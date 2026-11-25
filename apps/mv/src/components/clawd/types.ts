@@ -21,10 +21,12 @@ export type ClawdAction =
   | "read-look-up"
   | "elastic-pop"
   | "stumble-left"
-  | "snappy-nod";
+  | "snappy-nod"
+  | "deep-breathe"
+  | "superstar-dab";
 
 export type ClawdMouth = "none" | "smile" | "talk" | "yawn" | "blush";
-export type ClawdEyes = "normal" | "happy" | "wince";
+export type ClawdEyes = "normal" | "happy" | "wince" | "closed";
 export type ClawdOutfit = "none" | "swag" | "gentleman" | "party";
 export type ClawdProp =
   | "none"
@@ -68,6 +70,8 @@ export interface ClawdPose {
   handKeyboardProgress?: number;
   /** 右手移向胸前右侧稳稳握住小号的连续进度 (0 ~ 1) */
   handTrumpetProgress?: number;
+  /** L014 Superstar 卡点 Dab 动作进度 (0 ~ 1)：右臂斜上伸直、左臂斜跨挡在脸前 */
+  dabProgress?: number;
   /** 弹键盘时左手在低音区（A3 下切 vs B♭3 基准）的水平微移 (-1 ~ 0) */
   leftKeyShiftX?: number;
   /** 弹键盘时左手下按深度 (0 ~ 1) */
