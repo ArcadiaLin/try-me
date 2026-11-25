@@ -38,6 +38,7 @@ export const VERSE1_LYRIC_CUES: readonly LyricTerminalCue[] = [
   { id: "L065", startSec: 52.576, endSec: 53.549, text: "ほら！", mode: "ghost" },
   { id: "L013", startSec: 55.168, endSec: 58.317, text: "But sometimes if I think too hard", mode: "log" },
   { id: "L014", startSec: 58.317, endSec: 62.212, text: "I forget that I'm a superstar", mode: "log" },
+  { id: "L015", startSec: 62.689, endSec: 64.982, text: "Try me! Try me!", mode: "ghost" },
 ];
 
 /** L064 缩入终端后的待命状态（取代原地面 `[ > _ STANDBY ]` 胶囊） */

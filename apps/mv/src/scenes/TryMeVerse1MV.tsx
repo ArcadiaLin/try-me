@@ -21,6 +21,7 @@ import {
   Verse1Hud,
 } from "../components/environment";
 import {
+  ChorusTryMePerformance,
   ExitTerminalPerformance,
   HeyBubblePerformance,
   IntroSpotlightPerformance,
@@ -157,6 +158,7 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
         beatPulse={rhythm?.pulse ?? 0}
       />
       <ThinkSuperstarPerformance sec={sec} />
+      <ChorusTryMePerformance sec={sec} />
 
       {/* 全程唯一的连续 Clawd 主角实例（绝不卸载或突变尺寸；跳进洞口时裁切台面以下身体） */}
       <AbsoluteFill
@@ -171,7 +173,7 @@ export const TryMeVerse1MV: React.FC<TryMeVerse1MVProps> = ({
             position: "absolute",
             left: "50%",
             bottom: 162,
-            transform: `translateX(-50%) translateX(${placement.x}px) translateY(${placement.y}px) scale(${placement.scale})`,
+            transform: `translateX(-50%) translateX(${placement.x}px) translateY(${placement.y}px) rotate(${placement.rotateDeg ?? 0}deg) scale(${placement.scale})`,
             transformOrigin: "bottom center",
             opacity: placement.opacity,
           }}

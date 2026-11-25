@@ -1,4 +1,8 @@
 export {
+  ChorusLyrics,
+  type ChorusLyricsProps,
+} from "./ChorusLyrics";
+export {
   getContributionLevel,
   GITHUB_HEAT_COLORS,
   GithubHeatmapCard,

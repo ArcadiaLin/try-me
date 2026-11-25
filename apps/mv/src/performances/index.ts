@@ -2,6 +2,14 @@ import { resolveClawdPose } from "../animation/clawd/blend";
 import { HEY_START_SEC } from "../timeline/hey-wave";
 import type { ClawdRhythmMotion } from "../timeline/verse1";
 import {
+  ChorusTryMePerformance,
+  L015_END_SEC,
+  L015_LAND_HIT_SEC,
+  L015_START_SEC,
+  resolveChorusTryMeActor,
+  resolveChorusTryMePlacement,
+} from "./ChorusTryMe";
+import {
   ExitTerminalPerformance,
   resolveExitTerminalActor,
   resolveExitTerminalPlacement,
@@ -53,9 +61,13 @@ import type {
 } from "./types";
 
 export {
+  ChorusTryMePerformance,
   ExitTerminalPerformance,
   HeyBubblePerformance,
   IntroSpotlightPerformance,
+  L015_END_SEC,
+  L015_LAND_HIT_SEC,
+  L015_START_SEC,
   PlayTrumpetPerformance,
   ReadBookPerformance,
   resolvePlayKeyboardActor,
@@ -129,10 +141,14 @@ export function resolveVerse1ClawdPerformance(
     // 49.892s – 54.450s: L011–L065 迎接小号吹奏与 ほら！回中回弹
     placement = resolvePlayTrumpetPlacement();
     actor = resolvePlayTrumpetActor(sec, authoredFrame, rhythm, baseActor);
-  } else {
+  } else if (sec < L015_START_SEC) {
     // 54.450s – 62.689s: L065 收尾放松闭眼深呼吸 → L013 浮动思考气泡 → L014 Superstar 卡点 Dab
     placement = resolveThinkSuperstarPlacement();
     actor = resolveThinkSuperstarActor(sec, baseActor);
+  } else {
+    // 62.689s – 64.982s: L015 首次副歌开场（超快速缩回终端 → 屏幕右下角近景探头 → 跳回中央摆 Pose）
+    placement = resolveChorusTryMePlacement(sec);
+    actor = resolveChorusTryMeActor(sec, rhythm, baseActor);
   }
 
   // 统一在编排出口生成最终 ClawdPose，确保全片姿态管线唯一

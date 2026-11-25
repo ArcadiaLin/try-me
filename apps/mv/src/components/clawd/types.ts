@@ -72,6 +72,8 @@ export interface ClawdPose {
   handTrumpetProgress?: number;
   /** L014 Superstar 卡点 Dab 动作进度 (0 ~ 1)：右臂斜上伸直、左臂斜跨挡在脸前 */
   dabProgress?: number;
+  /** L015 底部近景扒窗探头双拳收至胸前内侧的进度 (0 ~ 1) */
+  peekPawsProgress?: number;
   /** 弹键盘时左手在低音区（A3 下切 vs B♭3 基准）的水平微移 (-1 ~ 0) */
   leftKeyShiftX?: number;
   /** 弹键盘时左手下按深度 (0 ~ 1) */

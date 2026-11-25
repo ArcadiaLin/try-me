@@ -10,6 +10,8 @@ export interface ClawdStagePlacement {
   x: number;
   y: number;
   scale: number;
+  /** 可选整体旋转角度（度，例如 L015 屏幕右下角近景斜探头与大跳翻身） */
+  rotateDeg?: number;
   opacity: number;
   zIndex: number;
   /** 可选舞台容器裁切（例如 L064 扎进左侧台面洞口时裁掉台面以下身体） */

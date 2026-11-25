@@ -35,12 +35,12 @@ export {
 
 export type Verse1PlanId = (typeof VERSE1_RHYTHM.plans)[number]["id"];
 
-/** 截至 L014 + L069 间奏结束、L015 副歌开始前的完整时长：62.689s (3761 帧 @ 60fps) */
-export const VERSE1_MV_DURATION_SEC = 62.689;
+/** 截至 L015 首次副歌开场结束的完整时长：64.982s (3899 帧 @ 60fps) */
+export const VERSE1_MV_DURATION_SEC = 64.982;
 export const VERSE1_MV_FPS = VIDEO_FPS;
 export const VERSE1_MV_FRAMES = Math.round(
   VERSE1_MV_DURATION_SEC * VERSE1_MV_FPS,
-); // 3761
+); // 3899
 
 export interface Verse1EventMeta {
   id: string;
@@ -171,6 +171,13 @@ export const VERSE1_EVENTS: readonly Verse1EventMeta[] = [
     endSec: 62.689,
     lyric: "(间奏 — 回归基础站姿迎接副歌)",
     summary: "Dab 收势完毕，回归干净待机站姿衔接 L015",
+  },
+  {
+    id: "L015",
+    startSec: 62.689,
+    endSec: 64.982,
+    lyric: "Try me! Try me!",
+    summary: "超快速缩回终端 → 右下角近景探头（不招手）→ 缩回后从视频底边 3/4 终端宽度双拳扒窗钻出 + ±30° 错落卡通歌词",
   },
 ] as const;
 

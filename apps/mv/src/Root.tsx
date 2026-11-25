@@ -9,11 +9,13 @@ import { StageFxLabComposition } from "./scenes/StageFxLab";
 import { ClawdMotionLabComposition } from "./scenes/ClawdMotionLab";
 import { PreludeLabComposition } from "./scenes/PreludeLab";
 import { ThinkDabLabComposition } from "./scenes/ThinkDabLab";
+import { ChorusTryMeLabComposition } from "./scenes/ChorusTryMeLab";
 
 export const RemotionRoot: React.FC = () => {
   return (
     <>
       <TryMeVerse1MVComposition />
+      <ChorusTryMeLabComposition />
       <ThinkDabLabComposition />
       <PreludeLabComposition />
       <StageFxLabComposition />

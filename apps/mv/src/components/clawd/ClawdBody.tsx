@@ -50,9 +50,36 @@ export function computeHandBoxes(pose: ClawdPose) {
   const hBook = pose.handHoldProgress;
   const hKey = pose.handKeyboardProgress ?? 0;
   const hTrumpet = pose.handTrumpetProgress ?? 0;
-  const h = Math.max(hBook, hKey, hTrumpet);
+  const hPeekPaws = pose.peekPawsProgress ?? 0;
+  const h = Math.max(hBook, hKey, hTrumpet, hPeekPaws);
   const handWidth = 2.0;
   const handHeight = interpolate(h, [0, 1], [2.0, 1.85]);
+
+  if (hPeekPaws > 0.001) {
+    // 双前肢往身体内侧收进 3/4（留 1/4 探出躯干外沿），举在胸前偏下扒住视频窗口底边
+    const pawW = interpolate(hPeekPaws, [0, 1], [2.0, 2.24]);
+    const pawH = interpolate(hPeekPaws, [0, 1], [2.0, 2.15]);
+    const pawY = interpolate(
+      hPeekPaws,
+      [0, 1],
+      [4 + pose.bodyOffsetY, 4.68 + pose.bodyOffsetY],
+    );
+    return {
+      h: hPeekPaws,
+      left: {
+        x: interpolate(hPeekPaws, [0, 1], [0, 1.44]),
+        y: pawY,
+        width: pawW,
+        height: pawH,
+      },
+      right: {
+        x: interpolate(hPeekPaws, [0, 1], [14, 12.32]),
+        y: pawY,
+        width: pawW,
+        height: pawH,
+      },
+    };
+  }
 
   if (hTrumpet > hBook && hTrumpet > hKey && hTrumpet > 0) {
     // 握持小号时：左手留在躯干左侧保持平衡，右手连续平移至胸前右侧稳稳托握小号号管
@@ -332,9 +359,11 @@ export const ClawdHandsOverlay: React.FC<ClawdBodyProps> = ({
 
   const { bodyOffsetX, bodyOffsetY, torsoTiltDeg, rotPivotX } = pose;
   const upperBodyTransform = `translate(${bodyOffsetX}, 0) rotate(${torsoTiltDeg}, ${rotPivotX}, 8)`;
-  const strokeW = Math.max(0.24, outlineWidth * 1.5);
+  // 与 ClawdBody 外轮廓（双倍居中描边被实体层遮去内半边 → 实际外露厚度 = outlineWidth）保持完全一致
+  const strokeW = outlineWidth;
+  const halfStroke = outlineWidth * 0.5;
 
-  // L014 Superstar Dab：左前爪抬起并斜跨挡在脸前下方（缩短手臂保持短萌比例，100% 实体填充 + 深墨轮廓）
+  // L014 Superstar Dab：左前爪抬起并斜跨挡在脸前下方（paintOrder="stroke fill" 保证外露轮廓与身体同宽）
   if (dab > 0.001) {
     const armLen = interpolate(dab, [0, 1], [2.0, 4.2]);
     const armH = 1.76;
@@ -355,8 +384,9 @@ export const ClawdHandsOverlay: React.FC<ClawdBodyProps> = ({
             height={armH}
             fill={bodyColor}
             stroke={outlineColor}
-            strokeWidth={strokeW}
+            strokeWidth={outlineWidth * 2}
             strokeLinejoin="round"
+            paintOrder="stroke fill"
           />
         </g>
       </g>
@@ -375,7 +405,7 @@ export const ClawdHandsOverlay: React.FC<ClawdBodyProps> = ({
 
   return (
     <g transform={upperBodyTransform}>
-      {/* 左手：身体外侧无缝衔接段 + 躯干内侧重合描边段 */}
+      {/* 左手：身体外侧无缝衔接段 + 躯干内侧重合描边段（描边中心外移 halfStroke，与外侧黑边 0 错位、等粗） */}
       <rect
         x={hands.left.x}
         y={hands.left.y}
@@ -383,21 +413,21 @@ export const ClawdHandsOverlay: React.FC<ClawdBodyProps> = ({
         height={hands.left.height}
         fill={bodyColor}
       />
-      {leftOverlapW > 0.02 && (
+      {outlineWidth > 0 && leftOverlapW > 0.02 && (
         <path
           d={
             hands.left.x > 2.02
-              ? `M ${leftOverlapX0} ${hands.left.y} H ${leftOverlapX1} V ${
-                  hands.left.y + hands.left.height
-                } H ${leftOverlapX0} Z`
-              : `M ${leftOverlapX0} ${hands.left.y} H ${leftOverlapX1} V ${
-                  hands.left.y + hands.left.height
+              ? `M ${leftOverlapX0 - halfStroke} ${hands.left.y - halfStroke} H ${leftOverlapX1 + halfStroke} V ${
+                  hands.left.y + hands.left.height + halfStroke
+                } H ${leftOverlapX0 - halfStroke} Z`
+              : `M ${leftOverlapX0} ${hands.left.y - halfStroke} H ${leftOverlapX1 + halfStroke} V ${
+                  hands.left.y + hands.left.height + halfStroke
                 } H ${leftOverlapX0}`
           }
           fill="none"
           stroke={outlineColor}
           strokeWidth={strokeW}
-          strokeLinecap="square"
+          strokeLinecap="butt"
           strokeLinejoin="round"
         />
       )}
@@ -410,21 +440,21 @@ export const ClawdHandsOverlay: React.FC<ClawdBodyProps> = ({
         height={hands.right.height}
         fill={bodyColor}
       />
-      {rightOverlapW > 0.02 && (
+      {outlineWidth > 0 && rightOverlapW > 0.02 && (
         <path
           d={
             hands.right.x + hands.right.width < 13.98
-              ? `M ${rightOverlapX1} ${hands.right.y} H ${rightOverlapX0} V ${
-                  hands.right.y + hands.right.height
-                } H ${rightOverlapX1} Z`
-              : `M ${rightOverlapX1} ${hands.right.y} H ${rightOverlapX0} V ${
-                  hands.right.y + hands.right.height
+              ? `M ${rightOverlapX1 + halfStroke} ${hands.right.y - halfStroke} H ${rightOverlapX0 - halfStroke} V ${
+                  hands.right.y + hands.right.height + halfStroke
+                } H ${rightOverlapX1 + halfStroke} Z`
+              : `M ${rightOverlapX1} ${hands.right.y - halfStroke} H ${rightOverlapX0 - halfStroke} V ${
+                  hands.right.y + hands.right.height + halfStroke
                 } H ${rightOverlapX1}`
           }
           fill="none"
           stroke={outlineColor}
           strokeWidth={strokeW}
-          strokeLinecap="square"
+          strokeLinecap="butt"
           strokeLinejoin="round"
         />
       )}
